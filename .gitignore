@@ -1,0 +1,11 @@
+# Node modules
+esports-ranking/node_modules/
+
+# Build output
+dist/
+
+# Environment files
+.env
+
+# VSCode settings
+.vscode/
