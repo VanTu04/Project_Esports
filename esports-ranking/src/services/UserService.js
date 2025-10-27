@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const models = require('../models');
 const jwt_token = require('../middlewares/jwt_token');
+const MailHelper = require('../helper/MailHelper');
 
 exports.register = async (data) => {
 
@@ -76,4 +77,38 @@ exports.login = async (data) => {
   const refreshToken = jwt_token.signRefreshToken(user);
 
   return { accessToken, refreshToken };
+};
+
+exports.sendOtp = async (email, otp) => {
+  try {
+    await MailHelper.sendOtpEmail(email, otp);
+    return true;
+  } catch (error) {
+    console.error("Lỗi gửi mail:", error);
+    throw new Error("Gửi email thất bại");
+  }
+}
+
+exports.forgetPassword = async (data) => {
+
+}
+
+
+exports.getByEmail = async (email) => {
+  return models.User.findOne({ where: { email } });
+};
+
+exports.update = async (id, data) => {
+  return models.User.update(data, { where: { id } });
+};
+
+exports.updateOTP = async (id, otp, expiresAt) => {
+  return models.User.update(
+    {
+      otp,
+      updated_date: new Date(),
+      expires: expiresAt,
+    },
+    { where: { id } }
+  );
 };

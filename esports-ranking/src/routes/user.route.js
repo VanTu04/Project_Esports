@@ -5,11 +5,18 @@ const roles = require('../constant/roles');
 
 router.post("/register", usersController.register);
 router.post("/login", usersController.login);
-// router.post("/send-verification-email", usersController.sendVerify);
-// router.post("/forgot-pass", usersController.forgetPassword);
+
+// send mail
+router.post("/send-verification-email", usersController.sendOtp);
+
+//verify otp
+router.post('/check-otp', usersController.checkOTP);
+
+
+router.post("/forgot-pass", usersController.forgetPassword);
 // router.post('/change-password', checkAccessToken, usersController.changePassword);
 // router.post('/login-with-google', usersController.loginWithGoogle);
-// router.post('/check-otp', usersController.checkOTP);
+
 // router.post('/refresh-token', usersController.refreshToken);
 // router.put('/authenticate/user', checkRole([roles.USER]), usersController.authenticate);
 router.get('/home', usersController.home);
