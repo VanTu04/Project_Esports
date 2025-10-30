@@ -1,45 +1,72 @@
 const jwt = require('jsonwebtoken');
-const { User, Investor } = require('../models');
+const models = require('../models');
 const { responseSuccess, responseWithError } = require("../helper/messageResponse");
 const { ErrorCodes } = require('../constant/ErrorCodes');
 
 //checkAccessToken
 exports.checkAccessToken = async (req, res, next) => {
   try {
-    if (!req.headers.authorization) {
-      return res.json(responseWithError(ErrorCodes.ERROR_CODE_UNAUTHORIZED, "Mã thông báo được cung cấp không hợp lệ hoặc đã hết hạn!"));
-    } else {
-      const token = req.headers.authorization.split(" ")[1];
-      const decodedToken = jwt.verify(token, process.env.JWT_ACCESS_TOKEN_SECRET);
-
-      if (!decodedToken) {
-        return null
-      }
-      let user = await models.users.findOne({
-        where: {
-          id: decodedToken.id,
-        },
-        attributes: [
-          'id',
-          'full_name',
-          'role',
-          'email',
-          'username',
-        ]
-      });
-      user = user ? {
-        id: user.id,
-        full_name: user.full_name,
-        email: user.email,
-        username: user.username,
-        role: user.role,
-        is_user: 1
-      } : null
-      req.user = user;
-      next();
+    // Kiểm tra header Authorization
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json(
+        responseWithError(
+          ErrorCodes.ERROR_CODE_UNAUTHORIZED,
+          'Mã thông báo không hợp lệ hoặc thiếu!'
+        )
+      );
     }
+
+    // Lấy token ra
+    const token = authHeader.split(' ')[1];
+
+    // Giải mã token
+    let decodedToken;
+    try {
+      decodedToken = jwt.verify(token, process.env.JWT_ACCESS_TOKEN_SECRET);
+    } catch (err) {
+      return res.status(401).json(
+        responseWithError(
+          ErrorCodes.ERROR_CODE_UNAUTHORIZED,
+          'Mã thông báo đã hết hạn hoặc không hợp lệ!'
+        )
+      );
+    }
+
+    // Lấy thông tin user từ DB
+    const user = await models.User.findOne({
+      where: { id: decodedToken.id },
+      attributes: ['id', 'full_name', 'role', 'email', 'username'],
+    });
+
+    if (!user) {
+      return res.status(401).json(
+        responseWithError(
+          ErrorCodes.ERROR_CODE_UNAUTHORIZED,
+          'Không tìm thấy người dùng!'
+        )
+      );
+    }
+
+    // Gắn user vào request để dùng ở controller khác
+    req.user = {
+      id: user.id,
+      full_name: user.full_name,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      is_user: true,
+    };
+
+    next(); // Quan trọng: gọi next() để middleware kết thúc hợp lệ
   } catch (err) {
-    return res.json(responseWithError(ErrorCodes.ERROR_CODE_UNAUTHORIZED, "Mã thông báo được cung cấp không hợp lệ hoặc đã hết hạn!", err.message));
+    return res.status(401).json(
+      responseWithError(
+        ErrorCodes.ERROR_CODE_UNAUTHORIZED,
+        'Token không hợp lệ hoặc hết hạn!',
+        err.message
+      )
+    );
   }
 };
 
@@ -70,61 +97,81 @@ exports.checkAccessTokenorNot = async (req, res, next) => {
 exports.checkRole = (roles = []) => {
   return async (req, res, next) => {
     try {
-      if (!req.headers.authorization) {
-        return res.json(responseWithError(ErrorCodes.ERROR_CODE_UNAUTHORIZED, "Mã thông báo được cung cấp không hợp lệ hoặc đã hết hạn!"));
-      } else {
-        const token = req.headers.authorization.split(" ")[1];
-        const decodedToken = jwt.verify(token, process.env.JWT_ACCESS_TOKEN_SECRET);
-        if (!decodedToken) {
-          return null
-        }
-        let investors = await models.investors.findOne({
-          where: {
-            user_id: decodedToken.id,
-            status: 1,
-            deleted: 0
-          },
-          attributes: [
-            'id',
-          ]
-        });
-        let user = await models.users.findOne({
-          where: {
-            id: decodedToken.id,
-          },
-          attributes: [
-            'id',
-            'full_name',
-            'role',
-            'email',
-            'username',
-            'phone'
-          ]
-        });
-        user = user ? {
-          id: user.id,
-          full_name: user.full_name,
-          email: user.email,
-          username: user.username,
-          role: user.role,
-        } : null
-        req.user = user;
+      // Kiểm tra có token không
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json(
+          responseWithError(
+            ErrorCodes.ERROR_CODE_UNAUTHORIZED,
+            'Mã thông báo không hợp lệ hoặc thiếu!'
+          )
+        );
       }
-      if (roles.length == 0) {
-        return next()
-      } else {
-        if (roles.includes(req.user.role)) {
-          return next();
-        }
-        return res.json(responseWithError(ErrorCodes.ERROR_CODE_NOT_ALLOWED, "Not Allowed!"));
+
+      // Lấy token
+      const token = authHeader.split(' ')[1];
+
+      // Giải mã token
+      let decodedToken;
+      try {
+        decodedToken = jwt.verify(token, process.env.JWT_ACCESS_TOKEN_SECRET);
+      } catch (err) {
+        return res.status(401).json(
+          responseWithError(
+            ErrorCodes.ERROR_CODE_UNAUTHORIZED,
+            'Mã thông báo đã hết hạn hoặc không hợp lệ!'
+          )
+        );
       }
+
+      // Tìm user tương ứng
+      const user = await models.User.findOne({
+        where: { id: decodedToken.id },
+        attributes: ['id', 'full_name', 'role', 'email', 'username', 'phone'],
+      });
+
+      if (!user) {
+        return res.status(401).json(
+          responseWithError(
+            ErrorCodes.ERROR_CODE_UNAUTHORIZED,
+            'Không tìm thấy người dùng!'
+          )
+        );
+      }
+
+      req.user = {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        phone: user.phone,
+      };
+
+      // Kiểm tra quyền (nếu có truyền roles)
+      if (roles.length > 0 && !roles.includes(req.user.role)) {
+        return res.status(403).json(
+          responseWithError(
+            ErrorCodes.ERROR_CODE_NOT_ALLOWED,
+            'Không có quyền truy cập!'
+          )
+        );
+      }
+
+      // Cho phép đi tiếp
+      next();
+    } catch (err) {
+      console.error('checkRole error:', err);
+      return res.status(401).json(
+        responseWithError(
+          ErrorCodes.ERROR_CODE_UNAUTHORIZED,
+          'Lỗi xác thực token!',
+          err.message
+        )
+      );
     }
-    catch (err) {
-      console.log(err);
-      return res.json(responseWithError(ErrorCodes.ERROR_CODE_UNAUTHORIZED, "Mã thông báo được cung cấp không hợp lệ hoặc đã hết hạn!", err.message));
-    }
-  }
-}
+  };
+};
 
 //checkRefreshToken
 exports.checkRefreshToken = (req, res, next) => {

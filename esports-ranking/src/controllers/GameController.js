@@ -26,6 +26,7 @@ exports.getGameById = async (req, res) => {
 
 exports.createGame = async (req, res) => {
   try {
+    const data = req.body;
     if (!data.game_name) {
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Tên game không được để trống'));
     }
@@ -33,7 +34,7 @@ exports.createGame = async (req, res) => {
     if (existingGame) {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_EXIST, 'Game đã tồn tại'));
     }
-    const result = await gameService.createGame(req.body);
+    const result = await gameService.createGame(data);
     return res.json(responseSuccess(result, 'Tạo game thành công'));
   } catch (error) {
     console.error('createGame error', error);
@@ -43,17 +44,23 @@ exports.createGame = async (req, res) => {
 
 exports.updateGame = async (req, res) => {
   try {
+    const { id } = req.params;
     const data = req.body;
     if (!data.game_name) {
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Tên game không được để trống'));
     }
-
-    const existingGame = await gameService.getGameById(data.id);
+    console.log('id', id);
+    const existingGame = await gameService.getGameById(id);
     if (!existingGame) {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Game không tồn tại'));
     }
+    console.log('existingGame', existingGame);
     const result = await gameService.updateGame(existingGame, data);
-    return res.json(responseSuccess(result, 'Cập nhật game thành công'));
+    if(result === true) {
+      return res.json(responseSuccess(result, 'Cập nhật game thành công'));
+    } else {
+      return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Cập nhật game thất bại'));
+    }
   } catch (error) {
     console.error('updateGame error', error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));

@@ -23,24 +23,22 @@ exports.getGameByName = async (name) => {
 
 exports.updateGame = async (game, data) => {
   await game.update({
-    name: data.name || game.name,
+    game_name: data.game_name || game.game_name,
     description: data.description || game.description,
-    genre: data.genre || game.genre,
-    image: data.image || game.image,
-    updated_by: data.updated_by || game.updated_by,
+    status: data.status || game.status,
   });
-
   return true;
 };
 
 exports.deleteGame = async (game) => {
-  await game.update({ status: 0 });
+  await game.update({ status: "INACTIVE" });
   return true;
 };
 
 exports.getAllGame = async (status) => {
   const whereCondition = {};
 
+  console.log('status', status);
   if (status !== undefined && status !== null && status !== '') {
     whereCondition.status = status;
   }
