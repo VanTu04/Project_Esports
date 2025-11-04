@@ -9,7 +9,7 @@ module.exports = (sequelize) => {
       primaryKey: true
     },
     game_name: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(191),
       allowNull: false,
       unique: true
     },
