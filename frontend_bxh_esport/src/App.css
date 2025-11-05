@@ -1,0 +1,19 @@
+/* App specific styles */
+.App {
+  text-align: center;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 8px;
+  margin-top: 5px;
+}
+
+.error-message {
+  color: red;
+  font-size: 0.8em;
+}

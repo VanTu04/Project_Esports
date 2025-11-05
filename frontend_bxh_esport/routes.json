@@ -1,0 +1,11 @@
+{
+  "/tournaments/featured": "/featured",
+  "/tournaments/upcoming": "/upcoming",
+  "/tournaments/ongoing": "/ongoing",
+  "/tournaments/completed": "/completed",
+  "/users/profile": "/users/1",
+  "/auth/me": "/users/1",
+  "/auth/login": "/users/1",
+  "/blockchain/transactions": "/blockchain_transactions",
+  "/blockchain/wallet": "/wallets/1"
+}
