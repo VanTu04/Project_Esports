@@ -1,21 +1,19 @@
-const ErrorCodes = require('../constant/ErrorCodes');
+import { ErrorCodes } from '../constant/ErrorCodes.js';
 
-function responseSuccess(data, message = 'Success') {
-    return {
-        code: 0,
-        status: ErrorCodes.ERROR_CODE_SUCCESS,
-        message,
-        data,
-    };
+export function responseSuccess(data, message = 'Success') {
+  return {
+    code: 0,
+    status: ErrorCodes.ERROR_CODE_SUCCESS,
+    message,
+    data,
+  };
 }
 
-function responseWithError(errorCode, message = 'Error', data={} ) {
-    return {
-        code: 1,
-        status: errorCode,
-        message,
-        errors: data, 
-    };
+export function responseWithError(errorCode, message = 'Error', data = {}) {
+  return {
+    code: 1,
+    status: errorCode,
+    message,
+    errors: data,
+  };
 }
-
-module.exports = { responseSuccess, responseWithError }

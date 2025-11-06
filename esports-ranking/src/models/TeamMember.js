@@ -1,7 +1,7 @@
 'use strict';
-const { Sequelize, DataTypes } = require('sequelize');
+import { DataTypes } from 'sequelize';
 
-module.exports = (sequelize) => {
+export default (sequelize) => {
   const TeamMember = sequelize.define('TeamMember', {
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     team_id: { type: DataTypes.INTEGER, allowNull: false },

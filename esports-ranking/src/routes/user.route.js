@@ -1,7 +1,9 @@
-const express = require('express');
+import express from 'express';
+import * as usersController from '../controllers/UserController.js';
+import roles from '../constant/roles.js';
+import { checkRole } from '../middlewares/jwt_token.js';
+
 const router = express.Router();
-const usersController = require('../controllers/UserController');
-const roles = require('../constant/roles');
 
 router.post("/register", usersController.register);
 router.post("/login", usersController.login);
@@ -21,4 +23,10 @@ router.post("/forgot-pass", usersController.forgetPassword);
 // router.put('/authenticate/user', checkRole([roles.USER]), usersController.authenticate);
 router.get('/home', usersController.home);
 
-module.exports = router;
+router.post('/check-exist-email', usersController.checkExistEmail);
+router.post('/check-exist-username', usersController.checkExistUsername);
+
+//ADMIN
+router.post('/new-account', checkRole([roles.ADMIN]), usersController.createNewAccountByAdmin);
+
+export default router;

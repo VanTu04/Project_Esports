@@ -1,12 +1,13 @@
-const nodemailer = require('nodemailer');
-require('dotenv').config();
+import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
+dotenv.config();
 
 class MailHelper {
   constructor() {
     this.transporter = nodemailer.createTransport({
       host: process.env.MAIL_HOST,
       port: process.env.MAIL_PORT,
-      secure: false, // dùng TLS với port 587
+      secure: false, // TLS với port 587
       auth: {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
@@ -24,10 +25,10 @@ class MailHelper {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log("Email sent:", info.response);
+      console.log('Email sent:', info.response);
       return true;
     } catch (error) {
-      console.error("Send mail error:", error);
+      console.error('Send mail error:', error);
       return false;
     }
   }
@@ -42,9 +43,8 @@ class MailHelper {
         <p>Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
       </div>
     `;
-    return this.sendMail(to, "Mã OTP đặt lại mật khẩu", html);
+    return this.sendMail(to, 'Mã OTP đặt lại mật khẩu', html);
   }
-
 }
 
-module.exports = new MailHelper();
+export default new MailHelper();

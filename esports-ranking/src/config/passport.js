@@ -1,7 +1,9 @@
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const { User } = require('../models');
-require('dotenv').config();
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import dotenv from 'dotenv';
+import { User } from '../models/index.js';
+
+dotenv.config();
 
 passport.use(
   new GoogleStrategy(
@@ -17,8 +19,9 @@ passport.use(
         const google_id = profile.id;
         const avatar = profile.photos[0]?.value || null;
 
-        // Tìm hoặc tạo user mới
+        // --- Tìm hoặc tạo user ---
         let user = await User.findOne({ where: { email } });
+
         if (!user) {
           user = await User.create({
             username: full_name.replace(/\s+/g, '').toLowerCase(),
@@ -57,4 +60,4 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
-module.exports = passport;
+export default passport;

@@ -1,10 +1,10 @@
-const bcrypt = require('bcryptjs');
-const { Op } = require('sequelize');
-const models = require('../models');
-const jwt_token = require('../middlewares/jwt_token');
-const MailHelper = require('../helper/MailHelper');
+import bcrypt from 'bcryptjs';
+import { Op } from 'sequelize';
+import models from '../models/index.js';
+import * as jwt_token from '../middlewares/jwt_token.js';
+import * as MailHelper from '../helper/MailHelper.js';
 
-exports.register = async (data) => {
+export const register = async (data) => {
 
   if (!data.email || !data.username || !data.password || !data.full_name) {
     throw new Error('Thiếu thông tin bắt buộc: email, username, full_name, password');
@@ -46,7 +46,41 @@ exports.register = async (data) => {
   } };
 };
 
-exports.login = async (data) => {
+export const createAccount = async (data, adminId) => {
+  let t;
+  try {
+    t = await models.sequelize.transaction();
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    console.log("Data:", data);
+    const newUser = await models.User.create({
+      username: data.username,
+      full_name: data.full_name,
+      email: data.email,
+      password: hashedPassword,
+      role: data.role,
+      status: 1,
+      deleted: 0,
+      created_by: adminId
+    }, { transaction: t });
+
+    const newTeam = await models.Team.create({
+      name: data.team_name,
+      leader_id: data.leader_id,
+      status: 1,
+      create_by: adminId
+    }, { transaction: t });
+
+    await t.commit();
+    return true;
+
+  } catch (error) {
+    await t.rollback();
+    console.error('createAccount error:', error);
+    return false;
+  }
+};
+
+export const login = async (data) => {
   if (!data.account || !data.password) {
     throw new Error('Thiếu thông tin đăng nhập!');
   }
@@ -79,7 +113,7 @@ exports.login = async (data) => {
   return { accessToken, refreshToken };
 };
 
-exports.sendOtp = async (email, otp) => {
+export const sendOtp = async (email, otp) => {
   try {
     await MailHelper.sendOtpEmail(email, otp);
     return true;
@@ -89,20 +123,24 @@ exports.sendOtp = async (email, otp) => {
   }
 }
 
-exports.forgetPassword = async (data) => {
+export const forgetPassword = async (data) => {
 
 }
 
 
-exports.getByEmail = async (email) => {
+const getByEmail = async (email) => {
   return models.User.findOne({ where: { email } });
 };
 
-exports.update = async (id, data) => {
+const getByUsername = async (username) => {
+  return models.User.findOne({ where: { username } });
+};
+
+export const update = async (id, data) => {
   return models.User.update(data, { where: { id } });
 };
 
-exports.updateOTP = async (id, otp, expiresAt) => {
+export const updateOTP = async (id, otp, expiresAt) => {
   return models.User.update(
     {
       otp,
@@ -111,4 +149,19 @@ exports.updateOTP = async (id, otp, expiresAt) => {
     },
     { where: { id } }
   );
+};
+
+export const checkExistEmail = async (email) => {
+  const existUser = await getByEmail(email);
+  console.log('existUser', existUser);
+  if(existUser) {
+    return true;
+  }
+  return false;
+};
+
+export const checkExistUsername = async (username) => {
+  const existUser = await getByUsername(username);
+  console.log('existUser', existUser);
+  return !!existUser; // true nếu tồn tại, false nếu không
 };

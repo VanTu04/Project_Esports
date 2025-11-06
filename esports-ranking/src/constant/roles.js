@@ -4,4 +4,5 @@ const roles = {
   TEAM_MANAGER: 3,
   ADMIN: 4
 };
-module.exports = roles;
+
+export default roles;
