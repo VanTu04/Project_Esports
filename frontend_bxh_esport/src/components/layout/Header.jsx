@@ -4,15 +4,11 @@ import { Bars3Icon, BellIcon, UserCircleIcon } from "@heroicons/react/24/outline
 import { Menu, Transition } from "@headlessui/react";
 import { useAuth } from "../../context/AuthContext";
 import Button from '../common/Button';
-
-// Giả sử bạn có 1 file apiService để gọi api
-import apiService from "../../services/authService"; // hoặc axios instance
+import apiService from "../../services/authService";
 
 const Header = ({ onMenuClick }) => {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth(); // Lấy user từ AuthContext
 
-  // state để lưu dữ liệu lấy từ api
-  const [user, setUser] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [games, setGames] = useState([]);
   const [seasons, setSeasons] = useState([]);
@@ -23,42 +19,34 @@ const Header = ({ onMenuClick }) => {
 
   const dropdownRef = useRef(null);
 
-  // Lấy thông tin user khi component mount
-  useEffect(() => {
-    async function fetchUser() {
-      try {
-        const res = await apiService.get('/user');
-        setUser(res.data);
-      } catch (error) {
-        console.error('Lỗi lấy user:', error);
-      }
-    }
-    fetchUser();
-  }, []);
-
   // Lấy số lượng thông báo chưa đọc
   useEffect(() => {
+    if (!user) return; // Chỉ fetch khi đã login
+    
     async function fetchUnreadCount() {
       try {
         const res = await apiService.get('/notifications/unread-count');
-        setUnreadCount(res.data.count);
+        setUnreadCount(res.data.count || 0);
       } catch (error) {
         console.error('Lỗi lấy số thông báo:', error);
       }
     }
     fetchUnreadCount();
 
-    // Bạn có thể thêm polling hoặc websocket để cập nhật realtime
-  }, []);
+    // Polling mỗi 30 giây để cập nhật thông báo
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   // Lấy danh sách games
   useEffect(() => {
     async function fetchGames() {
       try {
         const res = await apiService.get('/games');
-        setGames(res.data);
+        setGames(res.data || []);
       } catch (error) {
         console.error('Lỗi lấy games:', error);
+        setGames([]);
       }
     }
     fetchGames();
@@ -69,9 +57,10 @@ const Header = ({ onMenuClick }) => {
     async function fetchSeasons() {
       try {
         const res = await apiService.get('/seasons');
-        setSeasons(res.data);
+        setSeasons(res.data || []);
       } catch (error) {
         console.error('Lỗi lấy seasons:', error);
+        setSeasons([]);
       }
     }
     fetchSeasons();
@@ -156,7 +145,6 @@ const Header = ({ onMenuClick }) => {
                       }`}
                     >
                       <span>{game.name}</span>
-                      {/* Mũi tên chỉ hiện khi hover vào game */}
                       <svg
                         className="w-4 h-4 ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                         fill="none"
@@ -168,7 +156,6 @@ const Header = ({ onMenuClick }) => {
                       </svg>
                     </button>
 
-                    {/* Dropdown mùa giải */}
                     {openGame === game.name && (
                       <div className="absolute top-0 left-full mt-0 ml-2 w-48 bg-neutral-900 border border-neutral-700 rounded-md shadow-lg z-50">
                         {seasons.length === 0 && (
@@ -199,26 +186,36 @@ const Header = ({ onMenuClick }) => {
 
         {/* Right Section */}
         <div className="flex items-center gap-6">
-          {/* Notifications */}
-          <Link
-            to="/notifications"
-            className="relative p-2 text-gray-400 hover:text-white transition"
-          >
-            <BellIcon className="h-7 w-7" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 h-5 w-5 bg-red-600 rounded-full flex items-center justify-center text-xs text-white">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-          </Link>
+          {/* Notifications - Chỉ hiển thị khi đã login */}
+          {user && (
+            <Link
+              to="/notifications"
+              className="relative p-2 text-gray-400 hover:text-white transition"
+            >
+              <BellIcon className="h-7 w-7" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 h-5 w-5 bg-red-600 rounded-full flex items-center justify-center text-xs text-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </Link>
+          )}
 
           {/* User area */}
           {user ? (
             <Menu as="div" className="relative">
               <Menu.Button className="flex items-center gap-2 p-2 text-gray-400 hover:text-white transition">
-                <UserCircleIcon className="h-7 w-7" />
+                {user.avatar ? (
+                  <img 
+                    src={user.avatar} 
+                    alt={user.name || user.username}
+                    className="h-7 w-7 rounded-full object-cover"
+                  />
+                ) : (
+                  <UserCircleIcon className="h-7 w-7" />
+                )}
                 <span className="hidden sm:block text-base text-white font-medium">
-                  {user.name || user.username || "Tài khoản"}
+                  {user.name || user.username || user.email || "Tài khoản"}
                 </span>
               </Menu.Button>
 

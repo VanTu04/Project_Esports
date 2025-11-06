@@ -42,59 +42,57 @@ const ForgotPasswordForm = () => {
       showSuccess('OTP đã được gửi đến email của bạn!');
       setStep(2);
     } catch (error) {
-      showError(error.response?.data?.message || 'Lỗi gửi OTP');
+      showError(error?.message ||error.response?.data?.message || 'Lỗi gửi OTP');
     } finally {
       setLoading(false);
     }
   };
 
   const handleVerifyOtp = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    const validationErrors = validateForm(formData, {
-      otp: { required: true },
-    });
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
+  const validationErrors = validateForm(formData, { otp: { required: true } });
+  if (Object.keys(validationErrors).length > 0) {
+    setErrors(validationErrors);
+    return;
+  }
 
-    setLoading(true);
-    try {
-      await authService.checkOtp(formData.email, formData.otp);
-      showSuccess('OTP hợp lệ!');
-      setStep(3);
-    } catch (error) {
-      showError(error.response?.data?.message || 'OTP không hợp lệ');
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    const response = await authService.checkOtp(formData.email, formData.otp);
+    showSuccess(response.message || 'OTP hợp lệ!');
+    setStep(3);
+  } catch (error) {
+    showError(error?.message || error?.response?.data?.message || 'OTP không hợp lệ');
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
+const handleResetPassword = async (e) => {
+  e.preventDefault();
 
-    const validationErrors = validateForm(formData, {
-      password: { required: true, minLength: 6 },
-    });
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
+  const validationErrors = validateForm(formData, {
+    password: { required: true, minLength: 6 },
+  });
+  if (Object.keys(validationErrors).length > 0) {
+    setErrors(validationErrors);
+    return;
+  }
 
-    setLoading(true);
-    try {
-      await authService.resetPassword(formData.email, formData.password);
-      showSuccess('Đặt lại mật khẩu thành công!');
-      setStep(1);
-      setFormData({ email: '', otp: '', password: '' });
-      navigate('/login'); // chuyển hướng về trang login
-    } catch (error) {
-      showError(error.response?.data?.message || 'Lỗi đặt lại mật khẩu');
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    await authService.resetPassword(formData.email, formData.password);
+    showSuccess('Đặt lại mật khẩu thành công!');
+    setStep(1);
+    setFormData({ email: '', otp: '', password: '' });
+    navigate('/login');
+  } catch (error) {
+    showError(error?.message || error?.response?.data?.message || 'Lỗi đặt lại mật khẩu');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <form className="space-y-4">
