@@ -1,7 +1,7 @@
 'use strict';
-const { Sequelize, DataTypes } = require('sequelize');
+import { DataTypes } from 'sequelize';
 
-module.exports = (sequelize) => {
+export default (sequelize) => {
   const Ranking = sequelize.define('Ranking', {
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     tournament_id: { type: DataTypes.INTEGER, allowNull: false },

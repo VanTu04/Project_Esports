@@ -1,27 +1,27 @@
-const { where } = require('sequelize');
-const models = require('../models');
+import { where } from 'sequelize';
+import models from '../models/index.js';
 
-exports.createGame = async (data) => {
+export const createGame = async (data) => {
   const game = await models.Game.create({
     game_name: data.game_name,
     description: data.description,
     status: data.status || 'ACTIVE'
   });
   return game;
-}
+};
 
-exports.getGameById = async (id) => {
+export const getGameById = async (id) => {
   const game = await models.Game.findByPk(id);
   if (!game) throw new Error('Không tìm thấy game');
   return game;
 };
 
-exports.getGameByName = async (name) => {
+export const getGameByName = async (name) => {
   const existing = await models.Game.findOne({ where: { game_name: name } });
   return existing;
 };
 
-exports.updateGame = async (game, data) => {
+export const updateGame = async (game, data) => {
   await game.update({
     game_name: data.game_name || game.game_name,
     description: data.description || game.description,
@@ -30,15 +30,14 @@ exports.updateGame = async (game, data) => {
   return true;
 };
 
-exports.deleteGame = async (game) => {
-  await game.update({ status: "INACTIVE" });
+export const deleteGame = async (game) => {
+  await game.update({ status: 'INACTIVE' });
   return true;
 };
 
-exports.getAllGame = async (status) => {
+export const getAllGame = async (status) => {
   const whereCondition = {};
 
-  console.log('status', status);
   if (status !== undefined && status !== null && status !== '') {
     whereCondition.status = status;
   }
@@ -48,5 +47,6 @@ exports.getAllGame = async (status) => {
     order: [['created_date', 'DESC']],
     attributes: ['id', 'game_name', 'description', 'status']
   });
+
   return games;
-}
+};

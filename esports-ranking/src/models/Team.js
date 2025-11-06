@@ -1,8 +1,7 @@
 'use strict';
-const { Sequelize, DataTypes } = require('sequelize');
+import { DataTypes } from 'sequelize';
 
-// models/Team.js
-module.exports = (sequelize) => {
+export default (sequelize) => {
   const Team = sequelize.define('Team', {
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     name: DataTypes.STRING,
@@ -11,10 +10,6 @@ module.exports = (sequelize) => {
     country: DataTypes.STRING,
     wallet_address: DataTypes.STRING,
     leader_id: DataTypes.INTEGER,
-    status: {
-      type: DataTypes.INTEGER, // 1 active, 0 inactive
-      defaultValue: 1
-    },
     created_date: {
       type: DataTypes.DATE,
       allowNull: false,

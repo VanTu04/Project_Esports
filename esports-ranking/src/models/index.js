@@ -1,9 +1,27 @@
-const sequelize = require('../config/config');
-const { DataTypes } = require('sequelize');
+import sequelize from '../config/config.js';
+import { DataTypes, Sequelize } from 'sequelize';
 
-const User = require('./User')(sequelize, DataTypes);
-const user_otp = require('./Otp')(sequelize, DataTypes);
+import defineUser from './User.js';
+import defineOtp from './Otp.js';
+import defineTeam from './Team.js';
+import defineGame from './Game.js';
 
-const Game = require('./Game')(sequelize);
+// Khởi tạo models
+const User = defineUser(sequelize, DataTypes);
+const user_otp = defineOtp(sequelize, DataTypes);
+const Team = defineTeam(sequelize, DataTypes);
+const Game = defineGame(sequelize, DataTypes);
 
-module.exports = { sequelize, User, user_otp, Game };
+// Thiết lập quan hệ
+
+export { sequelize, Sequelize, User, user_otp, Game, Team };
+
+//Thêm dòng này nếu bạn muốn import models như 1 object
+export default {
+  sequelize,
+  Sequelize,
+  User,
+  user_otp,
+  Team,
+  Game
+};

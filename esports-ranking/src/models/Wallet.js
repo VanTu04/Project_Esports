@@ -1,7 +1,7 @@
 'use strict';
-const { Sequelize, DataTypes } = require('sequelize');
+import { DataTypes } from 'sequelize';
 
-module.exports = (sequelize) => {
+export default (sequelize) => {
   const Wallet = sequelize.define('Wallet', {
     user_id: DataTypes.INTEGER,
     wallet_address: DataTypes.STRING,  // public address MetaMask

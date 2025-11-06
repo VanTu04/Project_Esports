@@ -1,10 +1,10 @@
-const jwt = require('jsonwebtoken');
-const models = require('../models');
-const { responseSuccess, responseWithError } = require("../helper/messageResponse");
-const { ErrorCodes } = require('../constant/ErrorCodes');
+import jwt from 'jsonwebtoken';
+import models from '../models/index.js';
+import { responseSuccess, responseWithError } from '../helper/messageResponse.js';
+import { ErrorCodes } from '../constant/ErrorCodes.js';
 
 //checkAccessToken
-exports.checkAccessToken = async (req, res, next) => {
+export const checkAccessToken = async (req, res, next) => {
   try {
     // Kiểm tra header Authorization
     const authHeader = req.headers.authorization;
@@ -71,7 +71,7 @@ exports.checkAccessToken = async (req, res, next) => {
 };
 
 //checkAccessTokenorNot
-exports.checkAccessTokenorNot = async (req, res, next) => {
+export const checkAccessTokenorNot = async (req, res, next) => {
   try {
     if (!req.headers.authorization) {
       return null;
@@ -94,7 +94,7 @@ exports.checkAccessTokenorNot = async (req, res, next) => {
 
 
 //checkRole
-exports.checkRole = (roles = []) => {
+export const checkRole = (roles = []) => {
   return async (req, res, next) => {
     try {
       // Kiểm tra có token không
@@ -126,8 +126,8 @@ exports.checkRole = (roles = []) => {
 
       // Tìm user tương ứng
       const user = await models.User.findOne({
-        where: { id: decodedToken.id },
-        attributes: ['id', 'full_name', 'role', 'email', 'username', 'phone'],
+        where: { id: decodedToken.id, deleted: 0 },
+        attributes: ['id', 'full_name', 'role', 'email', 'username', 'phone', 'status']
       });
 
       if (!user) {
@@ -144,17 +144,14 @@ exports.checkRole = (roles = []) => {
         full_name: user.full_name,
         email: user.email,
         username: user.username,
-        role: user.role,
         phone: user.phone,
+        role: user.role,
       };
 
-      // Kiểm tra quyền (nếu có truyền roles)
-      if (roles.length > 0 && !roles.includes(req.user.role)) {
+      // Nếu có truyền roles, kiểm tra quyền
+      if (roles.length > 0 && !roles.includes(user.role)) {
         return res.status(403).json(
-          responseWithError(
-            ErrorCodes.ERROR_CODE_NOT_ALLOWED,
-            'Không có quyền truy cập!'
-          )
+          responseWithError(ErrorCodes.ERROR_CODE_NOT_ALLOWED, 'Không có quyền truy cập!')
         );
       }
 
@@ -174,7 +171,7 @@ exports.checkRole = (roles = []) => {
 };
 
 //checkRefreshToken
-exports.checkRefreshToken = (req, res, next) => {
+export const checkRefreshToken = (req, res, next) => {
   try {
     const decodedToken = jwt.verify(req, process.env.JWT_REFRESH_TOKEN_SECRET);
     if (decodedToken) {
@@ -191,7 +188,7 @@ exports.checkRefreshToken = (req, res, next) => {
 };
 
 //signAccessToken
-exports.signAccessToken = (req, res, next) => {
+export const signAccessToken = (req, res, next) => {
   try {
     const payload = {
       id: req.id,
@@ -209,7 +206,7 @@ exports.signAccessToken = (req, res, next) => {
 };
 
 //signRefreshToken
-exports.signRefreshToken = (req, res, next) => {
+export const signRefreshToken = (req, res, next) => {
   try {
     const payload = {
       id: req.id,

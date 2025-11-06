@@ -1,8 +1,8 @@
-const userService = require('../services/UserService');
-const { responseSuccess, responseWithError } = require('../response/ResponseSuccess');
-const { ErrorCodes } = require('../constant/ErrorCodes');
+import * as userService from '../services/UserService.js';
+import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
+import { ErrorCodes } from '../constant/ErrorCodes.js';
 
-exports.register = async (req, res, next) => {
+export const register = async (req, res, next) => {
   try {
     console.log('req.body', req.body);
     const result = await userService.register(req.body);
@@ -13,7 +13,7 @@ exports.register = async (req, res, next) => {
   }
 };
 
-exports.login = async (req, res, next) => {
+export const login = async (req, res, next) => {
   try {
     const result = await userService.login(req.body);
     return res.json(responseSuccess(result));
@@ -23,7 +23,7 @@ exports.login = async (req, res, next) => {
   }
 };
 
-exports.sendOtp = async (req, res, next) => {
+export const sendOtp = async (req, res, next) => {
   try {
     const { email } = req.body;
     if (!email) {
@@ -57,7 +57,7 @@ exports.sendOtp = async (req, res, next) => {
   }
 };
 
-exports.checkOTP = async (req, res, next) => {
+export const checkOTP = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
     if (!email || !otp) {
@@ -82,11 +82,11 @@ exports.checkOTP = async (req, res, next) => {
   }
 };
 
-exports.home = async (req, res, next) => {
+export const home = async (req, res, next) => {
   res.json({ message: 'Welcome to eSports Ranking API!' });
 };
 
-exports.forgetPassword = async (req, res, next) => {
+export const forgetPassword = async (req, res, next) => {
   try {
     const result = await userService.forgetPassword(req.body);
     return res.json(responseSuccess(result));
@@ -95,3 +95,49 @@ exports.forgetPassword = async (req, res, next) => {
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi quên mật khẩu', error.message));
   }
 };
+
+export const checkExistEmail = async (req, res, next) => {
+  try {
+    const email = req.body.email;
+    if(!email) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Email không được để trống khi kiểm tra'));
+    }
+    const result = await userService.checkExistEmail(email);
+    return res.json(responseSuccess({exists: result}, 'Kiểm tra email thành công'));
+  } catch (error) {
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi check email', error.message));
+  }
+}
+
+export const checkExistUsername = async (req, res, next) => {
+  try {
+    const username = req.body.username;
+    if(!username) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Username không được để trống khi kiểm tra'));
+    }
+    const result = await userService.checkExistUsername(username);
+    return res.json(responseSuccess({exists: result}, 'Kiểm tra email thành công'));
+  } catch (error) {
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi check username', error.message));
+  }
+}
+
+export const createNewAccountByAdmin = async (req, res, next) => {
+  try {
+    console.log("res:", req);
+    const adminId = req.user.id;
+    const data = req.body;
+    if(!data.username && !data.email) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Username hoặc email không được để trống.'));
+    }
+    if(data.password != data.confirm_password) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Mật khẩu xác nhận lại không giống mật khẩu ban đầu'));
+    }
+
+    const result = await userService.createAccount(data, adminId);
+    return res.json(responseSuccess(result, 'Tạo tài khoản thành công'));
+  } catch (error) {
+    console.log("lỗi: ", error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi hệ thống', error.message));
+  }
+}

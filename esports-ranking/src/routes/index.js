@@ -1,10 +1,12 @@
-const express = require('express');
-const router = express.Router();
+import express from 'express';
+import usersRouter from './user.route.js';
+import gamesRouter from './game.route.js';
+import teamsRouter from './team.route.js';
 
-const usersRouter = require('../routes/user.route');
-const gamesRouter = require('../routes/game.route');
+const router = express.Router();
 
 router.use('/users', usersRouter);
 router.use('/games', gamesRouter);
+router.use('/teams', teamsRouter);
 
-module.exports = router;
+export default router;

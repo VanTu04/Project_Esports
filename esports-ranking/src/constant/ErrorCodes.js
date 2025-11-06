@@ -1,4 +1,4 @@
-const ErrorCodes = {
+export const ErrorCodes = {
     ERROR_REQUEST_DATA_INVALID: 100,
     ERROR_CODE_DATA_EXIST: 101,
     ERROR_CODE_DATA_NOT_EXIST: 102,
@@ -39,6 +39,4 @@ const ErrorCodes = {
     ERROR_CODE_DEVICE_NOT_FOUND: 430
 };
 
-const TIMEZONE_HEADER = 'x-timezone-name';
-
-module.exports = { ErrorCodes, TIMEZONE_HEADER }
+export const TIMEZONE_HEADER = 'x-timezone-name';
