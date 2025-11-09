@@ -12,6 +12,7 @@ export const RegisterForm = () => {
   const { showSuccess, showError } = useNotification();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
+    full_name: '', 
     username: '',
     email: '',
     password: '',
@@ -31,6 +32,7 @@ export const RegisterForm = () => {
     e.preventDefault();
 
     const validationErrors = validateForm(formData, {
+      full_name: { required: true }, 
       username: { required: true, username: true },
       email: { required: true, email: true },
       password: { required: true, password: true },
@@ -60,6 +62,22 @@ export const RegisterForm = () => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-2">
+          Họ và tên
+        </label>
+        <input
+          type="text"
+          name="full_name"
+          value={formData.full_name}
+          onChange={handleChange}
+          className="w-full px-4 py-2 bg-dark-400 border border-primary-700/30 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+        />
+        {errors.full_name && (
+          <p className="mt-1 text-sm text-red-500">{errors.full_name}</p>
+        )}
+      </div>
+
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-2">
           Tên người dùng
@@ -123,6 +141,7 @@ export const RegisterForm = () => {
           <p className="mt-1 text-sm text-red-500">{errors.confirmPassword}</p>
         )}
       </div>
+
       <Button type="submit" fullWidth loading={loading}>
         Đăng ký
       </Button>
@@ -143,7 +162,6 @@ export const RegisterForm = () => {
           className="p-2 rounded-md bg-white hover:opacity-90"
           title="Google"
         >
-          {/* Simple Google logo */}
           <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
             <path fill="#EA4335" d="M24 9.5c3.9 0 7.2 1.4 9.7 3.6l7.2-7.2C35 2.2 29.9 0 24 0 14.7 0 6.9 5.6 3.1 13.6l8.6 6.7C13.5 15.1 18.3 9.5 24 9.5z"/>
             <path fill="#34A853" d="M46.5 24c0-1.6-.1-3.1-.4-4.6H24v9h12.7c-.5 2.7-2 5-4.3 6.6l6.8 5.3C44.6 36.4 46.5 30.5 46.5 24z"/>
@@ -165,7 +183,6 @@ export const RegisterForm = () => {
           className="p-2 rounded-md bg-[#1877F2] hover:opacity-90"
           title="Facebook"
         >
-          {/* Simple Facebook F */}
           <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path fill="#fff" d="M22 12a10 10 0 10-11.5 9.9v-7h-2.2V12h2.2V9.7c0-2.2 1.3-3.4 3.3-3.4.9 0 1.8.1 1.8.1v2h-1c-1 0-1.3.6-1.3 1.2V12h2.3l-.4 2.9h-1.9v7A10 10 0 0022 12z"/>
           </svg>

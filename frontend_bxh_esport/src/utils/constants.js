@@ -1,32 +1,31 @@
 // API Base URL
-// Có thể set trong env (VITE_API_BASE_URL) hoặc mặc định '/api'
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Theme Colors (Esport Style)
 export const THEME_COLORS = {
-  primary: '#C89B3C',       // Gold
+  primary: '#C89B3C',
   primaryDark: '#A07628',
   primaryLight: '#F0E6D2',
-  secondary: '#0397AB',     // Cyan
+  secondary: '#0397AB',
   background: '#010A13',
   backgroundLight: '#0A1428',
   backgroundCard: '#091428',
   text: '#F0E6D2',
   textSecondary: '#A09B8C',
   textMuted: '#5B5A56',
-  borderColor: '#1E2328',   // Đổi tên tránh trùng "border-border"
+  borderColor: '#1E2328',
   success: '#0BC261',
   error: '#D13639',
   warning: '#F0B232',
   live: '#FF4655',
 };
 
-// User Roles
+// User Roles - FIXED: Changed from string to number to match database
 export const USER_ROLES = {
-  ADMIN: 'admin',
-  TEAM_MANAGER: 'team_manager',
-  PLAYER: 'player',
-  USER: 'user',
+  USER: 1,
+  PLAYER: 2,
+  TEAM_MANAGER: 3,
+  ADMIN: 4,
 };
 
 // Role Display Names
@@ -74,7 +73,7 @@ export const REGISTRATION_STATUS = {
   REJECTED: 'rejected',
 };
 
-// Game Types (dùng cho dropdown, select)
+// Game Types
 export const GAME_TYPES = [
   { value: 'valorant', label: 'Valorant' },
   { value: 'lol', label: 'League of Legends' },
@@ -94,7 +93,7 @@ export const STORAGE_KEYS = {
   USER_DATA: 'USER_DATA',
   WALLET_ADDRESS: 'WALLET_ADDRESS',
   THEME: 'theme',
-  ACCESS_TOKEN: 'access_token', // backward compatibility
+  ACCESS_TOKEN: 'access_token',
   REFRESH_TOKEN: 'refresh_token',
   USER_INFO: 'user_info',
 };
@@ -104,53 +103,37 @@ export const TOAST_DURATION = 3000;
 
 // Blockchain config
 export const BLOCKCHAIN_NETWORK = {
-  CHAIN_ID: '0x1', // Ethereum Mainnet
+  CHAIN_ID: '0x1',
   NETWORK_NAME: 'Ethereum',
 };
 
-// API Endpoints (relative paths, dùng chung với baseURL)
+// API Endpoints
 export const API_ENDPOINTS = {
-  // Auth
   LOGIN: '/users/login',
   REGISTER: '/users/register',
   REFRESH_TOKEN: '/auth/refresh',
   LOGOUT: '/auth/logout',
-
-  // Users
   USERS: '/users',
   USER_PROFILE: '/users/profile',
-
-  // Teams
   TEAMS: '/teams',
   TEAM_MEMBERS: '/teams/:id/members',
   TEAM_INVITATIONS: '/teams/:id/invitations',
-
-  // Players
   PLAYERS: '/players',
   PLAYER_STATS: '/players/:id/stats',
-
-  // Tournaments
   TOURNAMENTS: '/tournaments',
   TOURNAMENT_REGISTRATIONS: '/tournaments/:id/registrations',
   TOURNAMENT_LEADERBOARD: '/tournaments/:id/leaderboard',
-
-  // Matches
   MATCHES: '/matches',
   MATCH_RESULTS: '/matches/:id/results',
-
-  // Blockchain
   BLOCKCHAIN_TRANSACTIONS: '/blockchain/transactions',
   BLOCKCHAIN_REWARDS: '/blockchain/rewards',
   BLOCKCHAIN_WALLET: '/blockchain/wallet',
-
-  // Reports
   REPORTS: '/reports',
   COMPLAINTS: '/complaints',
 };
 
-// Frontend Routes (dùng với react-router Link / navigate)
+// Frontend Routes
 export const ROUTES = {
-  // Admin routes
   ADMIN_DASHBOARD: '/admin',
   ADMIN_USERS: '/admin/users',
   ADMIN_TEAMS: '/admin/teams',
@@ -159,24 +142,18 @@ export const ROUTES = {
   ADMIN_REWARDS: '/admin/rewards',
   ADMIN_BLOCKCHAIN: '/admin/blockchain',
   ADMIN_STATISTICS: '/admin/statistics',
-
-  // Team Manager routes
-  TEAM_MANAGER_DASHBOARD: '/team-manager',
-  TEAM_MANAGER_INFO: '/team-manager/team-info',
-  TEAM_MANAGER_PLAYERS: '/team-manager/players',
-  TEAM_MANAGER_TOURNAMENTS: '/team-manager/tournaments',
-  TEAM_MANAGER_MATCHES: '/team-manager/matches',
-  TEAM_MANAGER_WALLET: '/team-manager/wallet',
-  TEAM_MANAGER_REPORTS: '/team-manager/reports',
-
-  // Player routes
+  TEAM_MANAGER_DASHBOARD: '/team-managers', 
+  TEAM_MANAGER_INFO: '/team-managers/team-info',
+  TEAM_MANAGER_PLAYERS: '/team-managers/players',
+  TEAM_MANAGER_TOURNAMENTS: '/team-managers/tournaments',
+  TEAM_MANAGER_MATCHES: '/team-managers/matches',
+  TEAM_MANAGER_WALLET: '/team-managers/wallet',
+  TEAM_MANAGER_REPORTS: '/team-managers/reports',
   PLAYER_DASHBOARD: '/player',
   PLAYER_PROFILE: '/player/profile',
   PLAYER_TEAM: '/player/team',
   PLAYER_TOURNAMENTS: '/player/tournaments',
   PLAYER_SCHEDULE: '/player/schedule',
-
-  // Public / User routes
   HOME: '/',
   TOURNAMENTS: '/tournaments',
   LEADERBOARD: '/leaderboard',

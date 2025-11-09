@@ -7,6 +7,24 @@ import { validateForm } from '../../utils/validators';
 import Button from '../common/Button';
 import { API_BASE_URL } from '../../utils/constants';
 
+// Helper function để decode JWT token
+const decodeJWT = (token) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('Error decoding JWT:', error);
+    return null;
+  }
+};
+
 export const LoginForm = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -28,9 +46,12 @@ export const LoginForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-console.log('Form data sent:', formData);
+    
+    // Reset errors trước khi validate
+    setErrors({});
+    
     const validationErrors = validateForm(formData, {
-      email: { required: true, email: true },
+      email: { required: true }, // Bỏ validation email vì có thể nhập username
       password: { required: true },
     });
 
@@ -42,24 +63,58 @@ console.log('Form data sent:', formData);
     setLoading(true);
     try {
       const response = await login(formData);
+      
+      // Kiểm tra response thành công
       if (response?.code === 0 && response?.status === 200) {
         showSuccess("Đăng nhập thành công!");
         
-        const role = response?.data?.user?.role;
-        if (role === USER_ROLES.ADMIN) {
+        // Decode JWT token để lấy thông tin user
+        const accessToken = response?.data?.accessToken;
+        const decodedToken = decodeJWT(accessToken);
+                
+        const role = Number(decodedToken?.role || decodedToken?.user_role || 1);
+        
+        // Điều hướng theo role
+        if (role === 4) {
           navigate(ROUTES.ADMIN_DASHBOARD);
-        } else if (role === USER_ROLES.TEAM_MANAGER) {
+        } else if (role === 3) {
           navigate(ROUTES.TEAM_MANAGER_DASHBOARD);
-        } else if (role === USER_ROLES.PLAYER) {
+        } else if (role === 2) {
           navigate(ROUTES.PLAYER_DASHBOARD);
         } else {
           navigate(ROUTES.HOME);
         }
       } else {
-        showError(response?.errors || "Đăng nhập thất bại. Vui lòng kiểm tra lại!");
+        // Hiển thị lỗi từ backend
+        const errorMessage = response?.errors || response?.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại!";
+        showError(errorMessage);
       }
     } catch (error) {
-      showError(error.message || 'Đăng nhập thất bại');
+      // Xử lý các loại lỗi khác nhau
+      console.error('Login error:', error);
+      
+      let errorMessage = 'Đăng nhập thất bại';
+      
+      // Lỗi từ API response
+      if (error.response?.data?.errors) {
+        errorMessage = error.response.data.errors;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } 
+      // Lỗi từ axios interceptor
+      else if (error.message) {
+        errorMessage = error.message;
+      }
+      // Lỗi network
+      else if (error.code === 'ERR_NETWORK') {
+        errorMessage = 'Không thể kết nối đến máy chủ';
+      }
+      // Lỗi timeout
+      else if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Yêu cầu quá thời gian chờ';
+      }
+      
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -78,6 +133,7 @@ console.log('Form data sent:', formData);
           value={formData.email}
           onChange={handleChange}
           className="w-full px-4 py-2 bg-dark-400 border border-primary-700/30 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+          disabled={loading}
         />
         {errors.email && (
           <p className="mt-1 text-sm text-red-500">{errors.email}</p>
@@ -94,6 +150,7 @@ console.log('Form data sent:', formData);
           value={formData.password}
           onChange={handleChange}
           className="w-full px-4 py-2 bg-dark-400 border border-primary-700/30 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+          disabled={loading}
         />
         {errors.password && (
           <p className="mt-1 text-sm text-red-500">{errors.password}</p>
@@ -117,11 +174,10 @@ console.log('Form data sent:', formData);
               window.location.href = `/auth/google`;
             }
           }}
-
           className="p-2 rounded-md bg-white hover:opacity-90"
           title="Google"
+          disabled={loading}
         >
-          {/* Simple Google logo */}
           <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
             <path fill="#EA4335" d="M24 9.5c3.9 0 7.2 1.4 9.7 3.6l7.2-7.2C35 2.2 29.9 0 24 0 14.7 0 6.9 5.6 3.1 13.6l8.6 6.7C13.5 15.1 18.3 9.5 24 9.5z"/>
             <path fill="#34A853" d="M46.5 24c0-1.6-.1-3.1-.4-4.6H24v9h12.7c-.5 2.7-2 5-4.3 6.6l6.8 5.3C44.6 36.4 46.5 30.5 46.5 24z"/>
@@ -133,17 +189,10 @@ console.log('Form data sent:', formData);
         <button
           type="button"
           aria-label="Đăng nhập với Facebook"
-          // onClick={() => {
-          //   try {
-          //     window.location.href = `${API_BASE_URL}/auth/oauth/facebook`;
-          //   } catch (e) {
-          //     window.location.href = `/auth/oauth/facebook`;
-          //   }
-          // }}
           className="p-2 rounded-md bg-[#1877F2] hover:opacity-90"
           title="Facebook"
+          disabled={loading}
         >
-          {/* Simple Facebook F */}
           <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path fill="#fff" d="M22 12a10 10 0 10-11.5 9.9v-7h-2.2V12h2.2V9.7c0-2.2 1.3-3.4 3.3-3.4.9 0 1.8.1 1.8.1v2h-1c-1 0-1.3.6-1.3 1.2V12h2.3l-.4 2.9h-1.9v7A10 10 0 0022 12z"/>
           </svg>
