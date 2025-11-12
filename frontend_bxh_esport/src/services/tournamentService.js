@@ -1,73 +1,60 @@
 import { apiClient } from './api';
-import { USE_MOCK_API } from '../config';
-import { mockTournamentService } from '../mock/mockServices';
+import { API_ENDPOINTS } from '../utils/constants';
+
+const build = (template, id) => template.replace(':id', id);
 
 const tournamentService = {
   getAllTournaments: async (params = {}) => {
-    if (USE_MOCK_API) return await mockTournamentService.getAllTournaments(params);
     try {
-      const response = await apiClient.get('/tournaments', { params });
-      return response;
+      return await apiClient.get(API_ENDPOINTS.TOURNAMENTS, { params });
     } catch (error) {
       throw error;
     }
   },
 
   getTournamentById: async (tournamentId) => {
-    if (USE_MOCK_API) return await mockTournamentService.getTournamentById(tournamentId);
     try {
-      const response = await apiClient.get(`/tournaments/${tournamentId}`);
-      return response;
+      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}`);
     } catch (error) {
       throw error;
     }
   },
 
   getTournamentTeams: async (tournamentId) => {
-    if (USE_MOCK_API) return await mockTournamentService.getTournamentTeams(tournamentId);
     try {
-      const response = await apiClient.get(`/tournaments/${tournamentId}/teams`);
-      return response;
+      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/teams`);
     } catch (error) {
       throw error;
     }
   },
 
   getTournamentMatches: async (tournamentId, params = {}) => {
-    if (USE_MOCK_API) return await mockTournamentService.getTournamentMatches(tournamentId, params);
     try {
-      const response = await apiClient.get(`/tournaments/${tournamentId}/matches`, { params });
-      return response;
+      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/matches`, { params });
     } catch (error) {
       throw error;
     }
   },
 
   createTournament: async (newTournament) => {
-    if (USE_MOCK_API) return await mockTournamentService.createTournament(newTournament);
     try {
-      const response = await apiClient.post('/tournaments', newTournament);
-      return response;
+      return await apiClient.post(API_ENDPOINTS.TOURNAMENTS, newTournament);
     } catch (error) {
       throw error;
     }
   },
 
   updateTournament: async (id, updatedData) => {
-    if (USE_MOCK_API) return await mockTournamentService.updateTournament(id, updatedData);
     try {
-      const response = await apiClient.put(`/tournaments/${id}`, updatedData);
-      return response;
+      return await apiClient.put(`${API_ENDPOINTS.TOURNAMENTS}/${id}`, updatedData);
     } catch (error) {
       throw error;
     }
   },
 
   deleteTournament: async (id) => {
-    if (USE_MOCK_API) return await mockTournamentService.deleteTournament(id);
     try {
-      const response = await apiClient.delete(`/tournaments/${id}`);
-      return response;
+      return await apiClient.delete(`${API_ENDPOINTS.TOURNAMENTS}/${id}`);
     } catch (error) {
       throw error;
     }

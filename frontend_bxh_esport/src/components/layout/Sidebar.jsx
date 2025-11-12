@@ -25,8 +25,8 @@ const Sidebar = ({ isOpen, onClose }) => {
         return [
           { icon: HomeIcon, label: 'Dashboard', path: ROUTES.ADMIN_DASHBOARD },
           { icon: UsersIcon, label: 'Người dùng', path: ROUTES.ADMIN_USERS },
-          { icon: UserGroupIcon, label: 'Đội tuyển', path: ROUTES.ADMIN_TEAMS },
           { icon: TrophyIcon, label: 'Giải đấu', path: ROUTES.ADMIN_TOURNAMENTS },
+          { icon: ChartBarIcon, label: 'Trò chơi', path: ROUTES.ADMIN_GAMES },
           { icon: FlagIcon, label: 'Trận đấu', path: ROUTES.ADMIN_MATCHES },
           { icon: WalletIcon, label: 'Phần thưởng', path: ROUTES.ADMIN_REWARDS },
           { icon: ChartBarIcon, label: 'Blockchain', path: ROUTES.ADMIN_BLOCKCHAIN },
@@ -83,18 +83,14 @@ const Sidebar = ({ isOpen, onClose }) => {
       {/* Sidebar */}
       <aside
         className={clsx(
-          'fixed lg:sticky top-0 left-0 z-40 h-screen w-64 bg-dark-500 border-r border-primary-700/30 transition-transform duration-300',
-          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          // place the sidebar below the fixed header (header height = h-20)
+          // use calc to set height = 100vh - headerHeight so it doesn't overflow
+          'fixed top-20 left-0 z-40 w-64 bg-dark-500 border-r border-primary-700/30 transition-transform duration-300',
+          // on larger screens keep it visible (no translate) and ensure it can scroll
+          isOpen ? 'translate-x-0 h-[calc(100vh-5rem)]' : '-translate-x-full lg:translate-x-0 lg:h-[calc(100vh-5rem)]'
         )}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center gap-2 h-16 px-4 border-b border-primary-700/30">
-            <div className="w-10 h-10 bg-gradient-gold rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">E</span>
-            </div>
-            <span className="text-xl font-bold text-white">Esports</span>
-          </div>
 
           {/* Menu Items */}
           <nav className="flex-1 overflow-y-auto py-4 px-2">

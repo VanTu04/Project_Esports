@@ -2,9 +2,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from '../pages/auth/Login';
 import { Register } from '../pages/auth/Register';
 import  ForgotPassword  from '../pages/auth/ForgotPassword';
-// import { VerifyOtp } from '../pages/auth/VerifyOtp';
 import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 import DashboardLayout from '../components/layout/DashboardLayout';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 import { USER_ROLES } from '../utils/constants';
 import { publicRoutes } from './publicRoutes';
 import { adminRoutes } from './adminRoutes';
@@ -31,7 +31,8 @@ const AppRoutes = () => {
         path="/*"
         element={
           <ProtectedRoute>
-            <DashboardLayout>
+            <ErrorBoundary>
+              <DashboardLayout>
               <Routes>
                 {/* Admin Routes */}
                 {adminRoutes.map((route, index) => (
@@ -88,7 +89,8 @@ const AppRoutes = () => {
                 {/* Default redirect */}
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-            </DashboardLayout>
+              </DashboardLayout>
+            </ErrorBoundary>
           </ProtectedRoute>
         }
       />

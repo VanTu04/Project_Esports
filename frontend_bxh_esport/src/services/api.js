@@ -1,14 +1,24 @@
 import axios from 'axios';
-import { STORAGE_KEYS } from '../utils/constants';
+import { STORAGE_KEYS, API_BASE_URL } from '../utils/constants';
 
 // Tạo instance axios với baseURL tương đối (hoặc thay bằng URL backend thật nếu cần)
+// API_BASE_URL resolves to import.meta.env.VITE_API_BASE_URL or '/api' by default.
+// When developing with Vite, the dev server proxy (vite.config.js) will forward `/api` to the backend target.
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Helpful developer hint when default base is used
+if (API_BASE_URL === '/api') {
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[api] using relative baseURL "/api". Ensure you run the frontend via Vite dev server with the proxy configured, or set VITE_API_BASE_URL to the backend URL.'
+  );
+}
 
 // Interceptor request: đính token tự động từ localStorage
 api.interceptors.request.use(

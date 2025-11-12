@@ -4,7 +4,7 @@ import { Bars3Icon, BellIcon, UserCircleIcon } from "@heroicons/react/24/outline
 import { Menu, Transition } from "@headlessui/react";
 import { useAuth } from "../../context/AuthContext";
 import Button from '../common/Button';
-import apiService from "../../services/authService";
+import { apiClient } from '../../services/api';
 
 const Header = ({ onMenuClick }) => {
   const { user, logout } = useAuth(); // Lấy user từ AuthContext
@@ -25,8 +25,8 @@ const Header = ({ onMenuClick }) => {
     
     async function fetchUnreadCount() {
       try {
-        const res = await apiService.get('/notifications/unread-count');
-        setUnreadCount(res.data.count || 0);
+        const data = await apiClient.get('/notifications/unread-count');
+        setUnreadCount(data?.count || 0);
       } catch (error) {
         console.error('Lỗi lấy số thông báo:', error);
       }
@@ -42,8 +42,8 @@ const Header = ({ onMenuClick }) => {
   useEffect(() => {
     async function fetchGames() {
       try {
-        const res = await apiService.get('/games');
-        setGames(res.data || []);
+        const data = await apiClient.get('/games');
+        setGames(data || []);
       } catch (error) {
         console.error('Lỗi lấy games:', error);
         setGames([]);
@@ -56,8 +56,8 @@ const Header = ({ onMenuClick }) => {
   useEffect(() => {
     async function fetchSeasons() {
       try {
-        const res = await apiService.get('/seasons');
-        setSeasons(res.data || []);
+        const data = await apiClient.get('/seasons');
+        setSeasons(data || []);
       } catch (error) {
         console.error('Lỗi lấy seasons:', error);
         setSeasons([]);

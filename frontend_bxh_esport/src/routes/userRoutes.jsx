@@ -10,4 +10,5 @@ export const userRoutes = [
   { path: '/users/tournaments', element: <TournamentBrowse /> },
   { path: '/users/favorites', element: <FavoriteTeams /> },
   { path: '/users/donate', element: <Donate /> },
+  
 ];

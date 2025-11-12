@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import session from 'express-session';
 import passport from 'passport';
+import cors from 'cors';
 import routes from './routes/index.js';
 import { sequelize } from './models/index.js';
 import './config/passport.js'; // Import để kích hoạt cấu hình Passport
@@ -9,6 +10,13 @@ import './config/passport.js'; // Import để kích hoạt cấu hình Passport
 dotenv.config();
 
 const app = express();
+
+app.use(cors({
+  origin: [process.env.CLIENT_URL],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // --- View engine ---
 app.set('view engine', 'ejs');
