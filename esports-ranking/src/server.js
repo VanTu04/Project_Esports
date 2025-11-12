@@ -5,6 +5,7 @@ import passport from 'passport';
 import routes from './routes/index.js';
 import { sequelize } from './models/index.js';
 import './config/passport.js'; // Import để kích hoạt cấu hình Passport
+import { initAdminAccount } from './init/initAdmin.js';
 
 dotenv.config();
 
@@ -73,9 +74,14 @@ const PORT = process.env.PORT || 3000;
 
 sequelize
   .sync({ alter: true })
-  .then(() => {
+  .then(async () => {
     console.log('Database synced');
-    app.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}/api`));
+
+    await initAdminAccount();
+
+    app.listen(PORT, () => {
+      console.log(`Server running at http://localhost:${PORT}/api`);
+    });
   })
   .catch(err => {
     console.error('Unable to connect to DB:', err);

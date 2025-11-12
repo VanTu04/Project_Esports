@@ -1,7 +1,7 @@
 import express from 'express';
 import * as usersController from '../controllers/UserController.js';
 import roles from '../constant/roles.js';
-import { checkRole } from '../middlewares/jwt_token.js';
+import { checkAccessToken, checkRole } from '../middlewares/jwt_token.js';
 
 const router = express.Router();
 
@@ -25,6 +25,7 @@ router.get('/home', usersController.home);
 
 router.post('/check-exist-email', usersController.checkExistEmail);
 router.post('/check-exist-username', usersController.checkExistUsername);
+router.get('/profile', checkAccessToken, usersController.getProfile);
 
 //ADMIN
 router.post('/new-account', checkRole([roles.ADMIN]), usersController.createNewAccountByAdmin);

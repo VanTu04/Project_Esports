@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import models from '../models/index.js';
 import * as jwt_token from '../middlewares/jwt_token.js';
 import * as MailHelper from '../helper/MailHelper.js';
+import { decrypt, generateWallet } from '../utils/wallet.js';
 
 export const register = async (data) => {
 
@@ -50,8 +51,16 @@ export const createAccount = async (data, adminId) => {
   let t;
   try {
     t = await models.sequelize.transaction();
+
     const hashedPassword = await bcrypt.hash(data.password, 10);
+
     console.log("Data:", data);
+
+    // Tạo ví mới cho user (admin hoặc team đều có)
+    const wallet = generateWallet();
+    console.log("Wallet generated:", wallet);
+
+    // Tạo user trong DB và gán luôn ví
     const newUser = await models.User.create({
       username: data.username,
       full_name: data.full_name,
@@ -60,25 +69,111 @@ export const createAccount = async (data, adminId) => {
       role: data.role,
       status: 1,
       deleted: 0,
+      wallet_address: wallet.address,
+      private_key: wallet.privateKey,
       created_by: adminId
     }, { transaction: t });
 
-    const newTeam = await models.Team.create({
-      name: data.team_name,
-      leader_id: data.leader_id,
-      status: 1,
-      create_by: adminId
-    }, { transaction: t });
+    let newTeam = null;
+    if (data.team_name) {
+      newTeam = await models.Team.create({
+        name: data.team_name,
+        leader_id: newUser.id,
+        status: 1,
+        create_by: adminId
+      }, { transaction: t });
+    }
 
     await t.commit();
-    return true;
+
+    // --- Import ví mới vào Hardhat node ---
+    try {
+      const fetch = (await import('node-fetch')).default;
+      const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
+      // 1. Impersonate
+      await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "hardhat_impersonateAccount",
+          params: [wallet.address],
+          id: 1
+        })
+      });
+      // 2. Set balance
+      const hexBalance = "0x" + (10n ** 18n).toString(16); // 1 ETH
+      await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "hardhat_setBalance",
+          params: [wallet.address, hexBalance],
+          id: 2
+        })
+      });
+      console.log(`Impersonated & funded ${wallet.address} on Hardhat node.`);
+    } catch (rpcErr) {
+      console.warn('Không thể import ví vào Hardhat node:', rpcErr.message);
+    }
+
+    console.log("Create account successful");
+    return { success: true };
 
   } catch (error) {
-    await t.rollback();
+    if (t) await t.rollback();
     console.error('createAccount error:', error);
-    return false;
+    return { success: false, error: error.message };
   }
 };
+
+export const getProfile = async (userId) => {
+  let user = await models.User.findOne({
+    where: { id: userId, status: 1, deleted: 0 },
+    attributes: ['id', 'username', 'full_name', 'email', 'role', 'wallet_address', 'private_key']
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  user = {
+    id: user.id,
+    username: user.username,
+    full_name: user.full_name,
+    email: user.email,
+    role: user.role,
+    wallet_address: user.wallet_address,
+    private_key: decrypt(user.private_key)
+  }
+
+  return user;
+};
+
+export const getWalletFromDB = async (username) => {
+  const existUser = await models.User.findOne({ where: { username: username } });
+  if (!existUser) throw new Error("User not found in DB");
+  
+  return {
+    address: existUser.wallet_address,
+    privateKey: decrypt(existUser.private_key)
+  };
+};
+
+export const getAllTeamWallets = async () => {
+  const accTeams = await models.User.findAll({
+    where: { role: 3 },
+    attributes: ['username', 'wallet_address', 'private_key']
+  });
+  
+  return accTeams.map(t => ({
+    username: t.username,
+    address: t.wallet_address,
+    privateKey: decrypt(t.private_key)
+  }));
+};
+
 
 export const login = async (data) => {
   if (!data.account || !data.password) {
@@ -110,7 +205,31 @@ export const login = async (data) => {
   const accessToken = jwt_token.signAccessToken(user);
   const refreshToken = jwt_token.signRefreshToken(user);
 
-  return { accessToken, refreshToken };
+  let teamInfo = null;
+  if (user.role === 3) {
+    const team = await models.Team.findOne({
+      where: { leader_id: user.id },
+      attributes: ["id", "name", "wallet_address", "private_key"]
+    });
+    if (team) {
+      teamInfo = team;
+    }
+  }
+
+  const userInfo = {
+    id: user.id,
+    username: user.username,
+    full_name: user.full_name,
+    email: user.email,
+    role: user.role,
+    team: teamInfo
+  };
+
+  return {
+    accessToken,
+    refreshToken,
+    userInfo
+  };
 };
 
 export const sendOtp = async (email, otp) => {

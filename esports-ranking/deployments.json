@@ -1,0 +1,25 @@
+{
+  "leaderboard": "0xd1Aa8345D6136ead9d8Ed499E27CCE328a15E66A",
+  "network": "localhost",
+  "rpcUrl": "http://127.0.0.1:8545",
+  "chainId": 31337,
+  "accounts": [
+    {
+      "address": "0xD81b0AB9bCd332eA8f7ff0f1d13B234a75500655",
+      "role": "admin"
+    },
+    {
+      "address": "0x8F27359338f40Def004C87924a8dd764Ae4427CC",
+      "role": "team"
+    },
+    {
+      "address": "0x331d87f0D81e9664933Bc1f32F243De2e5454264",
+      "role": "team"
+    },
+    {
+      "address": "0x470b91Cb344cC75898914CD8240ACD4b92A5E44B",
+      "role": "team"
+    }
+  ],
+  "deployedAt": "2025-11-12T06:13:55.981Z"
+}

@@ -9,6 +9,7 @@ export default (sequelize) => {
     description: DataTypes.TEXT,
     country: DataTypes.STRING,
     wallet_address: DataTypes.STRING,
+    private_key: DataTypes.STRING,
     leader_id: DataTypes.INTEGER,
     created_date: {
       type: DataTypes.DATE,

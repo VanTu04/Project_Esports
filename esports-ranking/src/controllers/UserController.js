@@ -141,3 +141,14 @@ export const createNewAccountByAdmin = async (req, res, next) => {
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi hệ thống', error.message));
   }
 }
+
+export const getProfile = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const result = await userService.getProfile(userId);
+    return res.json(responseSuccess(result, 'Lấy thông tin profile thành công'));
+  } catch (error) {
+    console.log("lỗi: ", error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi hệ thống', error.message));
+  }
+}

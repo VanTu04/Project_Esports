@@ -26,6 +26,9 @@ export default (sequelize) => {
     status: { type: DataTypes.INTEGER(2), defaultValue: 0 },
     deleted: { type: DataTypes.INTEGER(2), defaultValue: 0 },
 
+    wallet_address: DataTypes.STRING(255),
+    private_key: DataTypes.STRING(255),
+
     created_date: {
       type: DataTypes.DATE,
       allowNull: false,
