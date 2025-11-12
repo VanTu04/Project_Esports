@@ -6,6 +6,24 @@ import { STORAGE_KEYS } from "../utils/constants";
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
+// Helper function để decode JWT token
+const decodeJWT = (token) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('Error decoding JWT:', error);
+    return null;
+  }
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -17,8 +35,14 @@ export const AuthProvider = ({ children }) => {
     const savedUser = localStorage.getItem(STORAGE_KEYS.USER_DATA);
 
     if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
-      setIsAuthenticated(true);
+      try {
+        setUser(JSON.parse(savedUser));
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error('Error parsing saved user:', error);
+        localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+      }
     } else {
       setUser(null);
       setIsAuthenticated(false);
@@ -30,32 +54,45 @@ export const AuthProvider = ({ children }) => {
   // ==================== LOGIN ==================== //
   const login = async (credentials) => {
     try {
+      // Sử dụng authService thay vì api trực tiếp
       const response = await authService.login(credentials);
-
-      const token = response?.data?.accessToken;
-      const userInfo = response?.data?.user;
-
-      if (token) {
+      
+      console.log('Login response:', response);
+      
+      if (response?.code === 0 && response?.data?.accessToken) {
+        const { accessToken, refreshToken } = response.data;
+        
         // Lưu token vào localStorage
-        localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-
-        if (userInfo) {
-          // Nếu API trả user
-          localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userInfo));
-          setUser(userInfo);
-        } else {
-          // Nếu API chỉ trả token mà không có user
-          const basicUser = { email: credentials.email };
-          localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(basicUser));
-          setUser(basicUser);
+        localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, accessToken);
+        if (refreshToken) {
+          localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
         }
-
+        
+        // Decode token và lấy thông tin user
+        const decodedToken = decodeJWT(accessToken);
+        console.log('Decoded token in AuthContext:', decodedToken);
+        
+        const userData = {
+          id: decodedToken.id,
+          username: decodedToken.username,
+          email: decodedToken.email,
+          role: decodedToken.role,
+          full_name: decodedToken.full_name,
+        };
+        
+        console.log('User data to save:', userData);
+        
+        // Lưu vào state
+        setUser(userData);
         setIsAuthenticated(true);
+        
+        // Lưu vào localStorage để persist
+        localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
       }
-
+      
       return response;
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("Login error in AuthContext:", error);
       throw error;
     }
   };
@@ -90,6 +127,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
       localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+      localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
       setUser(null);
       setIsAuthenticated(false);
     }

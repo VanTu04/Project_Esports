@@ -1,4 +1,19 @@
 import { useEffect, useState } from 'react';
+import { mockTeamService } from '../../mock/mockServices';
+
+
+const saveLeaderboardData = (data) => {
+  localStorage.setItem('leaderboards', JSON.stringify(data));
+};
+
+const loadLeaderboardData = () => {
+  try {
+    const stored = localStorage.getItem('leaderboards');
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+};
 
 export const TournamentManagement = () => {
   const [tournaments, setTournaments] = useState([]);
@@ -7,6 +22,20 @@ export const TournamentManagement = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTournaments, setSelectedTournaments] = useState([]);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [showRankingModal, setShowRankingModal] = useState(false);
+  const [rankingTeams, setRankingTeams] = useState([]);
+  const [availableTeams, setAvailableTeams] = useState([]);
+  const [selectedTournamentId, setSelectedTournamentId] = useState(null);
+  const [tournamentStatus, setTournamentStatus] = useState('upcoming');
+  const [saving, setSaving] = useState(false);
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [selectedLeaderboardId, setSelectedLeaderboardId] = useState(null);
+  const [statusEditing, setStatusEditing] = useState('');
+  const [savingLeaderboard, setSavingLeaderboard] = useState(false);
+  const [leaderboardsByTournament, setLeaderboardsByTournament] = useState(() => loadLeaderboardData());
+  
   
   // Statistics state
   const [stats, setStats] = useState({
@@ -176,6 +205,121 @@ export const TournamentManagement = () => {
         {badge.icon} {badge.text}
       </span>
     );
+  };
+
+  const handleDeleteTournament = (id) => {
+    if (window.confirm("Bạn có chắc muốn xóa giải đấu này?")) {
+      console.log("Xóa giải đấu", id);
+      setTournaments((prev) => prev.filter((t) => t.id !== id));
+      setOpenMenuId(null);
+    }
+  };
+
+  // Load danh sách team khi mở modal
+  const loadTeams = async () => {
+    const { teams } = await mockTeamService.getAllTeams();
+    setAvailableTeams(teams);
+  };
+
+  const handleCreateRanking = async (id) => {
+    setSelectedTournamentId(id);
+    setShowRankingModal(true);
+    await loadTeams();
+    setRankingTeams([]); // reset khi mở modal
+  };
+
+  const handleAddTeam = (team) => {
+    if (!rankingTeams.find((t) => t.id === team.id)) {
+      setRankingTeams((prev) => [
+        ...prev,
+        { ...team, wins: 0, losses: 0, points: 0 },
+      ]);
+    }
+  };
+
+  const handleRemoveTeam = (teamId) => {
+    setRankingTeams((prev) => prev.filter((t) => t.id !== teamId));
+  };
+
+  const handleSaveLeaderboard1 = async () => {
+    setSaving(true);
+
+    // Giả lập delay 1s
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    const updated = {
+      ...leaderboardsByTournament,
+      [selectedTournamentId]: {
+        status: tournamentStatus,
+        teams: rankingTeams.map((t) => ({
+          id: t.id,
+          name: t.name,
+          logo: t.logo,
+          wins: 0,
+          losses: 0,
+          points: 0,
+        })),
+      },
+    };
+
+    // Lưu ra state + localStorage
+    setLeaderboardsByTournament(updated);
+    saveLeaderboardData(updated);
+
+    // ✅ Tắt loading + đóng modal
+    setSaving(false);
+    setShowRankingModal(false);
+
+    alert(`✅ Đã lưu bảng xếp hạng cho giải ${selectedTournamentId}`);
+  };
+
+  // Mở modal xem bảng xếp hạng
+  const handleViewRanking = (tournamentId) => {
+    setSelectedLeaderboardId(tournamentId);
+    setShowLeaderboardModal(true);
+    setSavingLeaderboard(false);
+
+    const lb = leaderboardsByTournament[tournamentId];
+    if (lb) {
+      setLeaderboard(lb.teams);
+      setStatusEditing(lb.status);
+    } else {
+      // Nếu chưa có, khởi tạo rỗng
+      setLeaderboard([]);
+      setStatusEditing('upcoming');
+    }
+  };
+
+  // Sửa giá trị từng hàng
+  const handleChangeField = (id, field, value) => {
+    setLeaderboard((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, [field]: parseInt(value) || 0 } : item
+      )
+    );
+  };
+
+  // Lưu mock thay đổi
+  const handleSaveLeaderboard = async () => {
+    setSavingLeaderboard(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    const updated = {
+      ...leaderboardsByTournament,
+      [selectedLeaderboardId]: {
+        status: statusEditing,
+        teams: leaderboard,
+      },
+    };
+
+    setLeaderboardsByTournament(updated);
+    saveLeaderboardData(updated);
+
+    setSavingLeaderboard(false);
+    setShowLeaderboardModal(false);
+
+    alert(`✅ Đã cập nhật bảng xếp hạng giải ${selectedLeaderboardId}`);
   };
 
   return (
@@ -600,10 +744,36 @@ export const TournamentManagement = () => {
                         {!tournament.startDate && <span className="text-gray-400">TBD</span>}
                       </td>
                       <td className="px-4 py-4 text-right">
-                        <div className="relative inline-block">
-                          <button className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-xl px-2">
+                        <div className="relative inline-block text-left">
+                          <button
+                            onClick={() => setOpenMenuId(openMenuId === tournament.id ? null : tournament.id)}
+                            className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-xl px-2"
+                          >
                             ⋮
                           </button>
+
+                          {openMenuId === tournament.id && (
+                            <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+                              <button
+                                onClick={() => handleViewRanking(tournament.id)}
+                                className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                              >
+                                👁️ Xem bảng xếp hạng
+                              </button>
+                              <button
+                                onClick={() => handleCreateRanking(tournament.id)}
+                                className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border-t border-gray-200 dark:border-gray-700"
+                              >
+                                🧩 Tạo bảng xếp hạng
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTournament(tournament.id)}
+                                className="block w-full text-left px-4 py-2 text-sm hover:bg-red-100 dark:hover:bg-red-700 text-red-600 dark:text-red-300 border-t border-gray-200 dark:border-gray-700"
+                              >
+                                🗑️ Xóa giải đấu
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -920,6 +1090,225 @@ export const TournamentManagement = () => {
           </div>
         )}
       </div>
+      {showRankingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                🧩 Tạo bảng xếp hạng
+              </h2>
+              <button
+                onClick={() => setShowRankingModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Thêm đội tuyển
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {availableTeams.map((team) => (
+                    <button
+                      key={team.id}
+                      onClick={() => handleAddTeam(team)}
+                      className="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-700"
+                    >
+                      ➕ {team.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Danh sách đội đã chọn ({rankingTeams.length})
+                </label>
+                <div className="border border-gray-300 dark:border-gray-600 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
+                  {rankingTeams.length === 0 && (
+                    <div className="text-gray-500 text-sm p-3">
+                      Chưa có đội nào được thêm.
+                    </div>
+                  )}
+                  {rankingTeams.map((team) => (
+                    <div
+                      key={team.id}
+                      className="flex justify-between items-center p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={team.logo}
+                          alt={team.name}
+                          className="w-8 h-8 rounded-full object-cover"
+                        />
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {team.name}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveTeam(team.id)}
+                        className="text-red-500 hover:text-red-700 text-sm"
+                      >
+                        ❌ Xóa
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Trạng thái giải đấu
+                </label>
+                <select
+                  value={tournamentStatus}
+                  onChange={(e) => setTournamentStatus(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value="upcoming">⏳ Chưa diễn ra</option>
+                  <option value="live">🟢 Đang diễn ra</option>
+                  <option value="completed">✅ Đã xong</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-gray-200 dark:border-gray-700 pt-4">
+                <button
+                  onClick={() => setShowRankingModal(false)}
+                  className="px-5 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleSaveLeaderboard1}
+                  disabled={saving}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50"
+                >
+                  {saving ? 'Đang lưu...' : '💾 Lưu bảng xếp hạng'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLeaderboardModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                👁️ Bảng xếp hạng Giải {selectedLeaderboardId}
+              </h2>
+              <button
+                onClick={() => setShowLeaderboardModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Trạng thái giải đấu */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Trạng thái giải đấu
+                </label>
+                <select
+                  value={statusEditing}
+                  onChange={(e) => setStatusEditing(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value="upcoming">⏳ Chưa diễn ra</option>
+                  <option value="live">🟢 Đang diễn ra</option>
+                  <option value="completed">✅ Đã hoàn thành</option>
+                </select>
+              </div>
+
+              {/* Bảng đội */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-100 dark:bg-gray-700/40">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">#</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Đội</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">Thắng</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">Thua</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">Điểm</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {leaderboard.length === 0 && (
+                      <tr>
+                        <td colSpan="5" className="text-center py-6 text-gray-500 dark:text-gray-400">
+                          Không có dữ liệu bảng xếp hạng
+                        </td>
+                      </tr>
+                    )}
+                    {leaderboard.map((team, index) => (
+                      <tr key={team.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{index + 1}</td>
+                        <td className="px-4 py-3 flex items-center gap-3">
+                          <img
+                            src={team.logo || '/default-team.png'}
+                            className="w-8 h-8 rounded-full object-cover"
+                            alt={team.name || team.team || 'team'}
+                          />
+                          <span className="text-gray-900 dark:text-white font-medium">
+                            {team.name || team.team || 'Không rõ tên'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <input
+                            type="number"
+                            value={team.wins ?? 0}
+                            onChange={(e) => handleChangeField(team.id, 'wins', e.target.value)}
+                            className="w-16 text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <input
+                            type="number"
+                            value={team.losses || 0}
+                            onChange={(e) => handleChangeField(team.id, 'losses', e.target.value)}
+                            className="w-16 text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <input
+                            type="number"
+                            value={team.points || 0}
+                            onChange={(e) => handleChangeField(team.id, 'points', e.target.value)}
+                            className="w-20 text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Nút lưu */}
+              <div className="flex justify-end border-t border-gray-200 dark:border-gray-700 pt-4 gap-3">
+                <button
+                  onClick={() => setShowLeaderboardModal(false)}
+                  className="px-5 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleSaveLeaderboard}
+                  disabled={savingLeaderboard}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50"
+                >
+                  {savingLeaderboard ? 'Đang lưu...' : '💾 Lưu bảng xếp hạng'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
