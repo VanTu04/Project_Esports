@@ -259,6 +259,15 @@ export const getTournamentMatches = async (tournament_id, round = null) => {
   return matches;
 };
 
+export const markParticipantBye = async (participantId) => {
+  const participant = await models.Participant.findByPk(participantId);
+  if (!participant) throw new Error(`Participant ${participantId} not found`);
+
+  participant.has_received_bye = true;
+  await participant.save();
+
+  return participant;
+};
 
 //
 export const findParticipantsByIds = async (participant_ids) => {

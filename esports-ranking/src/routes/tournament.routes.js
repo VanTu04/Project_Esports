@@ -91,6 +91,11 @@ router.post(
   tournamentController.startTournamentSwiss
 );
 
+// Lấy danh sách trận đấu theo vòng
+router.post('/rounds/matches', tournamentController.getMatchesByRound);
+// POST cập nhật điểm trận đấu
+router.post('/matches/:match_id/update-score', tournamentController.updateMatchScore);
+
 router.get('/:id/leaderboard', tournamentController.getTournamentLeaderboard);
 router.get('/:id/rounds-result', tournamentController.getTournamentRoundsResult);
 

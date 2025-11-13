@@ -1,38 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "hardhat/console.sol";
-
 contract Leaderboard {
     address public owner;
 
-    struct MatchResult {
-        uint256 tournamentId;
-        uint256 roundNumber;
-        address teamA;
-        address teamB;
-        uint256 scoreA;
-        uint256 scoreB;
-        uint256 updatedAt;
-        address updatedBy;
+    struct LeaderboardEntry {
+        address participant;
+        uint256 points;
     }
 
-    mapping(uint256 => MatchResult) public matches; // matchId -> MatchResult
-    uint256 public matchCount;
+    struct RoundLeaderboard {
+        uint256 tournamentId;
+        uint256 roundNumber;
+        LeaderboardEntry[] entries;
+        uint256 updatedAt;
+    }
 
-    event MatchCreated(
-        uint256 indexed matchId,
+    mapping(uint256 => mapping(uint256 => RoundLeaderboard)) public leaderboard; 
+    // tournamentId => roundNumber => leaderboard
+
+    event LeaderboardUpdated(
         uint256 indexed tournamentId,
-        uint256 roundNumber,
-        address teamA,
-        address teamB
-    );
-
-    event MatchUpdated(
-        uint256 indexed matchId,
-        uint256 scoreA,
-        uint256 scoreB,
-        address updatedBy,
+        uint256 indexed roundNumber,
+        address[] participants,
+        uint256[] points,
         uint256 timestamp
     );
 
@@ -43,80 +34,55 @@ contract Leaderboard {
 
     constructor() {
         owner = msg.sender;
-        console.log("Leaderboard deployed by:", msg.sender);
     }
 
-    // === Tạo trận mới ===
-    function createMatch(
+    /**
+     * Cập nhật bảng xếp hạng 1 vòng
+     * @param tournamentId ID giải đấu
+     * @param roundNumber Số vòng
+     * @param participants Danh sách address participant
+     * @param points Điểm tương ứng
+     */
+    function updateRoundLeaderboard(
         uint256 tournamentId,
         uint256 roundNumber,
-        address teamA,
-        address teamB
-    ) public onlyOwner returns (uint256) {
-        matchCount++;
-        matches[matchCount] = MatchResult({
-            tournamentId: tournamentId,
-            roundNumber: roundNumber,
-            teamA: teamA,
-            teamB: teamB,
-            scoreA: 0,
-            scoreB: 0,
-            updatedAt: block.timestamp,
-            updatedBy: msg.sender
-        });
+        address[] calldata participants,
+        uint256[] calldata points
+    ) external onlyOwner {
+        require(participants.length == points.length, "Participants and points length mismatch");
 
-        emit MatchCreated(matchCount, tournamentId, roundNumber, teamA, teamB);
-        return matchCount;
-    }
+        RoundLeaderboard storage rl = leaderboard[tournamentId][roundNumber];
+        rl.tournamentId = tournamentId;
+        rl.roundNumber = roundNumber;
+        rl.updatedAt = block.timestamp;
 
-    // === Cập nhật điểm ===
-    function updateMatchScore(
-        uint256 matchId,
-        uint256 scoreA,
-        uint256 scoreB
-    ) public onlyOwner {
-        require(matchId > 0 && matchId <= matchCount, "Invalid matchId");
+        delete rl.entries; // xóa dữ liệu cũ nếu có
 
-        MatchResult storage m = matches[matchId];
-        m.scoreA = scoreA;
-        m.scoreB = scoreB;
-        m.updatedAt = block.timestamp;
-        m.updatedBy = msg.sender;
-
-        emit MatchUpdated(matchId, scoreA, scoreB, msg.sender, block.timestamp);
-    }
-
-    // === Lấy điểm ===
-    function getMatchScore(uint256 matchId)
-        public
-        view
-        returns (uint256, uint256)
-    {
-        MatchResult storage m = matches[matchId];
-        return (m.scoreA, m.scoreB);
-    }
-
-    // === Lấy toàn bộ trận của 1 giải ===
-    function getMatchesByTournament(uint256 tournamentId)
-        public
-        view
-        returns (MatchResult[] memory)
-    {
-        uint256 count;
-        for (uint256 i = 1; i <= matchCount; i++) {
-            if (matches[i].tournamentId == tournamentId) {
-                count++;
-            }
+        for (uint256 i = 0; i < participants.length; i++) {
+            rl.entries.push(LeaderboardEntry({
+                participant: participants[i],
+                points: points[i]
+            }));
         }
 
-        MatchResult[] memory result = new MatchResult[](count);
-        uint256 idx;
-        for (uint256 i = 1; i <= matchCount; i++) {
-            if (matches[i].tournamentId == tournamentId) {
-                result[idx] = matches[i];
-                idx++;
-            }
+        emit LeaderboardUpdated(tournamentId, roundNumber, participants, points, block.timestamp);
+    }
+
+    /**
+     * Lấy BXH vòng
+     */
+    function getRoundLeaderboard(uint256 tournamentId, uint256 roundNumber)
+        external view returns (address[] memory participants, uint256[] memory points)
+    {
+        RoundLeaderboard storage rl = leaderboard[tournamentId][roundNumber];
+        uint256 len = rl.entries.length;
+
+        participants = new address[](len);
+        points = new uint256[](len);
+
+        for (uint256 i = 0; i < len; i++) {
+            participants[i] = rl.entries[i].participant;
+            points[i] = rl.entries[i].points;
         }
-        return result;
     }
 }
