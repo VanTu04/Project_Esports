@@ -4,20 +4,15 @@ import models from '../models/index.js';
 import * as jwt_token from '../middlewares/jwt_token.js';
 import * as MailHelper from '../helper/MailHelper.js';
 import { decrypt, generateWallet } from '../utils/wallet.js';
+import { fundWalletOnAnvil } from '../init/initAdmin.js';
 
 export const register = async (data) => {
-
   if (!data.email || !data.username || !data.password || !data.full_name) {
     throw new Error('Thiếu thông tin bắt buộc: email, username, full_name, password');
   }
 
-  // Kiểm tra trùng email
   const existingUser = await models.User.findOne({
-    where: {
-      email: data.email,
-      status: 1,
-      deleted: 0
-    }
+    where: { email: data.email, status: 1, deleted: 0 }
   });
 
   if (existingUser) {
@@ -25,6 +20,7 @@ export const register = async (data) => {
   }
 
   const hashedPassword = await bcrypt.hash(data.password, 10);
+  const wallet = generateWallet();
 
   const newUser = await models.User.create({
     email: data.email,
@@ -33,18 +29,25 @@ export const register = async (data) => {
     password: hashedPassword,
     role: data.role ?? 1,
     status: 1,
-    deleted: 0
+    deleted: 0,
+    wallet_address: wallet.address,
+    private_key: wallet.privateKey 
   });
 
-  return { user: {
-    id: newUser.id,
-    email: newUser.email,
-    username: newUser.username,
-    full_name: newUser.full_name,
-    role: newUser.role,
-    status: newUser.status,
-    deleted: newUser.deleted,
-  } };
+  // --- 4. TỰ ĐỘNG NẠP 100 ETH BẰNG HÀM HELPER ---
+  await fundWalletOnAnvil(wallet.address, "100"); 
+
+  // Trả về thông tin user
+  return {
+    user: {
+      id: newUser.id,
+      email: newUser.email,
+      username: newUser.username,
+      full_name: newUser.full_name,
+      role: newUser.role,
+      wallet_address: newUser.wallet_address
+    }
+  };
 };
 
 export const createAccount = async (data, adminId) => {
@@ -53,14 +56,13 @@ export const createAccount = async (data, adminId) => {
     t = await models.sequelize.transaction();
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
+    
+    // 1. TẠO VÍ
+    // wallet.privateKey ở đây LÀ KEY ĐÃ ĐƯỢC MÃ HÓA
+    const wallet = generateWallet(); 
+    console.log("Wallet generated:", wallet.address);
 
-    console.log("Data:", data);
-
-    // Tạo ví mới cho user (admin hoặc team đều có)
-    const wallet = generateWallet();
-    console.log("Wallet generated:", wallet);
-
-    // Tạo user trong DB và gán luôn ví
+    // 2. TẠO USER (SỬA LẠI)
     const newUser = await models.User.create({
       username: data.username,
       full_name: data.full_name,
@@ -70,7 +72,7 @@ export const createAccount = async (data, adminId) => {
       status: 1,
       deleted: 0,
       wallet_address: wallet.address,
-      private_key: wallet.privateKey,
+      private_key: wallet.privateKey, // <-- SỬA Ở ĐÂY: Dùng trực tiếp
       created_by: adminId
     }, { transaction: t });
 
@@ -86,37 +88,8 @@ export const createAccount = async (data, adminId) => {
 
     await t.commit();
 
-    // --- Import ví mới vào Hardhat node ---
-    try {
-      const fetch = (await import('node-fetch')).default;
-      const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
-      // 1. Impersonate
-      await fetch(rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          method: "hardhat_impersonateAccount",
-          params: [wallet.address],
-          id: 1
-        })
-      });
-      // 2. Set balance
-      const hexBalance = "0x" + (10n ** 18n).toString(16); // 1 ETH
-      await fetch(rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          method: "hardhat_setBalance",
-          params: [wallet.address, hexBalance],
-          id: 2
-        })
-      });
-      console.log(`Impersonated & funded ${wallet.address} on Hardhat node.`);
-    } catch (rpcErr) {
-      console.warn('Không thể import ví vào Hardhat node:', rpcErr.message);
-    }
+    // 3. NẠP TIỀN VÀO NODE
+    await fundWalletOnAnvil(wallet.address, "100");
 
     console.log("Create account successful");
     return { success: true };

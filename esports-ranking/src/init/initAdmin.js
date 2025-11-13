@@ -6,7 +6,12 @@ import { ethers } from "ethers";
 const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
 const provider = new ethers.JsonRpcProvider(rpcUrl);
 
-async function fundWalletOnAnvil(walletAddress, amountEth = "1000000000000") {
+/**
+ * Hàm helper để "import và nạp tiền" vào Anvil/Hardhat
+ * @param {string} walletAddress - Địa chỉ ví cần nạp
+ * @param {string} amountEth - Số lượng ETH (dạng chuỗi)
+ */
+export const fundWalletOnAnvil = async (walletAddress, amountEth = "1000000000000") => {
   try {
     console.log(`[ANVIL SYNC] Nạp ${amountEth} ETH cho ví ${walletAddress}...`);
     await provider.send("hardhat_impersonateAccount", [walletAddress]);
