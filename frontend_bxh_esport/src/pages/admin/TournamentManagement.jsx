@@ -85,14 +85,19 @@ export const TournamentManagement = () => {
   // Quick filter state
   const [quickFilter, setQuickFilter] = useState('all');
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+
   useEffect(() => {
     loadTournaments();
     loadGames();
   }, []);
 
   useEffect(() => {
-    loadTournaments();
-  }, [filters, quickFilter]);
+    setCurrentPage(1); // Reset về trang 1 khi filter thay đổi
+  }, [filters.search, quickFilter]);
 
   const loadGames = async () => {
     try {
@@ -108,79 +113,54 @@ export const TournamentManagement = () => {
     try {
       setLoading(true);
       
-      // FAKE DATA để demo
-      const fakeTournaments = [
-        {
-          id: 1,
-          name: 'VCS Mùa Xuân 2024',
-          tournament_name: 'VCS Mùa Xuân 2024',
-          game_name: 'League of Legends',
-          description: 'Giải đấu chuyên nghiệp Liên Minh Huyền Thoại Việt Nam',
-          start_date: '2024-01-15',
-          end_date: '2024-03-30',
-          status: 'live',
-          teams: { current: 10, max: 10, pending: 2, disputes: 1 },
-          matches: { total: 45, played: 20, remaining: 25 },
-          prizePool: 2000000000,
-        },
-        {
-          id: 2,
-          name: 'VCT Vietnam Stage 1',
-          tournament_name: 'VCT Vietnam Stage 1',
-          game_name: 'Valorant',
-          description: 'Giải đấu Valorant Challengers Tour',
-          start_date: '2024-02-01',
-          end_date: '2024-04-15',
-          status: 'upcoming',
-          teams: { current: 8, max: 12, pending: 3, disputes: 0 },
-          matches: { total: 30, played: 0, remaining: 30 },
-          prizePool: 1500000000,
-        },
-        {
-          id: 3,
-          name: 'Dota 2 Pro Circuit',
-          tournament_name: 'Dota 2 Pro Circuit',
-          game_name: 'Dota 2',
-          description: 'Vòng loại khu vực Đông Nam Á',
-          start_date: '2023-11-01',
-          end_date: '2023-12-31',
-          status: 'completed',
-          teams: { current: 16, max: 16, pending: 0, disputes: 0 },
-          matches: { total: 60, played: 60, remaining: 0 },
-          prizePool: 3000000000,
-        },
-        {
-          id: 4,
-          name: 'CS:GO Vietnam Championship',
-          tournament_name: 'CS:GO Vietnam Championship',
-          game_name: 'Counter-Strike',
-          description: 'Giải vô địch CS:GO Việt Nam',
-          start_date: '2024-03-01',
-          end_date: '2024-05-30',
-          status: 'upcoming',
-          teams: { current: 12, max: 16, pending: 5, disputes: 2 },
-          matches: { total: 50, played: 0, remaining: 50 },
-          prizePool: 1800000000,
-        },
-        {
-          id: 5,
-          name: 'Mobile Legends Cup 2024',
-          tournament_name: 'MLBB Cup 2024',
-          game_name: 'Mobile Legends',
-          description: 'Giải đấu Mobile Legends hàng đầu',
-          start_date: '2024-01-20',
-          end_date: '2024-02-28',
-          status: 'live',
-          teams: { current: 8, max: 8, pending: 0, disputes: 0 },
-          matches: { total: 28, played: 15, remaining: 13 },
-          prizePool: 1000000000,
-        },
-      ];
+      // Build query params based on filters
+      const params = {};
+      if (filters.status) params.status = filters.status;
+      if (filters.search) params.search = filters.search;
+      
+      // Call real API
+      const response = await tournamentService.getAllTournaments(params);
+      const tournamentsData = response?.data || [];
+      
+      // Load participants count for each tournament
+      const mappedTournaments = await Promise.all(tournamentsData.map(async (tournament) => {
+        // Map status: PENDING -> upcoming, ACTIVE -> live, COMPLETED -> completed
+        let mappedStatus = 'upcoming';
+        if (tournament.status === 'ACTIVE') {
+          mappedStatus = 'live';
+        } else if (tournament.status === 'COMPLETED') {
+          mappedStatus = 'completed';
+        } else if (tournament.status === 'PENDING') {
+          mappedStatus = 'upcoming';
+        }
+        
+        // Load participants to count pending/approved
+        let teamsCount = { current: 0, max: 0, pending: 0, disputes: 0 };
+        try {
+          const participantsResponse = await tournamentService.getParticipants(tournament.id);
+          if (participantsResponse?.code === 0) {
+            const participants = participantsResponse.data || [];
+            teamsCount.pending = participants.filter(p => p.status === 'PENDING').length;
+            teamsCount.current = participants.filter(p => p.status === 'APPROVED').length;
+            teamsCount.max = tournament.max_teams || 32;
+          }
+        } catch (err) {
+          console.warn(`Could not load participants for tournament ${tournament.id}`);
+        }
+        
+        return {
+          ...tournament,
+          tournament_name: tournament.name,
+          status: mappedStatus,
+          teams: teamsCount,
+          matches: tournament.matches || { total: 0, played: 0, remaining: 0 },
+        };
+      }));
 
-      setTournaments(fakeTournaments);
-      calculateStatistics(fakeTournaments);
+      setTournaments(mappedTournaments);
+      calculateStatistics(mappedTournaments);
     } catch (error) {
-      console.error(error);
+      console.error('❌ Failed to load tournaments:', error);
       showError('Không thể tải danh sách giải đấu. Vui lòng thử lại!');
     } finally {
       setLoading(false);
@@ -243,6 +223,7 @@ export const TournamentManagement = () => {
 
   const handleQuickFilter = (filter) => {
     setQuickFilter(filter);
+    setCurrentPage(1); // Reset về trang 1
   };
 
   const handleSelectTournament = (id) => {
@@ -276,11 +257,17 @@ export const TournamentManagement = () => {
     );
   };
 
-  const handleDeleteTournament = (id) => {
+  const handleDeleteTournament = async (id) => {
     if (window.confirm("Bạn có chắc muốn xóa giải đấu này?")) {
-      console.log("Xóa giải đấu", id);
-      setTournaments((prev) => prev.filter((t) => t.id !== id));
-      setOpenMenuId(null);
+      try {
+        await tournamentService.deleteTournament(id);
+        showSuccess('Đã xóa giải đấu thành công!');
+        loadTournaments();
+        setOpenMenuId(null);
+      } catch (error) {
+        console.error('❌ Failed to delete tournament:', error);
+        showError('Không thể xóa giải đấu. Vui lòng thử lại!');
+      }
     }
   };
 
@@ -404,99 +391,231 @@ export const TournamentManagement = () => {
   };
 
   // Mở modal duyệt đội
-  const handleOpenTeamApproval = (tournament) => {
+  const handleOpenTeamApproval = async (tournament) => {
     setSelectedTournamentForApproval(tournament);
     
-    // Fake data - Danh sách đội chờ duyệt
-    const fakePendingTeams = [
-      {
-        id: 1,
-        name: 'Team Flash',
-        logo: '🔥',
-        captain: 'Gấu',
-        members: 5,
-        registeredDate: '2024-01-10',
-        description: 'Đội tuyển chuyên nghiệp với 3 năm kinh nghiệm',
-      },
-      {
-        id: 2,
-        name: 'Dragon Warriors',
-        logo: '🐉',
-        captain: 'DragonKing',
-        members: 5,
-        registeredDate: '2024-01-12',
-        description: 'Đội mới nổi với thành tích ấn tượng',
-      },
-      {
-        id: 3,
-        name: 'Phoenix Rising',
-        logo: '🔥',
-        captain: 'PhoenixMaster',
-        members: 5,
-        registeredDate: '2024-01-15',
-        description: 'Đội tuyển gồm các tuyển thủ trẻ triển vọng',
-      },
-    ];
-    
-    setPendingTeams(fakePendingTeams);
-    setShowTeamApprovalModal(true);
+    try {
+      // Load real pending teams from API
+      const response = await tournamentService.getParticipants(tournament.id, 'PENDING');
+      
+      // Backend trả về: {code: 0, data: [], message: string}
+      let participants = [];
+      
+      if (response?.code === 0) {
+        participants = response.data || [];
+      } else if (Array.isArray(response)) {
+        participants = response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        participants = response.data;
+      }
+      
+      // Map participants to team format
+      const teams = participants.map(p => ({
+        id: p.id,
+        name: p.team_name,
+        logo: '�', // Default icon
+        captain: p.User?.full_name || 'N/A',
+        members: 5, // Default or fetch from team data
+        registeredDate: p.created_at,
+        description: `Wallet: ${p.wallet_address}`,
+      }));
+      
+      setPendingTeams(teams);
+      setShowTeamApprovalModal(true);
+    } catch (error) {
+      showError('Không thể tải danh sách đội chờ duyệt!');
+    }
   };
 
   // Duyệt đội
   const handleApproveTeam = async (teamId) => {
     setProcessingTeamId(teamId);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Remove team from pending list
-    setPendingTeams(prev => prev.filter(t => t.id !== teamId));
-    
-    // Update tournament pending count
-    setTournaments(prev => prev.map(t => {
-      if (t.id === selectedTournamentForApproval?.id) {
-        return {
-          ...t,
-          teams: {
-            ...t.teams,
-            pending: Math.max(0, (t.teams?.pending || 0) - 1),
-            current: (t.teams?.current || 0) + 1,
-          }
-        };
-      }
-      return t;
-    }));
-    
-    setProcessingTeamId(null);
-    showSuccess('Đã duyệt đội thành công!');
+    try {
+      // Call real API to approve
+      await tournamentService.reviewJoinRequest(teamId, 'APPROVE');
+      
+      // Remove team from pending list
+      setPendingTeams(prev => prev.filter(t => t.id !== teamId));
+      
+      // Update tournament pending count
+      setTournaments(prev => prev.map(t => {
+        if (t.id === selectedTournamentForApproval?.id) {
+          return {
+            ...t,
+            teams: {
+              ...t.teams,
+              pending: Math.max(0, (t.teams?.pending || 0) - 1),
+              current: (t.teams?.current || 0) + 1,
+            }
+          };
+        }
+        return t;
+      }));
+      
+      showSuccess('Đã duyệt đội thành công!');
+    } catch (error) {
+      console.error('❌ Failed to approve team:', error);
+      showError('Không thể duyệt đội. Vui lòng thử lại!');
+    } finally {
+      setProcessingTeamId(null);
+    }
   };
 
   // Từ chối đội
   const handleRejectTeam = async (teamId) => {
     setProcessingTeamId(teamId);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      // Call real API to reject
+      await tournamentService.reviewJoinRequest(teamId, 'REJECT');
+      
+      // Remove team from pending list
+      setPendingTeams(prev => prev.filter(t => t.id !== teamId));
+      
+      // Update tournament pending count
+      setTournaments(prev => prev.map(t => {
+        if (t.id === selectedTournamentForApproval?.id) {
+          return {
+            ...t,
+            teams: {
+              ...t.teams,
+              pending: Math.max(0, (t.teams?.pending || 0) - 1),
+            }
+          };
+        }
+        return t;
+      }));
+      
+      showWarning('Đã từ chối đội!');
+    } catch (error) {
+      console.error('❌ Failed to reject team:', error);
+      showError('Không thể từ chối đội. Vui lòng thử lại!');
+    } finally {
+      setProcessingTeamId(null);
+    }
+  };
+
+  // Bắt đầu giải đấu
+  const handleStartTournament = async (tournamentId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn bắt đầu giải đấu? Sau khi bắt đầu, các đội chờ duyệt sẽ bị từ chối và vòng 1 sẽ được tạo tự động.')) {
+      return;
+    }
+
+    try {
+      // Call API to start tournament
+      const response = await tournamentService.startTournament(tournamentId);
+      
+      showSuccess(`Giải đấu đã bắt đầu! ${response?.data?.matches_created || 0} trận đấu đã được tạo.`);
+      
+      // Reload tournaments to get updated status
+      loadTournaments();
+    } catch (error) {
+      console.error('❌ Failed to start tournament:', error);
+      showError(error?.response?.data?.message || 'Không thể bắt đầu giải đấu. Vui lòng kiểm tra đủ 2 đội đã được duyệt!');
+    }
+  };
+
+  // Get filtered tournaments based on quick filter and search
+  const getFilteredTournaments = () => {
+    let filtered = tournaments;
+
+    // Apply search filter
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter(t => {
+        const name = (t.name || t.tournament_name || '').toLowerCase();
+        const description = (t.description || '').toLowerCase();
+        const id = String(t.id);
+        
+        return name.includes(searchLower) || 
+               description.includes(searchLower) || 
+               id.includes(searchLower);
+      });
+    }
+
+    // Apply quick filter
+    switch (quickFilter) {
+      case 'live':
+        filtered = filtered.filter(t => t.status === 'live' || t.status === 'active');
+        break;
+      case 'upcoming':
+        filtered = filtered.filter(t => t.status === 'upcoming');
+        break;
+      case 'completed':
+        filtered = filtered.filter(t => t.status === 'completed');
+        break;
+      case 'cancelled':
+        filtered = filtered.filter(t => t.status === 'cancelled');
+        break;
+      case 'all':
+      default:
+        // No additional filtering needed
+        break;
+    }
+
+    return filtered;
+  };
+
+  // Get paginated tournaments
+  const getPaginatedTournaments = () => {
+    const filtered = getFilteredTournaments();
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filtered.slice(startIndex, endIndex);
+  };
+
+  // Handle page change
+  const handlePageChange = (page) => {
+    const maxPages = getCurrentTotalPages();
+    if (page >= 1 && page <= maxPages) {
+      setCurrentPage(page);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    const filtered = getFilteredTournaments();
+    const calculatedTotalPages = Math.ceil(filtered.length / itemsPerPage);
     
-    // Remove team from pending list
-    setPendingTeams(prev => prev.filter(t => t.id !== teamId));
+    const pages = [];
+    const maxVisiblePages = 5;
     
-    // Update tournament pending count
-    setTournaments(prev => prev.map(t => {
-      if (t.id === selectedTournamentForApproval?.id) {
-        return {
-          ...t,
-          teams: {
-            ...t.teams,
-            pending: Math.max(0, (t.teams?.pending || 0) - 1),
-          }
-        };
+    if (calculatedTotalPages <= maxVisiblePages) {
+      // Show all pages if total is less than max
+      for (let i = 1; i <= calculatedTotalPages; i++) {
+        pages.push(i);
       }
-      return t;
-    }));
+    } else {
+      // Show smart pagination
+      if (currentPage <= 3) {
+        // Near start
+        for (let i = 1; i <= 4; i++) pages.push(i);
+        pages.push('...');
+        pages.push(calculatedTotalPages);
+      } else if (currentPage >= calculatedTotalPages - 2) {
+        // Near end
+        pages.push(1);
+        pages.push('...');
+        for (let i = calculatedTotalPages - 3; i <= calculatedTotalPages; i++) pages.push(i);
+      } else {
+        // Middle
+        pages.push(1);
+        pages.push('...');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
+        pages.push('...');
+        pages.push(calculatedTotalPages);
+      }
+    }
     
-    setProcessingTeamId(null);
-    showWarning('Đã từ chối đội!');
+    return pages;
+  };
+
+  // Get current total pages based on filtered data
+  const getCurrentTotalPages = () => {
+    const filtered = getFilteredTournaments();
+    return Math.ceil(filtered.length / itemsPerPage);
   };
 
   return (
@@ -720,7 +839,7 @@ export const TournamentManagement = () => {
                   <option value="cancelled">Cancelled</option>
                 </select>
 
-                <select
+                {/* <select
                   className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-black focus:outline-none focus:ring-2 focus:ring-primary-500"
                   value={filters.format}
                   onChange={(e) => handleFilterChange('format', e.target.value)}
@@ -730,7 +849,7 @@ export const TournamentManagement = () => {
                   <option value="double-elim">Double Elimination</option>
                   <option value="round-robin">Round Robin</option>
                   <option value="swiss">Swiss</option>
-                </select>
+                </select> */}
               </div>
             )}
 
@@ -742,8 +861,6 @@ export const TournamentManagement = () => {
                 { id: 'upcoming', label: 'Sắp diễn ra', variant: 'secondary' },
                 { id: 'completed', label: 'Hoàn thành', variant: 'secondary' },
                 { id: 'cancelled', label: 'Đã hủy', variant: 'danger' },
-                { id: 'issues', label: 'Có vấn đề', variant: 'danger' },
-                { id: 'pending', label: 'Chờ duyệt', variant: 'outline' }
               ].map(filter => (
                 <Button
                   key={filter.id}
@@ -797,18 +914,32 @@ export const TournamentManagement = () => {
             <Loading size="lg" text="Đang tải danh sách giải đấu..." />
           )}
 
-          {!loading && tournaments.length > 0 && (
+          {!loading && getFilteredTournaments().length > 0 && (
             <TournamentTable
-              tournaments={tournaments}
+              tournaments={getPaginatedTournaments()}
               onViewRanking={handleViewRanking}
               onCreateRanking={handleCreateRanking}
               onDelete={handleDeleteTournament}
               onOpenTeamApproval={handleOpenTeamApproval}
+              onStartTournament={handleStartTournament}
               getStatusBadge={getStatusBadge}
             />
           )}
 
           {/* Empty State */}
+          {!loading && tournaments.length > 0 && getFilteredTournaments().length === 0 && (
+            <div className="p-12 text-center">
+              <div className="text-6xl mb-4">🔍</div>
+              <h3 className="text-lg font-medium text-white mb-2">
+                Không tìm thấy giải đấu
+              </h3>
+              <p className="text-gray-400 mb-4">
+                Không có giải đấu nào phù hợp với bộ lọc "{quickFilter}"
+              </p>
+            </div>
+          )}
+
+          {/* No tournaments at all */}
           {!loading && tournaments.length === 0 && (
             <div className="p-12 text-center">
               <div className="text-6xl mb-4">🏆</div>
@@ -831,22 +962,46 @@ export const TournamentManagement = () => {
           {!loading && tournaments.length > 0 && (
             <div className="p-4 border-t border-primary-700/20 flex items-center justify-between">
               <div className="text-sm text-gray-400">
-                Hiển thị 1-{tournaments.length} của {tournaments.length} giải đấu
+                {(() => {
+                  const filtered = getFilteredTournaments();
+                  const start = (currentPage - 1) * itemsPerPage + 1;
+                  const end = Math.min(currentPage * itemsPerPage, filtered.length);
+                  return `Hiển thị ${filtered.length > 0 ? start : 0}-${end} của ${filtered.length} giải đấu`;
+                })()}
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="secondary" disabled>
+                <Button 
+                  size="sm" 
+                  variant="secondary" 
+                  disabled={currentPage === 1}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                >
                   ← Trước
                 </Button>
-                <Button size="sm" variant="primary">
-                  1
-                </Button>
-                <Button size="sm" variant="ghost">
-                  2
-                </Button>
-                <Button size="sm" variant="ghost">
-                  3
-                </Button>
-                <Button size="sm" variant="ghost">
+                
+                {getPageNumbers().map((page, index) => (
+                  page === '...' ? (
+                    <span key={`ellipsis-${index}`} className="px-3 py-1.5 text-gray-400">
+                      ...
+                    </span>
+                  ) : (
+                    <Button
+                      key={page}
+                      size="sm"
+                      variant={currentPage === page ? 'primary' : 'ghost'}
+                      onClick={() => handlePageChange(page)}
+                    >
+                      {page}
+                    </Button>
+                  )
+                ))}
+                
+                <Button 
+                  size="sm" 
+                  variant="secondary"
+                  disabled={currentPage === getCurrentTotalPages()}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                >
                   Sau →
                 </Button>
               </div>

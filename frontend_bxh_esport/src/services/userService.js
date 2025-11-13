@@ -51,8 +51,12 @@ const userService = {
   // Get all users (Admin only)
   getAllUsers: async (params = {}) => {
     try {
-      return await apiClient.get(API_ENDPOINTS.USERS, { params });
+      const response = await apiClient.get(API_ENDPOINTS.USERS, { params });
+      console.log('📥 Response từ API getAllUsers:', response);
+      // Backend trả về format: { code: 0, status: 200, message: "...", data: { users: [...] } }
+      return response.data || response; // Trả về data.users hoặc toàn bộ response
     } catch (error) {
+      console.error('❌ Error trong getAllUsers service:', error);
       throw error;
     }
   },

@@ -9,14 +9,17 @@ export default function CreateTournamentForm({ onCreated }) {
   const [form, setForm] = useState({
     name: '',
     game_id: '',
+    season_id: '',
     start_date: '',
     end_date: '',
     description: '',
   });
 
   const [games, setGames] = useState([]);
+  const [seasons, setSeasons] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingGames, setLoadingGames] = useState(true);
+  const [loadingSeasons, setLoadingSeasons] = useState(false);
   const [error, setError] = useState(null);
   const { showSuccess, showError } = useNotification();
 
@@ -38,9 +41,35 @@ export default function CreateTournamentForm({ onCreated }) {
     }
   };
 
+  // Tải danh sách mùa giải khi chọn game
+  const loadSeasons = async (gameId) => {
+    if (!gameId) {
+      setSeasons([]);
+      return;
+    }
+
+    try {
+      setLoadingSeasons(true);
+      const data = await apiClient.get(`${API_ENDPOINTS.SEASONS}/game/${gameId}`);
+      setSeasons(data?.data || []);
+    } catch (err) {
+      showError('Không thể tải danh sách mùa giải');
+      console.error('Load seasons error:', err);
+      setSeasons([]);
+    } finally {
+      setLoadingSeasons(false);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+
+    // Khi chọn game, tải danh sách mùa giải
+    if (name === 'game_id') {
+      setForm((prev) => ({ ...prev, season_id: '' })); // Reset season
+      loadSeasons(value);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -53,29 +82,28 @@ export default function CreateTournamentForm({ onCreated }) {
       return;
     }
 
-    if (!form.game_id) {
-      setError('Vui lòng chọn game.');
-      return;
-    }
-
-    if (!form.start_date || !form.end_date) {
-      setError('Vui lòng chọn ngày bắt đầu và kết thúc.');
-      return;
+    // Validation dates (optional)
+    if (form.start_date && form.end_date) {
+      if (new Date(form.start_date) > new Date(form.end_date)) {
+        setError('Ngày kết thúc phải sau ngày bắt đầu.');
+        return;
+      }
     }
 
     try {
       setLoading(true);
       
-      // Backend sử dụng /ranking-board để tạo giải đấu (tournament)
+      // Backend endpoint: POST /tournaments
+      // Backend yêu cầu: name và total_rounds (bắt buộc)
       const payload = {
-        tournament_name: form.name,
-        game_id: parseInt(form.game_id),
+        name: form.name,
+        total_rounds: 1, // Default 1 round
         start_date: form.start_date,
         end_date: form.end_date,
         description: form.description,
       };
 
-      const res = await apiClient.post(API_ENDPOINTS.RANKING_BOARD, payload);
+      const res = await apiClient.post(API_ENDPOINTS.TOURNAMENTS, payload);
       
       if (onCreated) onCreated(res);
       showSuccess('Tạo giải đấu thành công');
@@ -84,10 +112,12 @@ export default function CreateTournamentForm({ onCreated }) {
       setForm({
         name: '',
         game_id: '',
+        season_id: '',
         start_date: '',
         end_date: '',
         description: '',
       });
+      setSeasons([]);
     } catch (err) {
       console.error('Create tournament error:', err);
       
@@ -129,24 +159,47 @@ export default function CreateTournamentForm({ onCreated }) {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-white mb-2">
-              Game <span className="text-rose-400">*</span>
-            </label>
-            <select 
-              name="game_id" 
-              value={form.game_id} 
-              onChange={handleChange} 
-              className="w-full px-4 py-2.5 border border-primary-700/30 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              required
-            >
-              <option value="">Chọn game</option>
-              {games.map((game) => (
-                <option key={game.id} value={game.id}>
-                  {game.name || game.game_name}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-white mb-2">
+                Game
+              </label>
+              <select 
+                name="game_id" 
+                value={form.game_id} 
+                onChange={handleChange} 
+                className="w-full px-4 py-2.5 border border-primary-700/30 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="">Chọn game (tùy chọn)</option>
+                {games.map((game) => (
+                  <option key={game.id} value={game.id}>
+                    {game.name || game.game_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-white mb-2">
+                Mùa giải
+              </label>
+              <select 
+                name="season_id" 
+                value={form.season_id} 
+                onChange={handleChange} 
+                disabled={!form.game_id || loadingSeasons}
+                className="w-full px-4 py-2.5 border border-primary-700/30 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="">
+                  {loadingSeasons ? 'Đang tải...' : form.game_id ? 'Chọn mùa giải (tùy chọn)' : 'Chọn mùa giải'}
                 </option>
-              ))}
-            </select>
+                {seasons.map((season) => (
+                  <option key={season.id} value={season.id}>
+                    {season.season_name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

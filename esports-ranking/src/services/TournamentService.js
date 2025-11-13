@@ -38,7 +38,7 @@ export const findById = async (id) => {
     where: {
       tournament_id: id
     },
-    attributes: ['id', 'team_name', 'wallet_address', 'has_received_bye', 'status']
+    attributes: ['id', 'user_id', 'team_name', 'wallet_address', 'has_received_bye', 'status']
   });
 
   const result = tournament.get({ plain: true });
@@ -195,6 +195,42 @@ export const updateTournamentStatus = async (tournament, new_status, new_round) 
   return true;
 };
 
+/**
+ * Lấy danh sách trận đấu của tournament
+ */
+export const getTournamentMatches = async (tournament_id, round = null) => {
+  const whereCondition = { tournament_id };
+  
+  if (round !== null && round !== undefined) {
+    whereCondition.round_number = parseInt(round);
+  }
+  
+  const matches = await models.Match.findAll({
+    where: whereCondition,
+    include: [
+      {
+        model: models.Participant,
+        as: 'teamA',
+        attributes: ['id', 'team_name', 'wallet_address']
+      },
+      {
+        model: models.Participant,
+        as: 'teamB',
+        attributes: ['id', 'team_name', 'wallet_address']
+      },
+      {
+        model: models.Participant,
+        as: 'winner',
+        attributes: ['id', 'team_name']
+      }
+    ],
+    order: [
+      ['round_number', 'ASC'],
+      ['id', 'ASC']
+    ]
+  });
+  
+  return matches;
 
 
 //
