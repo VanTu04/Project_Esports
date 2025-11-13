@@ -88,7 +88,10 @@ router.post(
 router.post(
   '/:id/start',
   checkRole([roles.ADMIN]),
-  tournamentController.startTournament
+  tournamentController.startTournamentSwiss
 );
+
+router.get('/:id/leaderboard', tournamentController.getTournamentLeaderboard);
+router.get('/:id/rounds-result', tournamentController.getTournamentRoundsResult);
 
 export default router;

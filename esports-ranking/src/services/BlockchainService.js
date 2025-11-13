@@ -23,6 +23,14 @@ const { abi } = JSON.parse(abiFile);
 
 const leaderboardContract = new ethers.Contract(contractAddress, abi, adminWallet);
 
+export const createMatchOnChain = async (tournamentId, roundNumber, teamA, teamB) => {
+  const tx = await leaderboardContract.createMatch(tournamentId, roundNumber, teamA, teamB || ethers.constants.AddressZero);
+  const receipt = await tx.wait(1);
+  // matchId = matchCount (trả về trong event, hoặc từ backend theo thứ tự tạo)
+  const matchId = await leaderboardContract.matchCount();
+  return { matchId: Number(matchId), txHash: tx.hash, blockNumber: receipt.blockNumber };
+};
+
 /**
  * Cập nhật điểm trận đấu
  * @param {number} matchId 
