@@ -32,6 +32,35 @@ export const createMatchOnChain = async (tournamentId, roundNumber, teamA, teamB
 };
 
 /**
+ * Ghi BXH vòng lên blockchain
+ * @param {number} tournamentId
+ * @param {number} roundNumber
+ * @param {Array} leaderboard - [{ participant_id, wallet_address, total_points }]
+ */
+export const writeLeaderboardToBlockchain = async (tournamentId, roundNumber, leaderboard) => {
+  const participants = leaderboard.map(p => p.wallet_address);
+  const points = leaderboard.map(p => p.total_points);
+
+  const tx = await leaderboardContract.updateRoundLeaderboard(
+    tournamentId,
+    roundNumber,
+    participants,
+    points
+  );
+
+  const receipt = await tx.wait(1);
+
+  return {
+    txHash: tx.hash,
+    blockNumber: receipt.blockNumber,
+    tournamentId,
+    roundNumber,
+    participantCount: participants.length
+  };
+};
+
+
+/**
  * Cập nhật điểm trận đấu
  * @param {number} matchId 
  * @param {number} scoreA 

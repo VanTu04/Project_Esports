@@ -296,40 +296,40 @@ const swissPairing = (participants, matchesSoFar) => {
 };
 
 // === ADMIN TẠO VÒNG THỤY SĨ ===
+// === ADMIN: Bắt đầu giải đấu Thụy Sĩ ===
 export const startTournamentSwiss = async (req, res) => {
   try {
     const { id: tournament_id } = req.params;
 
-    // 1. Lấy tournament
-    const tournament = await tournamentService.findById(tournament_id);
+    // 1️⃣ Lấy tournament (instance Sequelize)
+    const tournament = await models.Tournament.findByPk(tournament_id);
     if (!tournament) {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại.'));
     }
 
-    // 2. Kiểm tra trạng thái
+    // 2️⃣ Kiểm tra trạng thái
     if (tournament.status === 'COMPLETED') {
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Giải đấu đã kết thúc.'));
     }
 
-    // 3. Lấy tất cả đội đã duyệt
+    // 3️⃣ Lấy các participant đã được duyệt
     const participants = await tournamentService.getParticipantsByStatus(tournament_id, 'APPROVED');
     if (participants.length < 2) {
-      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, `Cần ít nhất 2 đội.`));
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Cần ít nhất 2 đội để bắt đầu.'));
     }
 
-    // 4. Lấy tất cả trận đấu đã có trong giải
+    // 4️⃣ Lấy các match đã tồn tại trong giải
     const matchesSoFar = await models.Match.findAll({ where: { tournament_id } });
 
-    // 5. Lấy tổng điểm từ blockchain
-    for (const p of participants) {
-      p.total_points = await getScoreFromContract(p.wallet_address);
-    }
-
-    // 6. Ghép cặp theo thuật toán Swiss
+    // 5️⃣ Ghép cặp theo Swiss
     const { pairs, byeTeam } = swissPairing(participants, matchesSoFar);
 
-    // 7. Tạo Match mới
-    const round_number = (matchesSoFar.length === 0) ? 1 : Math.max(...matchesSoFar.map(m => m.round_number)) + 1;
+    // 6️⃣ Xác định số vòng hiện tại
+    const round_number = (matchesSoFar.length === 0)
+      ? 1
+      : Math.max(...matchesSoFar.map(m => m.round_number)) + 1;
+
+    // 7️⃣ Chuẩn bị dữ liệu match mới
     const matchesData = pairs.map(pair => ({
       tournament_id,
       round_number,
@@ -338,7 +338,7 @@ export const startTournamentSwiss = async (req, res) => {
       status: 'PENDING'
     }));
 
-    // 8. Xử lý đội Bye
+    // 8️⃣ Xử lý đội Bye (nếu có)
     if (byeTeam) {
       matchesData.push({
         tournament_id,
@@ -348,17 +348,19 @@ export const startTournamentSwiss = async (req, res) => {
         winner_participant_id: byeTeam.id,
         status: 'COMPLETED'
       });
-      await updateMatchScoreOnChain(byeTeam.wallet_address, 2); // ghi blockchain 2 điểm
+
+      // đánh dấu participant đã nhận bye
       await tournamentService.markParticipantBye(byeTeam.id);
     }
 
-    // 9. Lưu Match vào DB
+    // 9️⃣ Lưu match vào DB
     await tournamentService.createMatches(matchesData);
 
-    // 10. Cập nhật trạng thái tournament ACTIVE nếu chưa ACTIVE
+    // 10️⃣ Cập nhật trạng thái tournament nếu đang PENDING
     if (tournament.status === 'PENDING') {
-      const tournamentInstance = await models.Tournament.findByPk(tournament_id);
-      await tournamentService.updateTournamentStatus(tournamentInstance, 'ACTIVE', 1);
+      await tournament.update({ status: 'ACTIVE', current_round: round_number });
+    } else {
+      await tournament.update({ current_round: round_number });
     }
 
     return res.json(responseSuccess({
@@ -369,6 +371,71 @@ export const startTournamentSwiss = async (req, res) => {
 
   } catch (error) {
     console.error('startTournamentSwiss error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+
+/**
+ * GET /tournaments/:tournament_id/rounds/:round_number/matches
+ * Lấy danh sách các trận đấu của 1 vòng
+ */
+export const getMatchesByRound = async (req, res) => {
+  try {
+    const { tournaments: tournament_id, rounds: round_number } = req.body;
+
+    // 1️⃣ Kiểm tra giải đấu tồn tại
+    const tournament = await models.Tournament.findByPk(tournament_id);
+    if (!tournament) {
+      return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại.'));
+    }
+
+    // 2️⃣ Lấy danh sách trận đấu trong vòng
+    const matches = await models.Match.findAll({
+      where: { tournament_id, round_number },
+      include: [
+        { model: models.Participant, as: 'teamA', attributes: ['id', 'team_name', 'wallet_address'] },
+        { model: models.Participant, as: 'teamB', attributes: ['id', 'team_name', 'wallet_address'] },
+        { model: models.Participant, as: 'winner', attributes: ['id', 'team_name'] }
+      ],
+      order: [['id', 'ASC']]
+    });
+
+    return res.json(responseSuccess({ matches }));
+
+  } catch (error) {
+    console.error('getMatchesByRound error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+export const updateMatchScore = async (req, res) => {
+  try {
+    const { match_id } = req.params;
+    const { point_team_a, point_team_b, winner_participant_id } = req.body;
+
+    if (point_team_a == null || point_team_b == null || !winner_participant_id) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Thiếu điểm hoặc winner'));
+    }
+
+    // 1️⃣ Lấy match
+    const match = await models.Match.findByPk(match_id);
+    if (!match) {
+      return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Match không tồn tại'));
+    }
+
+    // 2️⃣ Cập nhật điểm và winner
+    await match.update({
+      point_team_a,
+      point_team_b,
+      winner_participant_id,
+      status: 'COMPLETED'
+    });
+
+    return res.json(responseSuccess({ match }, 'Cập nhật điểm trận đấu thành công'));
+
+  } catch (error) {
+    console.error('updateMatchScore error', error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };

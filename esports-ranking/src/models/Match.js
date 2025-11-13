@@ -42,6 +42,14 @@ export default (sequelize) => {
         key: 'id'
       }
     },
+    point_team_a: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0
+    },
+    point_team_b: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0
+    },
     status: {
       type: DataTypes.ENUM('PENDING', 'COMPLETED', 'CANCELLED'),
       defaultValue: 'PENDING',
