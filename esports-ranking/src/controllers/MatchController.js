@@ -1,7 +1,6 @@
 // File: controllers/match.controller.js
 import * as matchService from '../services/MatchService.js';
 import * as tournamentService from '../services/TournamentService.js';
-import { getMatchesByTournamentFromChain, getMatchScoreFromChain } from '../services/BlockchainService.js';
 import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
 import models from '../models/index.js';
