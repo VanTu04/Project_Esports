@@ -257,3 +257,29 @@ export const checkExistUsername = async (username) => {
   console.log('existUser', existUser);
   return !!existUser; // true nếu tồn tại, false nếu không
 };
+
+export const updateUser = async (id, data) => {
+  try {
+    const user = await models.User.findByPk(id);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await user.update(data);
+
+    return {
+      id: user.id,
+      username: user.username,
+      full_name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      gender: user.gender,
+      avatar: user.avatar,
+      role: user.role,
+      wallet_address: user.wallet_address
+    };
+  } catch (error) {
+    console.error("updateUser error:", error);
+    throw error;
+  }
+};
