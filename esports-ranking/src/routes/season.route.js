@@ -11,6 +11,9 @@ router.post('/', checkRole([roles.ADMIN]), seasonController.createSeason);
 // Lấy tất cả mùa giải
 router.get('/', seasonController.getAllSeasons);
 
+// Lấy danh sách mùa giải theo game (phải để trước /:id)
+router.get('/game/:gameId', seasonController.getSeasonsByGameId);
+
 // Lấy mùa giải theo ID
 router.get('/:id', seasonController.getSeasonById);
 
@@ -19,8 +22,5 @@ router.put('/:id', checkRole([roles.ADMIN]), seasonController.updateSeason);
 
 // Xóa mùa giải - chỉ admin
 router.delete('/:id', checkRole([roles.ADMIN]), seasonController.deleteSeason);
-
-// Lấy danh sách mùa giải theo game
-router.get('/game/:gameId', seasonController.getSeasonsByGameId);
 
 export default router;

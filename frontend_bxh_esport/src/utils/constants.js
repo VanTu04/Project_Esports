@@ -120,6 +120,7 @@ export const API_ENDPOINTS = {
   // Backend có các endpoint này
   GAMES: '/games',
   TEAMS: '/teams',
+  SEASONS: '/seasons',
   RANKING_BOARD: '/ranking-board',
   
   // Backend chưa có các endpoint này (TODO)

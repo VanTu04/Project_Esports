@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { STORAGE_KEYS, API_BASE_URL } from '../utils/constants';
+import storage from '../utils/storage';
 
 // Tạo instance axios với baseURL tương đối (hoặc thay bằng URL backend thật nếu cần)
 // API_BASE_URL resolves to import.meta.env.VITE_API_BASE_URL or '/api' by default.
@@ -20,10 +21,10 @@ if (API_BASE_URL === '/api') {
   );
 }
 
-// Interceptor request: đính token tự động từ localStorage
+// Interceptor request: đính token tự động từ sessionStorage
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+    const token = storage.getItem(STORAGE_KEYS.AUTH_TOKEN);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -43,8 +44,8 @@ api.interceptors.response.use(
       switch (status) {
         case 401:
           // Token hết hạn / không hợp lệ
-          localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-          localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+          storage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+          storage.removeItem(STORAGE_KEYS.USER_DATA);
           window.location.href = '/login';
           break;
 

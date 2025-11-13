@@ -1,6 +1,7 @@
 import axios from "axios";
 import { API_CONFIG } from "../config";
 import { STORAGE_KEYS } from "../utils/constants";
+import storage from "../utils/storage";
 
 const api = axios.create({
   baseURL: '/api',  
@@ -28,8 +29,8 @@ const authService = {
   register: async (userData) => {
     const res = await api.post("/users/register", userData);
     if (res.data?.data?.token) {
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, res.data.data.token);
-      localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(res.data.data.user));
+      storage.setItem(STORAGE_KEYS.AUTH_TOKEN, res.data.data.token);
+      storage.setItem(STORAGE_KEYS.USER_DATA, res.data.data.user);
     }
     return res.data;
   },
@@ -44,9 +45,9 @@ const authService = {
     const res = await api.post("/users/login", payload);
     
     if (res.data?.data?.accessToken) {
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, res.data.data.accessToken);
+      storage.setItem(STORAGE_KEYS.AUTH_TOKEN, res.data.data.accessToken);
       if (res.data.data.refreshToken) {
-        localStorage.setItem('REFRESH_TOKEN', res.data.data.refreshToken);
+        storage.setItem('REFRESH_TOKEN', res.data.data.refreshToken);
       }
     }
     return res.data;
@@ -72,8 +73,8 @@ const authService = {
 
   // Đăng xuất
   logout: async () => {
-    localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+    storage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+    storage.removeItem(STORAGE_KEYS.USER_DATA);
   },
 };
 
