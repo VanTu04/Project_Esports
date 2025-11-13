@@ -2,8 +2,10 @@ import { useState } from 'react';
 import userService from '../../services/userService';
 import { USER_ROLES } from '../../utils/constants';
 import { useNotification } from '../../context/NotificationContext';
+import Modal from '../common/Modal';
+import Button from '../common/Button';
 
-export default function CreateAccountAdmin({ onCreated }) {
+export default function CreateAccountAdmin({ onClose, onCreated }) {
   const [form, setForm] = useState({
     username: '',
     password: '',
@@ -117,11 +119,9 @@ export default function CreateAccountAdmin({ onCreated }) {
       // Backend expects confirm_password for validation
       const payload = { ...form };
       
-      console.log('Sending payload:', payload); // Debug log
 
       const res = await userService.createAccountByAdmin(payload);
       
-      console.log('Response:', res); // Debug log
       
       if (onCreated) onCreated(res);
       showSuccess('Tạo tài khoản thành công');
@@ -153,13 +153,9 @@ export default function CreateAccountAdmin({ onCreated }) {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 w-full max-w-xl">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-        Tạo tài khoản mới (Admin)
-      </h3>
-
+    <Modal isOpen={true} title="Tạo tài khoản mới" onClose={onClose} size="lg">
       {error && (
-        <div className="text-sm text-red-600 dark:text-red-400 mb-3 p-3 bg-red-50 dark:bg-red-900/20 rounded">
+        <div className="text-sm text-red-400 mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded">
           {error}
         </div>
       )}
@@ -168,7 +164,7 @@ export default function CreateAccountAdmin({ onCreated }) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Username *
+              Tên đăng nhập *
             </label>
             <input 
               name="username" 
@@ -192,7 +188,7 @@ export default function CreateAccountAdmin({ onCreated }) {
           </div>
           <div>
             <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Full name
+              Họ và tên
             </label>
             <input 
               name="full_name" 
@@ -205,7 +201,7 @@ export default function CreateAccountAdmin({ onCreated }) {
 
         <div>
           <label className="block text-sm text-gray-700 dark:text-gray-300">
-            Email (optional)
+            Email*
           </label>
           <input 
             name="email" 
@@ -259,18 +255,6 @@ export default function CreateAccountAdmin({ onCreated }) {
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm text-gray-700 dark:text-gray-300">
-            Team name (optional)
-          </label>
-          <input 
-            name="team_name" 
-            value={form.team_name} 
-            onChange={handleChange} 
-            className="mt-1 w-full px-3 py-2 border rounded bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" 
-          />
-        </div>
-
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm text-gray-700 dark:text-gray-300">
@@ -284,22 +268,28 @@ export default function CreateAccountAdmin({ onCreated }) {
               required
             >
               <option value={USER_ROLES.USER}>User</option>
-              <option value={USER_ROLES.PLAYER}>Player</option>
               <option value={USER_ROLES.TEAM_MANAGER}>Team Manager</option>
             </select>
           </div>
         </div>
 
-        <div className="flex justify-end">
-          <button 
-            type="submit" 
-            disabled={loading || usernameChecking || emailChecking || !!usernameError || !!emailError} 
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white rounded transition-colors"
+        <div className="flex justify-end gap-2 pt-4">
+          <Button
+            type="button"
+            onClick={onClose}
+            variant="secondary"
           >
-            {loading ? 'Đang tạo...' : 'Tạo tài khoản'}
-          </button>
+            Hủy
+          </Button>
+          <Button
+            type="submit"
+            loading={loading}
+            disabled={loading || usernameChecking || emailChecking || !!usernameError || !!emailError}
+          >
+            Tạo tài khoản
+          </Button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

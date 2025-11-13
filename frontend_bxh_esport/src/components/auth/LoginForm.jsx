@@ -57,6 +57,8 @@ export const LoginForm = () => {
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
+      const firstError = Object.values(validationErrors)[0];
+      showError(firstError);
       return;
     }
 
@@ -79,8 +81,6 @@ export const LoginForm = () => {
           navigate(ROUTES.ADMIN_DASHBOARD);
         } else if (role === 3) {
           navigate(ROUTES.TEAM_MANAGER_DASHBOARD);
-        } else if (role === 2) {
-          navigate(ROUTES.PLAYER_DASHBOARD);
         } else {
           navigate(ROUTES.HOME);
         }
@@ -89,32 +89,20 @@ export const LoginForm = () => {
         const errorMessage = response?.errors || response?.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại!";
         showError(errorMessage);
       }
-    } catch (error) {
+    } catch (err) {
       // Xử lý các loại lỗi khác nhau
-      console.error('Login error:', error);
+      console.error('Login error:', err);
       
-      let errorMessage = 'Đăng nhập thất bại';
+      // Giống RegisterForm: lấy thông báo lỗi cụ thể hơn
+      const message = 
+        err?.message || 
+        err?.error || 
+        err?.response?.data?.message ||
+        err?.response?.data?.errors ||
+        err?.data?.message || 
+        'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin!';
       
-      // Lỗi từ API response
-      if (error.response?.data?.errors) {
-        errorMessage = error.response.data.errors;
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } 
-      // Lỗi từ axios interceptor
-      else if (error.message) {
-        errorMessage = error.message;
-      }
-      // Lỗi network
-      else if (error.code === 'ERR_NETWORK') {
-        errorMessage = 'Không thể kết nối đến máy chủ';
-      }
-      // Lỗi timeout
-      else if (error.code === 'ECONNABORTED') {
-        errorMessage = 'Yêu cầu quá thời gian chờ';
-      }
-      
-      showError(errorMessage);
+      showError(message);
     } finally {
       setLoading(false);
     }
@@ -124,12 +112,12 @@ export const LoginForm = () => {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-2">
-          Email hoặc Tên đăng nhập
+          Email hoặc Tên tài khoản
         </label>
         <input
           type="text"  
           name="email"
-          placeholder="Nhập email hoặc username"
+          placeholder="Nhập email hoặc tên tài khoản"
           value={formData.email}
           onChange={handleChange}
           className="w-full px-4 py-2 bg-dark-400 border border-primary-700/30 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -168,13 +156,9 @@ export const LoginForm = () => {
           type="button"
           aria-label="Đăng nhập với Google"
           onClick={() => {
-            try {
-              window.location.href = `${API_BASE_URL}/auth/google`;
-            } catch (e) {
-              window.location.href = `/auth/google`;
-            }
+            window.location.href = `${API_BASE_URL}/auth/google`;
           }}
-          className="p-2 rounded-md bg-white hover:opacity-90"
+          className="p-2 rounded-md bg-white hover:opacity-90 transition-opacity"
           title="Google"
           disabled={loading}
         >
@@ -189,7 +173,10 @@ export const LoginForm = () => {
         <button
           type="button"
           aria-label="Đăng nhập với Facebook"
-          className="p-2 rounded-md bg-[#1877F2] hover:opacity-90"
+          onClick={() => {
+            window.location.href = `${API_BASE_URL}/auth/facebook`;
+          }}
+          className="p-2 rounded-md bg-[#1877F2] hover:opacity-90 transition-opacity"
           title="Facebook"
           disabled={loading}
         >

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import userService from '../../services/userService';
 import { USER_ROLES } from '../../utils/constants';
 import { useNotification } from '../../context/NotificationContext';
+import Modal from '../common/Modal';
+import Button from '../common/Button';
 
 export default function EditUserModal({ user, onClose, onSaved }) {
   const [form, setForm] = useState({});
@@ -111,21 +113,19 @@ export default function EditUserModal({ user, onClose, onSaved }) {
   };
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-        Chỉnh sửa người dùng
-      </h3>
-
+    <Modal isOpen={true} title="Chỉnh sửa người dùng" onClose={onClose} size="lg">
       {error && (
-        <div className="text-sm text-red-600 dark:text-red-400 mb-3 p-3 bg-red-50 dark:bg-red-900/20 rounded">
+        <div className="text-sm text-red-400 mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded">
           {error}
         </div>
       )}
 
+      <div className="space-y-4">
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Username *
+            Tên tài khoản *
           </label>
           <input 
             name="username" 
@@ -144,12 +144,12 @@ export default function EditUserModal({ user, onClose, onSaved }) {
             <p className="text-xs text-red-600 dark:text-red-400 mt-1">{usernameError}</p>
           )}
           {!usernameError && form.username && form.username !== user.username && !usernameChecking && (
-            <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ Username khả dụng</p>
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ Tên tài khoản khả dụng</p>
           )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Full name
+            Họ và tên
           </label>
           <input 
             name="full_name" 
@@ -188,7 +188,7 @@ export default function EditUserModal({ user, onClose, onSaved }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Role *
+            Vai trò *
           </label>
           <select 
             name="role" 
@@ -197,14 +197,12 @@ export default function EditUserModal({ user, onClose, onSaved }) {
             className="mt-1 w-full px-3 py-2 border rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value={USER_ROLES.USER}>User</option>
-            <option value={USER_ROLES.PLAYER}>Player</option>
             <option value={USER_ROLES.TEAM_MANAGER}>Team Manager</option>
-            <option value={USER_ROLES.ADMIN}>Admin</option>
           </select>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Status *
+            Trạng thái *
           </label>
           <select 
             name="status" 
@@ -218,21 +216,24 @@ export default function EditUserModal({ user, onClose, onSaved }) {
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button 
-          onClick={onClose} 
-          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-        >
-          Hủy
-        </button>
-        <button 
-          onClick={handleSave} 
-          disabled={saving || usernameChecking || emailChecking || !!usernameError || !!emailError} 
-          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
-        >
-          {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
-        </button>
+        <div className="flex justify-end gap-2 pt-4">
+          <Button
+            type="button"
+            onClick={onClose}
+            variant="secondary"
+          >
+            Hủy
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSave}
+            loading={saving}
+            disabled={saving || usernameChecking || emailChecking || !!usernameError || !!emailError}
+          >
+            Lưu thay đổi
+          </Button>
+        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

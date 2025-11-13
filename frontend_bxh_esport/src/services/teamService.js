@@ -20,6 +20,14 @@ const teamService = {
     }
   },
 
+  getTeamByUserId: async (userId) => {
+    try {
+      return await apiClient.get(`${API_ENDPOINTS.TEAMS}/user/${userId}`);
+    } catch (error) {
+      throw error;
+    }
+  },
+
   getTeamMembers: async (teamId) => {
     try {
       // use constant template if present, otherwise fallback

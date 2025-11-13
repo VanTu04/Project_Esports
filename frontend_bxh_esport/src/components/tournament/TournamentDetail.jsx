@@ -19,7 +19,8 @@ export const TournamentDetail = () => {
   const [matches, setMatches] = useState([]);
   const [activeTab, setActiveTab] = useState('teams'); // teams, matches, bracket
   const [selectedMatch, setSelectedMatch] = useState(null);
-  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isUpdateScoreModalOpen, setIsUpdateScoreModalOpen] = useState(false);
+  const [isUpdateTimeModalOpen, setIsUpdateTimeModalOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -110,25 +111,45 @@ export const TournamentDetail = () => {
     return grouped;
   };
 
-  const handleOpenUpdateModal = (match) => {
+  const handleOpenScoreModal = (match) => {
     setSelectedMatch(match);
-    setIsUpdateModalOpen(true);
+    setIsUpdateScoreModalOpen(true);
   };
 
-  const handleCloseUpdateModal = () => {
+  const handleOpenTimeModal = (match) => {
+    setSelectedMatch(match);
+    setIsUpdateTimeModalOpen(true);
+  };
+
+  const handleCloseModals = () => {
     setSelectedMatch(null);
-    setIsUpdateModalOpen(false);
+    setIsUpdateScoreModalOpen(false);
+    setIsUpdateTimeModalOpen(false);
   };
 
-  const handleUpdateMatch = async (matchId, scoreA, scoreB) => {
+  const handleUpdateScore = async (matchId, scoreA, scoreB) => {
     try {
-      await tournamentService.updateMatchScore(matchId, scoreA, scoreB);
-      showSuccess('Cập nhật kết quả thành công!');
-      handleCloseUpdateModal();
-      loadData(); // Reload data
+      await tournamentService.updateMatchScore(matchId, { score_a: scoreA, score_b: scoreB });
+      showSuccess('Cập nhật tỷ số thành công!');
+      handleCloseModals();
+      loadData();
     } catch (error) {
-      console.error('Error updating match:', error);
-      showError('Không thể cập nhật kết quả trận đấu');
+      console.error('Error updating score:', error);
+      showError('Không thể cập nhật tỷ số');
+    }
+  };
+
+  const handleUpdateTime = async (matchId, scheduledTime) => {
+    try {
+      await tournamentService.updateMatchScore(matchId, { 
+        scheduled_time: new Date(scheduledTime).toISOString() 
+      });
+      showSuccess('Cập nhật thời gian thành công!');
+      handleCloseModals();
+      loadData();
+    } catch (error) {
+      console.error('Error updating time:', error);
+      showError('Không thể cập nhật thời gian');
     }
   };
 
@@ -257,16 +278,6 @@ export const TournamentDetail = () => {
             >
               Danh sách trận & Lịch
             </button>
-            <button
-              onClick={() => setActiveTab('bracket')}
-              className={`pb-4 px-2 border-b-2 font-medium transition-colors ${
-                activeTab === 'bracket'
-                  ? 'border-cyan-300 text-cyan-300'
-                  : 'border-transparent text-gray-300 hover:text-cyan-200 hover:border-cyan-400/50'
-              }`}
-            >
-              Sơ đồ
-            </button>
           </div>
         </div>
 
@@ -337,62 +348,92 @@ export const TournamentDetail = () => {
                         key={match.id}
                         className="bg-gradient-to-r from-primary-500/5 to-purple-500/5 rounded-lg p-4 border border-primary-500/30 hover:border-primary-400/60 transition-all"
                       >
-                        <div className="flex items-center justify-between">
-                          {/* Schedule Time */}
-                          <div className="flex items-center space-x-4 mr-4">
-                            {match.scheduled_time && (
-                              <div className="text-center min-w-[80px] bg-gradient-to-br from-primary-500/20 to-purple-500/20 rounded-lg p-2 border border-primary-400/30">
-                                <p className="text-sm font-bold text-blue-300">
-                                  {new Date(match.scheduled_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                                <p className="text-xs text-gray-300">
-                                  {new Date(match.scheduled_time).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
-                                </p>
+                        {/* Schedule Time */}
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2 text-sm text-gray-400">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>
+                              {match.scheduled_time 
+                                ? new Date(match.scheduled_time).toLocaleString('vi-VN', { 
+                                    day: '2-digit', 
+                                    month: '2-digit', 
+                                    year: 'numeric',
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })
+                                : 'Chưa có lịch thi đấu'}
+                            </span>
+                          </div>
+                          {getMatchStatusBadge(match.status)}
+                        </div>
+
+                        {/* Teams VS Format */}
+                        <div className="flex items-center justify-center gap-4 mb-3">
+                          <div className="flex-1 text-right">
+                            <div className={`text-lg font-bold ${
+                              match.status === 'COMPLETED' && match.winner_participant_id === match.team_a_participant_id 
+                                ? 'text-green-400' 
+                                : 'text-white'
+                            }`}>
+                              {match.teamA?.team_name || 'TBD'}
+                            </div>
+                            {match.status === 'COMPLETED' && match.score_a !== null && (
+                              <div className={`text-3xl font-bold mt-1 ${
+                                match.winner_participant_id === match.team_a_participant_id 
+                                  ? 'text-green-400' 
+                                  : 'text-gray-400'
+                              }`}>
+                                {match.score_a}
                               </div>
                             )}
                           </div>
 
-                          {/* Teams */}
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center space-x-3">
-                                <span className="text-white font-semibold">{match.teamA?.team_name || 'TBD'}</span>
-                                {match.status === 'COMPLETED' && match.score_a !== null && (
-                                  <span className={`text-2xl font-bold ${
-                                    match.winner_participant_id === match.team_a_participant_id ? 'text-green-400' : 'text-gray-300'
-                                  }`}>
-                                    {match.score_a}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-3">
-                                <span className="text-white font-semibold">{match.teamB?.team_name || 'TBD'}</span>
-                                {match.status === 'COMPLETED' && match.score_b !== null && (
-                                  <span className={`text-2xl font-bold ${
-                                    match.winner_participant_id === match.team_b_participant_id ? 'text-green-400' : 'text-gray-300'
-                                  }`}>
-                                    {match.score_b}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
+                          <div className="text-2xl font-bold text-cyan-300 px-4">VS</div>
 
-                          {/* Status & Action */}
-                          <div className="ml-4 flex items-center gap-3">
-                            {getMatchStatusBadge(match.status)}
-                            {match.status !== 'PENDING' && (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => handleOpenUpdateModal(match)}
-                              >
-                                Cập nhật
-                              </Button>
+                          <div className="flex-1 text-left">
+                            <div className={`text-lg font-bold ${
+                              match.status === 'COMPLETED' && match.winner_participant_id === match.team_b_participant_id 
+                                ? 'text-green-400' 
+                                : 'text-white'
+                            }`}>
+                              {match.teamB?.team_name || 'TBD'}
+                            </div>
+                            {match.status === 'COMPLETED' && match.score_b !== null && (
+                              <div className={`text-3xl font-bold mt-1 ${
+                                match.winner_participant_id === match.team_b_participant_id 
+                                  ? 'text-green-400' 
+                                  : 'text-gray-400'
+                              }`}>
+                                {match.score_b}
+                              </div>
                             )}
                           </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex justify-center gap-3">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleOpenTimeModal(match)}
+                          >
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Cập nhật thời gian
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleOpenScoreModal(match)}
+                          >
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                            Cập nhật tỷ số
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -403,55 +444,117 @@ export const TournamentDetail = () => {
           </div>
         )}
 
-        {/* Tab Content - Sơ đồ */}
-        {activeTab === 'bracket' && (
-          <Card padding="lg">
-            <h2 className="text-2xl font-bold text-white mb-4">Sơ đồ cây giải đấu</h2>
-            <div className="overflow-x-auto">
-              <TournamentBracket 
-                matches={matches} 
-                tournament={tournament}
-                compact={true}
-              />
-            </div>
-          </Card>
-        )}
       </div>
 
-      {/* Update Match Result Modal */}
-      {isUpdateModalOpen && selectedMatch && (
+      {/* Update Time Modal */}
+      {isUpdateTimeModalOpen && selectedMatch && (
         <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-md">
             <div className="p-6 space-y-4">
               <h2 className="text-xl font-bold text-white">
-                Cập nhật kết quả trận đấu
+                <svg className="w-6 h-6 inline mr-2 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Cập nhật thời gian thi đấu
               </h2>
 
+              {/* Match Info */}
+              <div className="bg-gradient-to-r from-primary-500/10 to-purple-500/10 rounded-lg p-3 border border-primary-500/30 text-center">
+                <span className="text-white font-semibold">
+                  {selectedMatch.teamA?.team_name || 'TBD'} VS {selectedMatch.teamB?.team_name || 'TBD'}
+                </span>
+              </div>
+
+              {/* Scheduled Time */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Chọn ngày & giờ thi đấu
+                </label>
+                <input
+                  type="datetime-local"
+                  defaultValue={selectedMatch.scheduled_time ? new Date(selectedMatch.scheduled_time).toISOString().slice(0, 16) : ''}
+                  className="w-full px-3 py-2 bg-white border border-primary-700/30 rounded-lg text-gray-900 focus:outline-none focus:border-primary-500"
+                  id="scheduledTime"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={handleCloseModals}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-1"
+                  onClick={() => {
+                    const scheduledTime = document.getElementById('scheduledTime').value;
+                    if (scheduledTime) {
+                      handleUpdateTime(selectedMatch.id, scheduledTime);
+                    } else {
+                      showError('Vui lòng chọn thời gian');
+                    }
+                  }}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Cập nhật
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Update Score Modal */}
+      {isUpdateScoreModalOpen && selectedMatch && (
+        <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <div className="p-6 space-y-4">
+              <h2 className="text-xl font-bold text-white">
+                <svg className="w-6 h-6 inline mr-2 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Cập nhật tỷ số
+              </h2>
+
+              {/* Match Info */}
+              <div className="bg-gradient-to-r from-primary-500/10 to-purple-500/10 rounded-lg p-4 border border-primary-500/30">
+                <div className="flex items-center justify-center gap-4">
+                  <span className="text-white font-semibold text-lg">{selectedMatch.teamA?.team_name || 'TBD'}</span>
+                  <span className="text-cyan-300 font-bold">VS</span>
+                  <span className="text-white font-semibold text-lg">{selectedMatch.teamB?.team_name || 'TBD'}</span>
+                </div>
+              </div>
+
               <div className="space-y-3">
-                {/* Team A */}
+                {/* Team A Score */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    {selectedMatch.TeamA?.team_name || 'Team A'}
+                    Tỷ số {selectedMatch.teamA?.team_name || 'Team A'}
                   </label>
                   <input
                     type="number"
                     min="0"
                     defaultValue={selectedMatch.score_a || 0}
-                    className="w-full px-3 py-2 bg-dark-300 border border-primary-700/30 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                    className="w-full px-3 py-2 bg-white border border-primary-700/30 rounded-lg text-gray-900 text-lg font-semibold focus:outline-none focus:border-primary-500"
                     id="scoreA"
                   />
                 </div>
 
-                {/* Team B */}
+                {/* Team B Score */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    {selectedMatch.TeamB?.team_name || 'Team B'}
+                    Tỷ số {selectedMatch.teamB?.team_name || 'Team B'}
                   </label>
                   <input
                     type="number"
                     min="0"
                     defaultValue={selectedMatch.score_b || 0}
-                    className="w-full px-3 py-2 bg-dark-300 border border-primary-700/30 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                    className="w-full px-3 py-2 bg-white border border-primary-700/30 rounded-lg text-gray-900 text-lg font-semibold focus:outline-none focus:border-primary-500"
                     id="scoreB"
                   />
                 </div>
@@ -461,7 +564,7 @@ export const TournamentDetail = () => {
                 <Button
                   variant="secondary"
                   className="flex-1"
-                  onClick={handleCloseUpdateModal}
+                  onClick={handleCloseModals}
                 >
                   Hủy
                 </Button>
@@ -471,9 +574,12 @@ export const TournamentDetail = () => {
                   onClick={() => {
                     const scoreA = parseInt(document.getElementById('scoreA').value);
                     const scoreB = parseInt(document.getElementById('scoreB').value);
-                    handleUpdateMatch(selectedMatch.id, scoreA, scoreB);
+                    handleUpdateScore(selectedMatch.id, scoreA, scoreB);
                   }}
                 >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
                   Cập nhật
                 </Button>
               </div>
