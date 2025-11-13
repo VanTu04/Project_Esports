@@ -28,17 +28,23 @@ export const getTournamentByName = async (name) => {
  * Sửa lại: Lấy *tất cả* participant, không chỉ 'approved'
  */
 export const findById = async (id) => {
-  const tournament = await models.Tournament.findByPk(id, {
-    include: [
-      {
-        model: models.Participant,
-        as: 'participants',
-        // Lấy tất cả thông tin để Admin có thể xem
-        attributes: ['id', 'team_name', 'wallet_address', 'has_received_bye', 'status'],
-      }
-    ]
+  const tournament = await models.Tournament.findByPk(id);
+
+  if (!tournament) {
+    return null; // Không tìm thấy giải đấu
+  }
+
+  const participants = await models.Participant.findAll({
+    where: {
+      tournament_id: id
+    },
+    attributes: ['id', 'team_name', 'wallet_address', 'has_received_bye', 'status']
   });
-  return tournament;
+
+  const result = tournament.get({ plain: true });
+  result.participants = participants;
+
+  return result;
 };
 
 /**
@@ -49,9 +55,6 @@ export const findAll = async (status) => {
   if (status !== undefined && status !== null && status !== '') {
     whereCondition.status = status;
   }
-
-  // Thêm điều kiện lọc ra các giải đã bị "xóa mềm"
-  whereCondition.deleted = { [Op.or]: [null, 0] };
 
   const tournaments = await models.Tournament.findAll({
     where: whereCondition,
@@ -81,15 +84,16 @@ export const update = async (tournament, data) => {
   return true;
 };
 
-/**
- * Xóa mềm (hủy) một giải đấu
- */
-export const deleteTournament = async (tournament) => {
-  // Cập nhật trường 'deleted' (Giả sử model Tournament của bạn có trường này)
-  // Nếu model Tournament không có trường 'deleted',
-  // thì nên dùng: await tournament.update({ status: 'CANCELLED' });
-  await tournament.update({ deleted: 1 }); // Giống code controller của bạn
-  return true;
+export const deleteTournament = async (tournament_id) => {
+  // 1. Phải tìm lại (find) instance trước khi destroy
+  const tournament = await models.Tournament.findByPk(tournament_id);
+
+  if (tournament) {
+    await tournament.destroy();
+    return true;
+  }
+
+  return false; 
 };
 
 

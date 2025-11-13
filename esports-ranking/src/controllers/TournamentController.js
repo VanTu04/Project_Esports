@@ -2,6 +2,7 @@
 import * as tournamentService from '../services/TournamentService.js';
 import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
+import models from '../models/index.js';
 
 // 1. Tạo một giải đấu mới
 export const createTournament = async (req, res) => {
@@ -51,8 +52,6 @@ export const getTournamentById = async (req, res) => {
     const { id } = req.params;
     const result = await tournamentService.findById(id);
 
-    // Controller tự kiểm tra null (Không giống GameController.getGameById,
-    // nhưng giống GameController.updateGame)
     if (!result) {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại.'));
     }
@@ -119,24 +118,18 @@ export const updateTournament = async (req, res) => {
     const { id } = req.params;
     const data = req.body;
 
-    // 1. Validation cơ bản
     if (!data.name && !data.total_rounds && !data.status) {
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Cần ít nhất một trường để cập nhật.'));
     }
 
-    // 2. Existence Check (Giống updateGame)
     const existingTournament = await tournamentService.findById(id);
     if (!existingTournament) {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại.'));
     }
 
-    // 3. Logic nghiệp vụ (Controller 'fat')
-    // Không cho phép sửa giải đấu đã 'active' hoặc 'completed'
-    if (existingTournament.status === 'active' || existingTournament.status === 'completed') {
+    if (existingTournament.status === 'ACTIVE' || existingTournament.status === 'COMPLETED') { // Giả sử status 'ACTIVE'
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Không thể cập nhật giải đấu đang diễn ra hoặc đã kết thúc.'));
     }
-
-    // 4. (Tùy chọn) Kiểm tra trùng tên (nếu tên bị thay đổi)
     if (data.name && data.name !== existingTournament.name) {
       const duplicate = await tournamentService.getTournamentByName(data.name);
       if (duplicate) {
@@ -144,8 +137,13 @@ export const updateTournament = async (req, res) => {
       }
     }
 
-    // 5. Gọi Service
-    const result = await tournamentService.update(existingTournament, data);
+    const tournamentInstance = await models.Tournament.findByPk(id);
+    if (!tournamentInstance) {
+       // Điều này gần như không thể xảy ra nếu 'existingTournament' tồn tại
+       return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi: Không tìm thấy instance giải đấu để cập nhật.'));
+    }
+
+    const result = await tournamentService.update(tournamentInstance, data);
     return res.json(responseSuccess(result, 'Cập nhật giải đấu thành công'));
 
   } catch (error) {
@@ -165,15 +163,19 @@ export const deleteTournament = async (req, res) => {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại.'));
     }
 
-    // 2. Logic nghiệp vụ (Controller 'fat')
     // Chỉ cho phép hủy giải đấu đang 'PENDING'
     if (existingTournament.status !== 'PENDING') {
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Không thể xóa giải đấu đang diễn ra hoặc đã kết thúc.'));
     }
 
+    if (existingTournament.participants && existingTournament.participants.length > 0) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, `Không thể xóa giải đấu. Đã có ${existingTournament.participants.length} đội tham gia (kể cả PENDING/REJECTED).`));
+    }
+
     // 3. Gọi Service
-    const result = await tournamentService.deleteTournament(existingTournament);
-    return res.json(responseSuccess(result, 'Hủy giải đấu thành công'));
+    const result = await tournamentService.deleteTournament(id);
+    
+    return res.json(responseSuccess(result, 'Xóa vĩnh viễn giải đấu thành công.'));
 
   } catch (error) {
     console.error('deleteTournament error', error);
@@ -269,7 +271,7 @@ export const startTournament = async (req, res) => {
   try {
     const { id: tournament_id } = req.params;
 
-    // 1. Kiểm tra giải đấu
+    // 1. Kiểm tra giải đấu (Lấy POJO để kiểm tra logic)
     const tournament = await tournamentService.findById(tournament_id);
     if (!tournament) {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại.'));
@@ -281,32 +283,26 @@ export const startTournament = async (req, res) => {
     // 2. YÊU CẦU: Từ chối tất cả request 'pending'
     const rejectedCount = await tournamentService.updateParticipantStatusByTournament(
       tournament_id,
-      'PENDING', // Trạng thái cũ
-      'REJECTED'   // Trạng thái mới
+      'PENDING',
+      'REJECTED'
     );
     console.log(`[Tournament ${tournament_id}] Đã tự động từ chối ${rejectedCount} yêu cầu đang chờ.`);
 
     // 3. Lấy danh sách thi đấu CHÍNH THỨC
-    const roster = await tournamentService.getParticipantsByStatus(tournament_id, 'approved');
+    const roster = await tournamentService.getParticipantsByStatus(tournament_id, 'APPROVED'); // Sửa 'approved' thành 'APPROVED' cho nhất quán
 
     // 4. Kiểm tra logic nghiệp vụ
     if (roster.length < 2) {
-      // Không thể bắt đầu giải đấu nếu ít hơn 2 đội
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, `Giải đấu cần ít nhất 2 đội đã được duyệt. Hiện tại: ${roster.length} đội.`));
     }
 
-    // 5. SINH VÒNG 1 (Thuật toán Thụy Sĩ Vòng 1: Bốc thăm ngẫu nhiên)
-    
-    // Xáo trộn (shuffle) danh sách
+    // 5. SINH VÒNG 1 (Logic shuffle... giữ nguyên)
     const shuffledRoster = roster.sort(() => 0.5 - Math.random());
-    
     let matchesData = [];
     let byeTeam = null;
 
-    // Ghép cặp
     for (let i = 0; i < shuffledRoster.length; i += 2) {
       if (i + 1 < shuffledRoster.length) {
-        // Cặp chẵn
         matchesData.push({
           tournament_id: tournament_id,
           round_number: 1,
@@ -315,30 +311,25 @@ export const startTournament = async (req, res) => {
           status: 'PENDING'
         });
       } else {
-        // Đội lẻ (nhận "Bye")
         byeTeam = shuffledRoster[i];
       }
     }
 
-    // 6. Xử lý "Bye" (nếu có)
+    // 6. Xử lý "Bye" (Logic xử lý "Bye"... giữ nguyên)
     if (byeTeam) {
-      // 6a. Tạo trận "Bye" trong DB
       matchesData.push({
         tournament_id: tournament_id,
         round_number: 1,
         team_a_participant_id: byeTeam.id,
-        team_b_participant_id: null, // Dấu hiệu "Bye"
-        winner_participant_id: byeTeam.id, // Xử thắng luôn
+        team_b_participant_id: null,
+        winner_participant_id: byeTeam.id,
         status: 'COMPLETED'
       });
       
-      // 6b. Cập nhật trạng thái 'has_received_bye'
       const byeParticipant = await tournamentService.findParticipantById(byeTeam.id);
       await byeParticipant.update({ has_received_bye: true });
-
-      // 6c. GỌI SMART CONTRACT (Thắng 2 điểm, Thua 1 điểm)
-      // Đội "Bye" được tính là Thắng 0, nên được 2 điểm
-      // (Bạn cần implement hàm này)
+      
+      // (Bỏ comment khi bạn đã implement blockchain service)
       // await updateScoreOnContract(byeTeam.wallet_address, 2); 
       console.log(`[Tournament ${tournament_id}] Đội ${byeTeam.team_name} nhận "Bye" và +2 điểm.`);
     }
@@ -346,8 +337,16 @@ export const startTournament = async (req, res) => {
     // 7. Lưu các trận đấu Vòng 1 vào DB
     await tournamentService.createMatches(matchesData);
 
-    // 8. Cập nhật trạng thái giải đấu
-    await tournamentService.updateTournamentStatus(tournament, 'active', 1);
+    // 8. (ĐÂY LÀ PHẦN SỬA LỖI)
+    // 'tournament' là POJO, không có hàm .update().
+    // Chúng ta phải lấy Instance Sequelize thật sự.
+    const tournamentInstance = await models.Tournament.findByPk(tournament_id);
+    if (!tournamentInstance) {
+       return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi: Không tìm thấy instance giải đấu để cập nhật.'));
+    }
+
+    // 9. Cập nhật trạng thái giải đấu VỚI INSTANCE
+    await tournamentService.updateTournamentStatus(tournamentInstance, 'ACTIVE', 1);
 
     return res.json(responseSuccess({
       message: 'Giải đấu đã bắt đầu!',
@@ -358,7 +357,7 @@ export const startTournament = async (req, res) => {
 
   } catch (error) {
     console.error('startTournament error', error);
-    // (Quan trọng) Cân nhắc dùng Transaction ở đây để rollback nếu có lỗi
+    // Cân nhắc dùng Transaction ở đây
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };
