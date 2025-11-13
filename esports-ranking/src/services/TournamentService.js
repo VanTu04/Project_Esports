@@ -231,6 +231,7 @@ export const getTournamentMatches = async (tournament_id, round = null) => {
   });
   
   return matches;
+};
 
 export const markParticipantBye = async (participantId) => {
   const participant = await models.Participant.findByPk(participantId);
@@ -242,7 +243,7 @@ export const markParticipantBye = async (participantId) => {
   return participant;
 };
 
-//
+
 export const findParticipantsByIds = async (participant_ids) => {
   const participants = await models.Participant.findAll({
     where: {

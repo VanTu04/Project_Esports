@@ -4,27 +4,24 @@ pragma solidity ^0.8.19;
 contract Leaderboard {
     address public owner;
 
-    struct LeaderboardEntry {
+    struct ParticipantScore {
         address participant;
-        uint256 points;
+        uint256 score;
     }
 
     struct RoundLeaderboard {
         uint256 tournamentId;
         uint256 roundNumber;
-        LeaderboardEntry[] entries;
-        uint256 updatedAt;
+        ParticipantScore[] participants;
     }
 
-    mapping(uint256 => mapping(uint256 => RoundLeaderboard)) public leaderboard; 
-    // tournamentId => roundNumber => leaderboard
+    mapping(uint256 => RoundLeaderboard[]) private tournamentRounds;
 
     event LeaderboardUpdated(
         uint256 indexed tournamentId,
         uint256 indexed roundNumber,
         address[] participants,
-        uint256[] points,
-        uint256 timestamp
+        uint256[] scores
     );
 
     modifier onlyOwner() {
@@ -36,53 +33,68 @@ contract Leaderboard {
         owner = msg.sender;
     }
 
-    /**
-     * Cập nhật bảng xếp hạng 1 vòng
-     * @param tournamentId ID giải đấu
-     * @param roundNumber Số vòng
-     * @param participants Danh sách address participant
-     * @param points Điểm tương ứng
-     */
-    function updateRoundLeaderboard(
+    // === Ghi BXH vòng đấu ===
+    function updateLeaderboard(
         uint256 tournamentId,
         uint256 roundNumber,
-        address[] calldata participants,
-        uint256[] calldata points
-    ) external onlyOwner {
-        require(participants.length == points.length, "Participants and points length mismatch");
+        address[] memory participants,
+        uint256[] memory scores
+    ) public onlyOwner {
+        require(participants.length == scores.length, "Mismatched lengths");
 
-        RoundLeaderboard storage rl = leaderboard[tournamentId][roundNumber];
-        rl.tournamentId = tournamentId;
-        rl.roundNumber = roundNumber;
-        rl.updatedAt = block.timestamp;
-
-        delete rl.entries; // xóa dữ liệu cũ nếu có
-
-        for (uint256 i = 0; i < participants.length; i++) {
-            rl.entries.push(LeaderboardEntry({
-                participant: participants[i],
-                points: points[i]
-            }));
+        // Copy participants & scores vào memory
+        ParticipantScore[] memory ps = new ParticipantScore[](participants.length);
+        for (uint i = 0; i < participants.length; i++) {
+            ps[i] = ParticipantScore(participants[i], scores[i]);
         }
 
-        emit LeaderboardUpdated(tournamentId, roundNumber, participants, points, block.timestamp);
+        // Lưu vào storage
+        RoundLeaderboard storage newRound = tournamentRounds[tournamentId].push();
+        newRound.tournamentId = tournamentId;
+        newRound.roundNumber = roundNumber;
+        for (uint i = 0; i < ps.length; i++) {
+            newRound.participants.push(ps[i]);
+        }
+
+        emit LeaderboardUpdated(tournamentId, roundNumber, participants, scores);
     }
 
-    /**
-     * Lấy BXH vòng
-     */
-    function getRoundLeaderboard(uint256 tournamentId, uint256 roundNumber)
-        external view returns (address[] memory participants, uint256[] memory points)
+    // === Lấy BXH vòng đấu ===
+    function getLeaderboard(uint256 tournamentId, uint256 roundNumber)
+        public
+        view
+        returns (address[] memory participants, uint256[] memory scores)
     {
-        RoundLeaderboard storage rl = leaderboard[tournamentId][roundNumber];
-        uint256 len = rl.entries.length;
+        uint roundsCount = tournamentRounds[tournamentId].length;
+        require(roundsCount > 0, "No rounds found");
 
+        // Tìm round phù hợp
+        uint index = roundsCount; // invalid index ban đầu
+        for (uint i = 0; i < roundsCount; i++) {
+            if (tournamentRounds[tournamentId][i].roundNumber == roundNumber) {
+                index = i;
+                break;
+            }
+        }
+        require(index < roundsCount, "Round not found");
+
+        uint len = tournamentRounds[tournamentId][index].participants.length;
         participants = new address[](len);
-        points = new uint256[](len);
+        scores = new uint256[](len);
 
-        for (uint256 i = 0; i < len; i++) {
-            participants[i] = rl.entries[i].participant;
-            points[i] = rl.entries[i].points;
+        for (uint i = 0; i < len; i++) {
+            participants[i] = tournamentRounds[tournamentId][index].participants[i].participant;
+            scores[i] = tournamentRounds[tournamentId][index].participants[i].score;
         }
     }
+
+    // === Admin phân phối ETH cho 1 người ===
+    function distribute(address to, uint256 amountWei) public onlyOwner {
+        require(to != address(0), "Invalid recipient");
+        require(amountWei > 0, "Amount must be > 0");
+        payable(to).transfer(amountWei);
+    }
+
+    // Nhận ETH vào contract
+    receive() external payable {}
 }
