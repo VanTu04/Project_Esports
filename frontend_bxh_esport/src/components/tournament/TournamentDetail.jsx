@@ -47,8 +47,19 @@ export const TournamentDetail = () => {
       try {
         const matchesRes = await tournamentService.getTournamentMatches(tournamentId);
         console.log('Matches response:', matchesRes);
-        console.log('Matches data:', matchesRes.data);
-        setMatches(matchesRes.data || []);
+        
+        // Handle multiple response formats
+        let matchesData = [];
+        if (Array.isArray(matchesRes)) {
+          matchesData = matchesRes;
+        } else if (matchesRes?.data && Array.isArray(matchesRes.data)) {
+          matchesData = matchesRes.data;
+        } else if (matchesRes?.code === 0 && Array.isArray(matchesRes.data)) {
+          matchesData = matchesRes.data;
+        }
+        
+        console.log('Parsed matches data:', matchesData);
+        setMatches(matchesData);
       } catch (err) {
         console.warn('No matches yet:', err);
         setMatches([]);
@@ -377,7 +388,7 @@ export const TournamentDetail = () => {
                                 ? 'text-green-400' 
                                 : 'text-white'
                             }`}>
-                              {match.teamA?.team_name || 'TBD'}
+                              {match.team_a_name || 'TBD'}
                             </div>
                             {match.status === 'COMPLETED' && match.score_a !== null && (
                               <div className={`text-3xl font-bold mt-1 ${
@@ -398,7 +409,7 @@ export const TournamentDetail = () => {
                                 ? 'text-green-400' 
                                 : 'text-white'
                             }`}>
-                              {match.teamB?.team_name || 'TBD'}
+                              {match.team_b_name || 'TBD'}
                             </div>
                             {match.status === 'COMPLETED' && match.score_b !== null && (
                               <div className={`text-3xl font-bold mt-1 ${
@@ -461,7 +472,7 @@ export const TournamentDetail = () => {
               {/* Match Info */}
               <div className="bg-gradient-to-r from-primary-500/10 to-purple-500/10 rounded-lg p-3 border border-primary-500/30 text-center">
                 <span className="text-white font-semibold">
-                  {selectedMatch.teamA?.team_name || 'TBD'} VS {selectedMatch.teamB?.team_name || 'TBD'}
+                  {selectedMatch.team_a_name || 'TBD'} VS {selectedMatch.team_b_name || 'TBD'}
                 </span>
               </div>
 
@@ -524,9 +535,9 @@ export const TournamentDetail = () => {
               {/* Match Info */}
               <div className="bg-gradient-to-r from-primary-500/10 to-purple-500/10 rounded-lg p-4 border border-primary-500/30">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-white font-semibold text-lg">{selectedMatch.teamA?.team_name || 'TBD'}</span>
+                  <span className="text-white font-semibold text-lg">{selectedMatch.team_a_name || 'TBD'}</span>
                   <span className="text-cyan-300 font-bold">VS</span>
-                  <span className="text-white font-semibold text-lg">{selectedMatch.teamB?.team_name || 'TBD'}</span>
+                  <span className="text-white font-semibold text-lg">{selectedMatch.team_b_name || 'TBD'}</span>
                 </div>
               </div>
 
@@ -534,7 +545,7 @@ export const TournamentDetail = () => {
                 {/* Team A Score */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Tỷ số {selectedMatch.teamA?.team_name || 'Team A'}
+                    Tỷ số {selectedMatch.team_a_name || 'Team A'}
                   </label>
                   <input
                     type="number"
@@ -548,7 +559,7 @@ export const TournamentDetail = () => {
                 {/* Team B Score */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Tỷ số {selectedMatch.teamB?.team_name || 'Team B'}
+                    Tỷ số {selectedMatch.team_b_name || 'Team B'}
                   </label>
                   <input
                     type="number"

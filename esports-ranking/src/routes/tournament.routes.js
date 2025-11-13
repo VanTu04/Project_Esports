@@ -88,18 +88,10 @@ router.post(
 router.post(
   '/:id/start',
   checkRole([roles.ADMIN]),
-  tournamentController.startTournament
+  tournamentController.startTournamentSwiss
 );
 
-/**
- * @route   GET /api/tournaments/:id/matches
- * @desc    Lấy danh sách trận đấu của tournament (có thể lọc theo round)
- * @access  Public
- * @query   round - Optional: Lọc theo vòng đấu cụ thể
- */
-router.get(
-  '/:id/matches',
-  tournamentController.getTournamentMatches
-);
+router.get('/:id/leaderboard', tournamentController.getTournamentLeaderboard);
+router.get('/:id/rounds-result', tournamentController.getTournamentRoundsResult);
 
 export default router;

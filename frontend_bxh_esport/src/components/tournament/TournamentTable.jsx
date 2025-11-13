@@ -77,7 +77,7 @@ export const TournamentTable = ({
                 )}
               </td>
               <td className="px-6 py-4 text-sm text-gray-400">
-                {tournament.game_name || tournament.game || '-'}
+                {tournament.game_name || tournament.game || <span className="italic text-gray-500">Chưa cập nhật</span>}
               </td>
               <td className="px-6 py-4 text-sm text-gray-400">
                 {tournament.start_date && tournament.end_date ? (
@@ -85,8 +85,13 @@ export const TournamentTable = ({
                     <div className="text-white">{new Date(tournament.start_date).toLocaleDateString('vi-VN')}</div>
                     <div className="text-xs">đến {new Date(tournament.end_date).toLocaleDateString('vi-VN')}</div>
                   </div>
+                ) : tournament.createdAt ? (
+                  <div>
+                    <div className="text-gray-400 text-xs">Tạo lúc</div>
+                    <div className="text-white">{new Date(tournament.createdAt).toLocaleDateString('vi-VN')}</div>
+                  </div>
                 ) : (
-                  'Chưa xác định'
+                  <span className="italic text-gray-500">Chưa xác định</span>
                 )}
               </td>
               <td className="px-6 py-4 whitespace-nowrap">

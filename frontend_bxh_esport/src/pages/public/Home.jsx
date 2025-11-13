@@ -18,11 +18,9 @@ const Home = () => {
   const [selectedSeasonId, setSelectedSeasonId] = useState(null);
 
   const [rankings, setRankings] = useState([]);
-  const [schedule, setSchedule] = useState([]);
-  const [news, setNews] = useState([]);
+  const [tournaments, setTournaments] = useState([]);
   const [loadingRankings, setLoadingRankings] = useState(true);
-  const [loadingSchedule, setLoadingSchedule] = useState(true);
-  const [loadingNews, setLoadingNews] = useState(true);
+  const [loadingTournaments, setLoadingTournaments] = useState(true);
 
   // derive selected season object for display
   const selectedGameObj = games.find((g) => g.id === selectedGameId);
@@ -35,37 +33,48 @@ const Home = () => {
     const loadGamesAndSeasons = async () => {
       setLoadingGames(true);
       try {
-        // Load all games
+        // Load all games - response format: { code: 0, data: [...] }
         const gamesRes = await apiClient.get(API_ENDPOINTS.GAMES);
-        const gamesData = gamesRes.data?.data || gamesRes.data || [];
+        const gamesData = gamesRes?.data || [];
+        
+        if (!Array.isArray(gamesData) || gamesData.length === 0) {
+          console.log('No games found');
+          setGames([]);
+          setLoadingGames(false);
+          return;
+        }
         
         // Load seasons for each game
         const gamesWithSeasons = await Promise.all(
           gamesData.map(async (game) => {
             try {
+              // API endpoint: /seasons/game/:gameId - response format: { code: 0, data: [...] }
               const seasonsRes = await apiClient.get(`${API_ENDPOINTS.SEASONS}/game/${game.id}`);
-              const seasonsData = seasonsRes.data?.data || seasonsRes.data || [];
+              const seasonsData = seasonsRes?.data || [];
               
               // Format seasons
               const formattedSeasons = seasonsData.map(season => ({
                 id: season.id,
-                name: season.name,
-                duration: `${new Date(season.start_date).toLocaleDateString('vi-VN')} - ${new Date(season.end_date).toLocaleDateString('vi-VN')}`,
-                isCurrent: season.is_current === 1 || season.is_current === true,
+                name: season.season_name || season.name,
+                duration: season.start_date && season.end_date 
+                  ? `${new Date(season.start_date).toLocaleDateString('vi-VN')} - ${new Date(season.end_date).toLocaleDateString('vi-VN')}`
+                  : 'Chưa có thông tin',
+                isCurrent: season.status === 'ONGOING' || season.is_current === 1 || season.is_current === true,
                 start_date: season.start_date,
-                end_date: season.end_date
+                end_date: season.end_date,
+                status: season.status
               }));
               
               return {
                 id: game.id,
-                name: game.name,
+                name: game.game_name || game.name,
                 seasons: formattedSeasons
               };
             } catch (err) {
-              console.error(`Failed to load seasons for game ${game.id}`, err);
+              console.error(`Failed to load seasons for game ${game.id}:`, err);
               return {
                 id: game.id,
-                name: game.name,
+                name: game.game_name || game.name,
                 seasons: []
               };
             }
@@ -90,7 +99,7 @@ const Home = () => {
           }
         }
       } catch (err) {
-        console.error('Failed to load games', err);
+        console.error('Failed to load games:', err);
         setGames([]);
       } finally {
         setLoadingGames(false);
@@ -100,42 +109,79 @@ const Home = () => {
     loadGamesAndSeasons();
   }, []);
 
+  // Load rankings when season changes
   useEffect(() => {
     const loadRankings = async () => {
+      if (!selectedSeasonId) {
+        setRankings([]);
+        setLoadingRankings(false);
+        return;
+      }
+
       setLoadingRankings(true);
       try {
-        // TODO: Implement ranking API when available
-        // For now, use empty rankings
-        setRankings([]);
+        const response = await apiClient.get(`${API_ENDPOINTS.RANKING_BOARD}/season/${selectedSeasonId}`);
+        const rankingsData = response?.data || [];
+        
+        // Format rankings data
+        const formattedRankings = rankingsData.map(item => ({
+          team: item.team_name || item.teamName || 'Unknown Team',
+          wins: item.wins || 0,
+          losses: item.losses || 0,
+          points: item.points || item.total_points || 0,
+          teamId: item.team_id || item.teamId
+        }));
+        
+        // Sort by points descending
+        formattedRankings.sort((a, b) => b.points - a.points);
+        
+        setRankings(formattedRankings);
       } catch (err) {
-        console.error('Failed to load rankings', err);
+        console.error('Failed to load rankings:', err);
         setRankings([]);
       } finally {
         setLoadingRankings(false);
       }
     };
 
-    const loadSchedule = async () => {
-      setLoadingSchedule(true);
+    loadRankings();
+  }, [selectedSeasonId]);
+
+  // Load tournaments when season changes
+  useEffect(() => {
+    const loadTournaments = async () => {
+      if (!selectedSeasonId) {
+        setTournaments([]);
+        setLoadingTournaments(false);
+        return;
+      }
+
+      setLoadingTournaments(true);
       try {
-        // TODO: Implement match API when available
-        // For now, use empty schedule
-        setSchedule([]);
+        const response = await apiClient.get(`${API_ENDPOINTS.RANKING_BOARD}/season/${selectedSeasonId}`);
+        const tournamentsData = response?.data || [];
+        
+        // Format tournaments data
+        const formattedTournaments = tournamentsData.map(item => ({
+          id: item.id,
+          name: item.tournament_name || item.tournamentName || 'Unknown Tournament',
+          status: item.status || 'unknown',
+          startDate: item.start_date || item.startDate,
+          endDate: item.end_date || item.endDate,
+          description: item.description || ''
+        }));
+        
+        setTournaments(formattedTournaments);
       } catch (err) {
-        console.error('Failed to load schedule', err);
-        setSchedule([]);
+        console.error('Failed to load tournaments:', err);
+        setTournaments([]);
       } finally {
-        setLoadingSchedule(false);
+        setLoadingTournaments(false);
       }
     };
 
-    loadRankings();
-    loadSchedule();
-    
-    // Set news to empty for now (TODO: implement news API)
-    setLoadingNews(false);
-    setNews([]);
-  }, []);
+    loadTournaments();
+  }, [selectedSeasonId]);
 
   return (
     <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
@@ -235,7 +281,7 @@ const Home = () => {
           )}
         </aside>
 
-  {/* Cột giữa: Bảng xếp hạng + Lịch thi đấu */}
+  {/* Cột giữa: Bảng xếp hạng */}
   <section className="w-1/2 p-8 space-y-10">
           <div className="flex items-center justify-between">
             <div>
@@ -296,70 +342,53 @@ const Home = () => {
                     ))
                   )}
                 </tbody>
-
               </table>
             </div>
           </Card>
-
-          {/* Lịch thi đấu */}
-          <Card>
-            <h2 className="text-lg font-semibold mb-3 text-cyan-400">
-              ⚔️ Lịch Thi Đấu
-            </h2>
-            {loadingSchedule ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-400"></div>
-              </div>
-            ) : schedule.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                Chưa có lịch thi đấu
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {schedule.map((m, i) => (
-                  <div
-                    key={i}
-                    className="bg-gray-900 border border-gray-800 rounded-lg p-4 flex justify-between hover:bg-gray-800 transition"
-                  >
-                    <div>
-                      <p className="text-gray-400 text-sm">{m.date}</p>
-                      <p className="font-semibold">{m.match}</p>
-                    </div>
-                    <span className="text-cyan-400 font-bold">{m.time}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
         </section>
 
-        {/* Cột phải: Tin tức */}
+        {/* Cột phải: Giải đấu */}
         <aside className="w-1/4 border-l border-gray-800 p-6 bg-gradient-to-br from-[#031014] via-[#071018] to-[#081216]">
-          <h2 className="text-lg font-semibold mb-4 text-cyan-400">📰 Tin tức</h2>
-          {loadingNews ? (
+          <h2 className="text-lg font-semibold mb-4 text-cyan-400">🏅 Giải Đấu</h2>
+          {loadingTournaments ? (
             <div className="flex justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-400"></div>
             </div>
-          ) : news.length === 0 ? (
+          ) : tournaments.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
-              Chưa có tin tức
+              Chưa có giải đấu
             </div>
           ) : (
             <div className="space-y-4">
-              {news.map((n, i) => (
+              {tournaments.map((tournament) => (
                 <div
-                  key={i}
-                  className="flex items-center gap-3 hover:bg-gray-800 p-2 rounded-lg transition"
+                  key={tournament.id}
+                  className="bg-gray-900 border border-gray-800 rounded-lg p-4 hover:bg-gray-800 transition cursor-pointer"
                 >
-                  <img
-                    src={n.img}
-                    alt={n.title}
-                    className="w-14 h-14 object-cover rounded-md flex-shrink-0"
-                  />
-                  <div className="flex-1">
-                    <p className="font-medium text-sm text-white">{n.title}</p>
-                    <p className="text-xs text-gray-400 mt-1">{n.date}</p>
+                  <div className="flex items-start justify-between mb-2">
+                    <h3 className="font-semibold text-white text-sm">{tournament.name}</h3>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      tournament.status === 'ONGOING' 
+                        ? 'bg-green-500 text-white' 
+                        : tournament.status === 'COMPLETED'
+                        ? 'bg-gray-600 text-white'
+                        : 'bg-blue-500 text-white'
+                    }`}>
+                      {tournament.status === 'ONGOING' ? 'Đang diễn ra' 
+                        : tournament.status === 'COMPLETED' ? 'Đã kết thúc'
+                        : tournament.status === 'REGISTRATION' ? 'Đang đăng ký'
+                        : 'Sắp diễn ra'}
+                    </span>
                   </div>
+                  {tournament.startDate && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(tournament.startDate).toLocaleDateString('vi-VN')}
+                      {tournament.endDate && ` - ${new Date(tournament.endDate).toLocaleDateString('vi-VN')}`}
+                    </p>
+                  )}
+                  {tournament.description && (
+                    <p className="text-xs text-gray-400 mt-2 line-clamp-2">{tournament.description}</p>
+                  )}
                 </div>
               ))}
             </div>

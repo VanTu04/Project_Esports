@@ -1,7 +1,7 @@
 // File: controllers/match.controller.js
 import * as matchService from '../services/MatchService.js';
 import * as tournamentService from '../services/TournamentService.js';
-import { updateScoreOnContract } from '../services/BlockchainService.js';
+import { getMatchesByTournamentFromChain, getMatchScoreFromChain } from '../services/BlockchainService.js';
 import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
 import models from '../models/index.js';
@@ -22,7 +22,7 @@ export const getAllMatches = async (req, res) => {
       return res.json(responseSuccess([], "Không tìm thấy trận đấu nào."));
     }
 
-    // 2. Controller "béo": Thu thập TẤT CẢ ID đội
+    // 2. Controller: Thu thập TẤT CẢ ID đội
     const participantIds = new Set(); // Dùng Set để tránh lặp ID
     matches.forEach(match => {
       participantIds.add(match.team_a_participant_id);
@@ -60,35 +60,32 @@ export const getAllMatches = async (req, res) => {
   }
 };
 
-// === BÁO CÁO KẾT QUẢ (ĐIỂM) ===
 export const reportMatchResult = async (req, res) => {
-  // (Đây là hàm chúng ta đã viết ở lần trước, đã chạy tốt)
-  // Logic: Thắng 2 điểm, Thua 1 điểm
   const { id: match_id } = req.params;
   const { winner_participant_id } = req.body;
 
-  // Dùng Transaction để đảm bảo:
-  // Hoặc cả CSDL và Blockchain đều thành công, hoặc cả hai đều thất bại
-  const t = await models.sequelize.transaction(); 
+  // Transaction DB
+  const t = await models.sequelize.transaction();
 
   try {
     // 1. Validation
     if (!winner_participant_id) {
-      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'winner_participant_id là bắt buộc.'));
+      return res.json(responseWithError(
+        ErrorCodes.ERROR_REQUEST_DATA_INVALID, 
+        'winner_participant_id là bắt buộc.'
+      ));
     }
 
-    // 2. Kiểm tra Trận đấu (phải PENDING)
+    // 2. Lấy trận đấu
     const match = await matchService.findMatchById(match_id);
     if (!match) {
-      return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Trận đấu không tồn tại.'));
-    }
-    // (Thêm { transaction: t } nếu bạn 'lock' nó)
-    
-    if (match.status !== 'PENDING') {
-      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Trận đấu này đã được báo cáo kết quả.'));
+      return res.json(responseWithError(
+        ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 
+        'Trận đấu không tồn tại.'
+      ));
     }
 
-    // 3. Xác định Người thắng / Người thua
+    // 3. Xác định team thắng/thua
     const teamA_id = match.team_a_participant_id;
     const teamB_id = match.team_b_participant_id;
     let loser_participant_id = null;
@@ -98,38 +95,46 @@ export const reportMatchResult = async (req, res) => {
     } else if (Number(winner_participant_id) === teamB_id) {
       loser_participant_id = teamA_id;
     } else {
-      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Người thắng không hợp lệ cho trận đấu này.'));
+      return res.json(responseWithError(
+        ErrorCodes.ERROR_REQUEST_DATA_INVALID, 
+        'Người thắng không hợp lệ cho trận đấu này.'
+      ));
     }
 
-    // 4. Lấy thông tin Ví
+    // 4. Lấy thông tin ví
     const winner = await tournamentService.findParticipantById(winner_participant_id);
     const loser = await tournamentService.findParticipantById(loser_participant_id);
     if (!winner || !loser) {
-      return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Không tìm thấy thông tin đội tham gia.'));
+      return res.json(responseWithError(
+        ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 
+        'Không tìm thấy thông tin đội tham gia.'
+      ));
     }
 
-    // 5. GỌI BLOCKCHAIN (Thắng 2, Thua 1)
-    // (Giả lập gọi blockchain service)
-    await updateScoreOnContract(winner.wallet_address, 2);
-    await updateScoreOnContract(loser.wallet_address, 1);
-    
-    // 6. Cập nhật CSDL (Backend)
+    // 5. Cập nhật điểm lên blockchain (gọi contract mới)
+    // Thắng 2 điểm, Thua 1 điểm
+    // Nếu trận đã cập nhật trước đó, admin vẫn có thể ghi lại -> tạo block mới
+    await updateMatchScoreOnChain(match_id, 
+      Number(match_id) === teamA_id ? 2 : 1, // scoreA
+      Number(match_id) === teamB_id ? 2 : 1  // scoreB
+    );
+
+    // 6. Cập nhật CSDL
     await match.update({
-      winner_participant_id: winner_participant_id,
+      winner_participant_id,
       status: 'COMPLETED'
-    }, { transaction: t }); // Cập nhật trong transaction
+    }, { transaction: t });
 
-    // 7. Commit Transaction
-    await t.commit(); 
-    return res.json(responseSuccess(true, 'Báo cáo kết quả thành công. Điểm đã được cập nhật.'));
+    // 7. Commit
+    await t.commit();
 
+    return res.json(responseSuccess(true, 'Báo cáo kết quả thành công. Điểm đã được cập nhật trên blockchain.'));
   } catch (error) {
-    await t.rollback(); // Rollback nếu có lỗi (Blockchain hoặc DB)
-    console.error('reportMatchResult error', error);
+    await t.rollback();
+    console.error('reportMatchResult error:', error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };
-
 
 // === YÊU CẦU 2: CẬP NHẬT THỜI GIAN THI ĐẤU ===
 export const scheduleMatchTime = async (req, res) => {
@@ -159,6 +164,33 @@ export const scheduleMatchTime = async (req, res) => {
 
   } catch (error) {
     console.error('scheduleMatchTime error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+export const getMatchScore = async (req, res) => {
+  try {
+    const { matchId } = req.params;
+    const score = await getMatchScoreFromChain(Number(matchId));
+    return res.json(responseSuccess(score, "Lấy điểm trận thành công"));
+  } catch (error) {
+    console.error("getMatchScore error:", error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+export const getMatchesByTournament = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+    const matches = await getMatchesByTournamentFromChain(Number(tournamentId));
+
+    if (!matches || matches.length === 0) {
+      return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, "Chưa có trận đấu nào"));
+    }
+
+    return res.json(responseSuccess(matches, "Lấy danh sách trận đấu thành công"));
+  } catch (error) {
+    console.error("getMatchesByTournament error:", error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };

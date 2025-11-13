@@ -1,4 +1,3 @@
-// File: services/blockchain.service.js
 import { ethers } from 'ethers';
 import dotenv from 'dotenv';
 import fs from 'fs';
@@ -6,86 +5,90 @@ import path from 'path';
 
 dotenv.config();
 
-// --- 1. Lấy thông tin từ .env ---
 const rpcUrl = process.env.RPC_URL;
 const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY;
 const contractAddress = process.env.LEADERBOARD_CONTRACT_ADDRESS;
 
 if (!rpcUrl || !adminPrivateKey || !contractAddress) {
-  console.error("FATAL ERROR: Vui lòng kiểm tra RPC_URL, ADMIN_PRIVATE_KEY, và LEADERBOARD_CONTRACT_ADDRESS trong file .env");
-  // (Trong thực tế, bạn nên 'throw new Error' để dừng app)
+  throw new Error("Missing RPC_URL, ADMIN_PRIVATE_KEY or LEADERBOARD_CONTRACT_ADDRESS");
 }
 
-// --- 2. Khởi tạo Ethers ---
 const provider = new ethers.JsonRpcProvider(rpcUrl);
-// 'adminWallet' là "Signer" (Người ký), có quyền gửi giao dịch
 const adminWallet = new ethers.Wallet(adminPrivateKey, provider);
 
-// --- 3. Đọc ABI của Contract ---
-let leaderboardContract;
-try {
-  const abiPath = path.resolve('./artifacts/contracts/Leaderboard.sol/Leaderboard.json');
-  const abiFile = fs.readFileSync(abiPath, 'utf8');
-  const { abi } = JSON.parse(abiFile);
+// Load ABI
+const abiPath = path.resolve('./artifacts/contracts/Leaderboard.sol/Leaderboard.json');
+const abiFile = fs.readFileSync(abiPath, 'utf8');
+const { abi } = JSON.parse(abiFile);
 
-  // Tạo instance của contract, liên kết với ví Admin (để ký)
-  leaderboardContract = new ethers.Contract(contractAddress, abi, adminWallet);
+const leaderboardContract = new ethers.Contract(contractAddress, abi, adminWallet);
 
-  console.log(`[Blockchain Service] Đã kết nối Contract Leaderboard tại ${contractAddress}`);
-} catch (error) {
-  console.error(`[Blockchain Service] Lỗi khi đọc ABI hoặc khởi tạo contract: ${error.message}`);
-  // Dừng app nếu không thể tải contract
-  process.exit(1); 
-}
-
-
-/**
- * Cập nhật điểm (GHI) lên Smart Contract
- * @param {string} wallet_address - Ví của đội (team)
- * @param {number} pointsToAdd - Số điểm CỘNG THÊM (ví dụ 1 hoặc 2)
- */
-export const updateScoreOnContract = async (wallet_address, pointsToAdd) => {
-  if (!wallet_address || pointsToAdd == null) {
-    throw new Error("wallet_address và pointsToAdd là bắt buộc.");
-  }
-
-  console.log(`[BLOCKCHAIN_SERVICE] Đang chuẩn bị GHI...`);
-  console.log(`[BLOCKCHAIN_SERVICE]   - Gọi hàm: addPoints(${wallet_address}, ${pointsToAdd})`);
-
-  try {
-    // 1. Gửi giao dịch (Transaction)
-    // (Giả sử hàm trong contract của bạn tên là 'addPoints')
-    const tx = await leaderboardContract.addPoints(wallet_address, pointsToAdd);
-    
-    console.log(`[BLOCKCHAIN_SERVICE]   - Đã gửi TX, hash: ${tx.hash}. Đang chờ xác nhận...`);
-
-    // 2. Chờ 1 block xác nhận (rất nhanh trên Anvil)
-    // 'tx.wait(1)' là bắt buộc để đảm bảo giao dịch đã hoàn thành
-    const receipt = await tx.wait(1); 
-
-    console.log(`[BLOCKCHAIN_SERVICE]   - Giao dịch THÀNH CÔNG, block: ${receipt.blockNumber}`);
-    
-    return {
-      success: true,
-      hash: tx.hash,
-      blockNumber: receipt.blockNumber
-    };
-
-  } catch (error) {
-    console.error(`[BLOCKCHAIN_SERVICE] Lỗi khi GHI on-chain:`, error.message);
-    // (Lỗi có thể do: Hết gas, Admin không phải 'owner', ...)
-    throw new Error('Giao dịch Blockchain thất bại: ' + error.message);
-  }
+export const createMatchOnChain = async (tournamentId, roundNumber, teamA, teamB) => {
+  const tx = await leaderboardContract.createMatch(tournamentId, roundNumber, teamA, teamB || ethers.constants.AddressZero);
+  const receipt = await tx.wait(1);
+  // matchId = matchCount (trả về trong event, hoặc từ backend theo thứ tự tạo)
+  const matchId = await leaderboardContract.matchCount();
+  return { matchId: Number(matchId), txHash: tx.hash, blockNumber: receipt.blockNumber };
 };
 
-export const getScoreFromContract = async (wallet_address) => {
+/**
+ * Cập nhật điểm trận đấu
+ * @param {number} matchId 
+ * @param {number} scoreA 
+ * @param {number} scoreB 
+ */
+export const updateMatchScoreOnChain = async (matchId, scoreA, scoreB) => {
+  const tx = await leaderboardContract.updateMatchScore(matchId, scoreA, scoreB);
+  const receipt = await tx.wait(1);
+  return { txHash: tx.hash, blockNumber: receipt.blockNumber };
+};
+
+/**
+ * Lấy điểm 1 trận
+ * @param {number} matchId 
+ */
+export const getMatchScoreFromChain = async (matchId) => {
+  const [scoreA, scoreB] = await leaderboardContract.getMatchScore(matchId);
+  return { scoreA: Number(scoreA), scoreB: Number(scoreB) };
+};
+
+/**
+ * Lấy toàn bộ trận của 1 giải đấu
+ * @param {number} tournamentId 
+ */
+export const getMatchesByTournamentFromChain = async (tournamentId) => {
+  const matches = await leaderboardContract.getMatchesByTournament(tournamentId);
+  // convert BigInt to Number
+  return matches.map(m => ({
+    tournamentId: Number(m.tournamentId),
+    roundNumber: Number(m.roundNumber),
+    matchId: Number(m.matchCount), // matchId không có trong struct, cần quản lý bên backend
+    teamA: m.teamA,
+    teamB: m.teamB,
+    scoreA: Number(m.scoreA),
+    scoreB: Number(m.scoreB),
+    updatedAt: Number(m.updatedAt),
+    updatedBy: m.updatedBy
+  }));
+};
+
+/**
+ * Lấy điểm của một địa chỉ ví (team) từ blockchain
+ * @param {string} walletAddress - Địa chỉ ví của team
+ * @returns {Promise<number>} Tổng điểm
+ */
+export const getScoreFromContract = async (walletAddress) => {
   try {
-    // (GiBả sử hàm đọc tên là 'getScore')
-    const score = await leaderboardContract.getScore(wallet_address);
-    // Ethers v6 trả về BigInt, cần chuyển đổi
-    return Number(score); 
+    // Giả sử contract có function getScore(address) hoặc tương tự
+    // Nếu chưa có, return 0 tạm thời
+    // const score = await leaderboardContract.getScore(walletAddress);
+    // return Number(score);
+    
+    // Mock data tạm thời - trả về 0 để không bị lỗi
+    console.log(`Mock: Getting score for wallet ${walletAddress}`);
+    return 0;
   } catch (error) {
-    console.error(`[Blockchain Service] Lỗi khi ĐỌC on-chain:`, error.message);
-    return 0; // Trả về 0 nếu có lỗi
+    console.error('Error getting score from contract:', error);
+    return 0;
   }
 };

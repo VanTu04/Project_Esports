@@ -25,11 +25,39 @@ export default (sequelize) => {
     },
     created_by: {
       type: DataTypes.INTEGER,
-      allowNull: true, // Có thể là null nếu không cần theo dõi Admin
+      allowNull: true,
       references: {
-        model: 'Users', // Tên bảng 'User' của bạn
+        model: 'Users',
         key: 'id'
       }
+    },
+    game_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'games',
+        key: 'id'
+      }
+    },
+    season_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'seasons',
+        key: 'id'
+      }
+    },
+    start_date: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    end_date: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true
     },
     deleted: {
       type: DataTypes.INTEGER,
@@ -55,6 +83,16 @@ export default (sequelize) => {
     Tournament.belongsTo(models.User, { 
       foreignKey: 'created_by', 
       as: 'admin' 
+    });
+    // Một giải đấu thuộc về 1 Game
+    Tournament.belongsTo(models.Game, {
+      foreignKey: 'game_id',
+      as: 'Game'
+    });
+    // Một giải đấu thuộc về 1 Season
+    Tournament.belongsTo(models.Season, {
+      foreignKey: 'season_id',
+      as: 'Season'
     });
   };
 

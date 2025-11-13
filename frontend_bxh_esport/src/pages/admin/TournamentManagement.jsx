@@ -503,16 +503,22 @@ export const TournamentManagement = () => {
     }
 
     try {
+      console.log('🚀 Starting tournament:', tournamentId);
+      
       // Call API to start tournament
       const response = await tournamentService.startTournament(tournamentId);
+      
+      console.log('✅ Start tournament response:', response);
       
       showSuccess(`Giải đấu đã bắt đầu! ${response?.data?.matches_created || 0} trận đấu đã được tạo.`);
       
       // Reload tournaments to get updated status
-      loadTournaments();
+      await loadTournaments();
+      
+      console.log('✅ Tournaments reloaded');
     } catch (error) {
       console.error('❌ Failed to start tournament:', error);
-      showError(error?.response?.data?.message || 'Không thể bắt đầu giải đấu. Vui lòng kiểm tra đủ 2 đội đã được duyệt!');
+      showError(error?.message || 'Không thể bắt đầu giải đấu. Vui lòng kiểm tra đủ 2 đội đã được duyệt!');
     }
   };
 

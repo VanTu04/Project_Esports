@@ -9,6 +9,11 @@ export const create = async (data) => {
     name: data.name,
     total_rounds: data.total_rounds,
     created_by: data.created_by || null,
+    game_id: data.game_id || null,
+    season_id: data.season_id || null,
+    start_date: data.start_date || null,
+    end_date: data.end_date || null,
+    description: data.description || null,
     status: 'PENDING',
     current_round: 0
   });
@@ -58,12 +63,50 @@ export const findAll = async (status) => {
   const whereCondition = {};
   if (status) whereCondition.status = status;
 
-  const tournaments = await models.Tournament.findAll({
-    where: whereCondition,
-    order: [['createdAt', 'DESC']],
-    attributes: ['id', 'name', 'status', 'total_rounds', 'current_round']
-  });
-  return tournaments;
+  let tournaments;
+  
+  try {
+    tournaments = await models.Tournament.findAll({
+      where: whereCondition,
+      order: [['createdAt', 'DESC']],
+      attributes: ['id', 'name', 'description', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'game_id', 'season_id', 'created_by', 'createdAt', 'updatedAt'],
+      include: [
+        {
+          model: models.Game,
+          as: 'Game',
+          attributes: ['id', 'game_name'],
+          required: false
+        },
+        {
+          model: models.Season,
+          as: 'Season',
+          attributes: ['id', 'name'],
+          required: false
+        }
+      ]
+    });
+
+    // Map data để frontend dễ sử dụng
+    return tournaments.map(t => {
+      const tData = t.get({ plain: true });
+      return {
+        ...tData,
+        game_name: tData.Game?.game_name || null,
+        season_name: tData.Season?.name || null
+      };
+    });
+  } catch (error) {
+    console.error('❌ Error loading tournaments with includes:', error.message);
+    
+    // Fallback: Load without includes if associations fail
+    tournaments = await models.Tournament.findAll({
+      where: whereCondition,
+      order: [['createdAt', 'DESC']],
+      attributes: ['id', 'name', 'description', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'game_id', 'season_id', 'created_by', 'createdAt', 'updatedAt']
+    });
+
+    return tournaments.map(t => t.get({ plain: true }));
+  }
 };
 
 /**
@@ -216,9 +259,8 @@ export const getTournamentMatches = async (tournament_id, round = null) => {
   return matches;
 };
 
-/**
- * Lấy danh sách participant theo mảng ID
- */
+
+//
 export const findParticipantsByIds = async (participant_ids) => {
   return await models.Participant.findAll({
     where: {
@@ -227,5 +269,13 @@ export const findParticipantsByIds = async (participant_ids) => {
       }
     },
     attributes: ['id', 'team_name']
+  });
+  return participants;
+};
+
+export const findParticipantsByRound = async (tournament_id, round_number) => {
+  return await models.Participant.findAll({
+    where: { tournament_id, round_number },
+    raw: true
   });
 };
