@@ -33,21 +33,6 @@ export const LeaderboardModal = ({
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Trạng thái giải đấu */}
-          <div>
-            <label className="block text-sm font-medium text-white mb-2">
-              Trạng thái giải đấu
-            </label>
-            <select
-              value={status}
-              onChange={(e) => onStatusChange(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-black"
-            >
-              <option value="upcoming">Chưa diễn ra</option>
-              <option value="live">Đang diễn ra</option>
-              <option value="completed">Đã hoàn thành</option>
-            </select>
-          </div>
 
           {/* Bảng đội */}
           <div className="overflow-x-auto">

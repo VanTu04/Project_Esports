@@ -361,3 +361,17 @@ export const startTournament = async (req, res) => {
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };
+
+// Lấy danh sách trận đấu của tournament
+export const getTournamentMatches = async (req, res) => {
+  try {
+    const { id: tournament_id } = req.params;
+    const { round } = req.query; // Optional filter by round
+    
+    const matches = await tournamentService.getTournamentMatches(tournament_id, round);
+    return res.json(responseSuccess(matches, 'Lấy danh sách trận đấu thành công'));
+  } catch (error) {
+    console.error('getTournamentMatches error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};

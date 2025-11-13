@@ -75,7 +75,7 @@ router.post(
 
 router.post(
   '/:id/request-join',
-  checkAccessToken,
+  checkRole([roles.USER, roles.TEAM_MANAGER, roles.ADMIN]), // Cho phép User, Team Manager gọi
   tournamentController.requestJoinTournament
 );
 
@@ -89,6 +89,17 @@ router.post(
   '/:id/start',
   checkRole([roles.ADMIN]),
   tournamentController.startTournament
+);
+
+/**
+ * @route   GET /api/tournaments/:id/matches
+ * @desc    Lấy danh sách trận đấu của tournament (có thể lọc theo round)
+ * @access  Public
+ * @query   round - Optional: Lọc theo vòng đấu cụ thể
+ */
+router.get(
+  '/:id/matches',
+  tournamentController.getTournamentMatches
 );
 
 export default router;

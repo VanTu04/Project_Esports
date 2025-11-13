@@ -152,3 +152,44 @@ export const getProfile = async (req, res, next) => {
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi hệ thống', error.message));
   }
 }
+
+// Get all users (Admin only)
+export const getAllUsers = async (req, res, next) => {
+  try {
+    const params = req.query;
+    const users = await userService.getAllUsers(params);
+    return res.json(responseSuccess({ users }, 'Lấy danh sách người dùng thành công'));
+  } catch (error) {
+    console.error('getAllUsers error:', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi lấy danh sách người dùng', error.message));
+  }
+}
+
+// Update user (Admin only)
+export const updateUser = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const adminId = req.user.id;
+    const data = req.body;
+
+    const result = await userService.updateUser(userId, data, adminId);
+    return res.json(responseSuccess(result, 'Cập nhật người dùng thành công'));
+  } catch (error) {
+    console.error('updateUser error:', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi cập nhật người dùng', error.message));
+  }
+}
+
+// Delete user (Admin only)
+export const deleteUser = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const adminId = req.user.id;
+
+    const result = await userService.deleteUser(userId, adminId);
+    return res.json(responseSuccess(result, 'Xóa người dùng thành công'));
+  } catch (error) {
+    console.error('deleteUser error:', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi xóa người dùng', error.message));
+  }
+}

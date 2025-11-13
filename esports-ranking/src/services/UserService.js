@@ -219,12 +219,11 @@ export const forgetPassword = async (data) => {
 
 }
 
-
-const getByEmail = async (email) => {
+export const getByEmail = async (email) => {
   return models.User.findOne({ where: { email } });
 };
 
-const getByUsername = async (username) => {
+export const getByUsername = async (username) => {
   return models.User.findOne({ where: { username } });
 };
 
@@ -256,4 +255,112 @@ export const checkExistUsername = async (username) => {
   const existUser = await getByUsername(username);
   console.log('existUser', existUser);
   return !!existUser; // true nếu tồn tại, false nếu không
+};
+
+// Get all users (Admin only)
+export const getAllUsers = async (params = {}) => {
+  try {
+    const where = {
+      deleted: 0
+    };
+
+    // Filter by status if provided
+    if (params.status !== undefined) {
+      where.status = params.status;
+    }
+
+    // Filter by role if provided
+    if (params.role !== undefined) {
+      where.role = params.role;
+    }
+
+    // Search by username, email, or full_name
+    if (params.search) {
+      where[Op.or] = [
+        { username: { [Op.like]: `%${params.search}%` } },
+        { email: { [Op.like]: `%${params.search}%` } },
+        { full_name: { [Op.like]: `%${params.search}%` } }
+      ];
+    }
+
+    const users = await models.User.findAll({
+      where,
+      attributes: ['id', 'username', 'full_name', 'email', 'role', 'status', 'wallet_address', 'created_date', 'updated_date'],
+      order: [['created_date', 'DESC']]
+    });
+
+    return users;
+  } catch (error) {
+    console.error('getAllUsers error:', error);
+    throw error;
+  }
+};
+
+// Update user (Admin only)
+export const updateUser = async (userId, data, adminId) => {
+  try {
+    const user = await models.User.findOne({
+      where: { id: userId, deleted: 0 }
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const updateData = {
+      updated_date: new Date(),
+      updated_by: adminId
+    };
+
+    // Only update allowed fields
+    if (data.full_name !== undefined) updateData.full_name = data.full_name;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.role !== undefined) updateData.role = data.role;
+    if (data.status !== undefined) updateData.status = data.status;
+
+    // If password is being changed, hash it
+    if (data.password) {
+      updateData.password = await bcrypt.hash(data.password, 10);
+    }
+
+    await models.User.update(updateData, {
+      where: { id: userId }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('updateUser error:', error);
+    throw error;
+  }
+};
+
+// Delete user (soft delete, Admin only)
+export const deleteUser = async (userId, adminId) => {
+  try {
+    const user = await models.User.findOne({
+      where: { id: userId, deleted: 0 }
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Don't allow deleting yourself
+    if (userId === adminId) {
+      throw new Error('Cannot delete yourself');
+    }
+
+    await models.User.update({
+      deleted: 1,
+      deleted_date: new Date(),
+      deleted_by: adminId
+    }, {
+      where: { id: userId }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('deleteUser error:', error);
+    throw error;
+  }
 };

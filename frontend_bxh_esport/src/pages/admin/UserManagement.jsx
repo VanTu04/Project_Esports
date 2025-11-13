@@ -19,10 +19,24 @@ export const UserManagement = () => {
 
   const loadUsers = async () => {
     try {
+      console.log('🔍 Đang tải danh sách người dùng...');
+      
+      // Check token
+      const token = sessionStorage.getItem('AUTH_TOKEN');
+      console.log('🔑 Token hiện tại:', token ? 'Có token' : '❌ KHÔNG CÓ TOKEN');
+      
       const data = await userService.getAllUsers();
-      setUsers(data.users || []);
+      console.log('✅ Dữ liệu nhận được:', data);
+      console.log('👥 Danh sách users:', data.users);
+      
+      const userList = data.users || data || [];
+      // Lọc bỏ các user có role = 4 (admin)
+      const filteredUsers = userList.filter(user => user.role !== 4);
+      console.log('📋 Số lượng users (không bao gồm admin):', filteredUsers.length);
+      setUsers(filteredUsers);
     } catch (error) {
-      showError('Không thể tải danh sách người dùng');
+      console.error('❌ Lỗi khi tải người dùng:', error);
+      showError(`Không thể tải danh sách người dùng: ${error.message || JSON.stringify(error)}`);
     } finally {
       setLoading(false);
     }
@@ -48,19 +62,47 @@ export const UserManagement = () => {
     }
   };
 
+  const getRoleName = (role) => {
+    const roleMap = {
+      1: 'Người dùng',
+      2: 'Cầu thủ',
+      3: 'Quản lý đội',
+      4: 'Quản trị viên'
+    };
+    return roleMap[role] || 'Không xác định';
+  };
+
   const columns = [
-    { header: 'ID', accessor: 'id' },
-    { header: 'Username', accessor: 'username' },
+    { header: 'Mã', accessor: 'id' },
+    { header: 'Tên tài khoản', accessor: 'username' },
+    { 
+      header: 'Họ và tên', 
+      accessor: 'full_name',
+      render: (value) => value || '-'
+    },
     { header: 'Email', accessor: 'email' },
-    { header: 'Role', accessor: 'role' },
+    { 
+      header: 'Vai trò', 
+      accessor: 'role',
+      render: (value) => (
+        <span className={`px-2 py-1 rounded text-xs font-medium ${
+          value === 4 ? 'bg-red-500/20 text-red-300' :
+          value === 3 ? 'bg-blue-500/20 text-blue-300' :
+          value === 2 ? 'bg-green-500/20 text-green-300' :
+          'bg-gray-500/20 text-gray-300'
+        }`}>
+          {getRoleName(value)}
+        </span>
+      )
+    },
     {
       header: 'Trạng thái',
       accessor: 'status',
       render: (value) => {
         const active = value === 1 || value === '1' || value === 'active' || value === 'ACTIVE';
         return (
-          <span className={`px-2 py-1 rounded text-xs ${active ? 'bg-green-500' : 'bg-red-500'}`}>
-            {active ? 'Active' : 'Inactive'}
+          <span className={`px-2 py-1 rounded text-xs font-medium ${active ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
+            {active ? 'Hoạt động' : 'Không hoạt động'}
           </span>
         );
       },
