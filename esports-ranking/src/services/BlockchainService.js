@@ -89,3 +89,52 @@ export const getScoreFromContract = async (wallet_address) => {
     return 0; // Trả về 0 nếu có lỗi
   }
 };
+
+/**
+ * Lấy toàn bộ lịch sử giao dịch (từ block mới -> cũ) kèm phân trang
+ */
+export const getBlockchainHistory = async (page = 1, limit = 20) => {
+  const latestBlock = await provider.getBlockNumber();
+
+  let allTransactions = [];
+  console.log(`[Blockchain] Đang scan block từ ${latestBlock} → 0`);
+
+  // Quét từ block mới nhất → block 0
+  for (let i = latestBlock; i >= 0; i--) {
+    const block = await provider.getBlock(i, true);
+
+    if (!block || !block.transactions) continue;
+
+    // Lấy tx của block hiện tại
+    block.transactions.forEach((tx) => {
+      allTransactions.push({
+        hash: tx.hash,
+        from: tx.from,
+        to: tx.to,
+        value: Number(ethers.formatEther(tx.value)),
+        gasPrice: Number(tx.gasPrice),
+        blockNumber: tx.blockNumber,
+        timestamp: block.timestamp
+      });
+    });
+  }
+
+  // Sắp xếp từ mới → cũ
+  allTransactions.sort((a, b) => b.blockNumber - a.blockNumber);
+
+  const total = allTransactions.length;
+  const totalPages = Math.ceil(total / limit);
+
+  // Tính phân trang
+  const start = (page - 1) * limit;
+  const end = start + limit;
+  const paginated = allTransactions.slice(start, end);
+
+  return {
+    page,
+    limit,
+    total,
+    totalPages,
+    transactions: paginated
+  };
+};

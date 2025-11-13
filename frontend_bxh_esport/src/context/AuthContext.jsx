@@ -32,6 +32,23 @@ export const AuthProvider = ({ children }) => {
 
   // Khi app khởi chạy → kiểm tra token trong sessionStorage
   useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = storage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+        if (!token) return;
+
+        const res = await userService.getProfile();
+        if (res?.data?.data) {
+          setUser(res.data.data);
+          storage.setItem(STORAGE_KEYS.USER_DATA, res.data.data);
+        }
+      } catch (error) {
+        console.error("Load profile error:", error);
+      }
+    };
+
+    fetchProfile();
+    
     const token = storage.getItem(STORAGE_KEYS.AUTH_TOKEN);
     const savedUser = storage.getItem(STORAGE_KEYS.USER_DATA);
 

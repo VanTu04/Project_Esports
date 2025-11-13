@@ -2,6 +2,7 @@ import express from 'express';
 import * as usersController from '../controllers/UserController.js';
 import roles from '../constant/roles.js';
 import { checkAccessToken, checkRole } from '../middlewares/jwt_token.js';
+import upload from "../middlewares/upload.js";
 
 const router = express.Router();
 
@@ -29,5 +30,12 @@ router.get('/profile', checkAccessToken, usersController.getProfile);
 
 //ADMIN
 router.post('/new-account', checkRole([roles.ADMIN]), usersController.createNewAccountByAdmin);
+
+router.post(
+  "/upload-avatar",
+  checkAccessToken,
+  upload.single("avatar"),
+  usersController.uploadAvatar
+);
 
 export default router;

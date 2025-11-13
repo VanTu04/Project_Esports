@@ -1,5 +1,5 @@
 {
-  "leaderboard": "0xEC54b00DfE1a5059222CEFf63AB5B4FF7b85aB5e",
+  "leaderboard": "0xcbFC389cB5A931F06139538e46513bC7E3e62D3c",
   "network": "anvil-local",
   "rpcUrl": "http://183.81.33.178:8545",
   "chainId": 1337,
@@ -9,5 +9,5 @@
       "role": "admin"
     }
   ],
-  "deployedAt": "2025-11-12T17:13:10.048Z"
+  "deployedAt": "2025-11-13T16:04:43.623Z"
 }

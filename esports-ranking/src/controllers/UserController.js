@@ -152,3 +152,28 @@ export const getProfile = async (req, res, next) => {
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi hệ thống', error.message));
   }
 }
+
+export const uploadAvatar = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!req.file) {
+      return res.json(responseWithError(400, "Không có file nào được upload"));
+    }
+
+    const filePath = `/uploads/avatars/${req.file.filename}`;
+
+    const result = await userService.updateUser(userId, {
+      avatar: filePath,
+    });
+
+    return res.json(
+      responseSuccess({ avatar: filePath }, "Upload avatar thành công")
+    );
+  } catch (err) {
+    console.error(err);
+    return res.json(
+      responseWithError(500, "Lỗi upload avatar", err.message)
+    );
+  }
+};

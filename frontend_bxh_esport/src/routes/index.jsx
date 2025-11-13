@@ -79,7 +79,7 @@ const AppRoutes = () => {
                     key={index}
                     path={route.path}
                     element={
-                      <ProtectedRoute allowedRoles={[USER_ROLES.USER]}>
+                      <ProtectedRoute>
                         {route.element}
                       </ProtectedRoute>
                     }
