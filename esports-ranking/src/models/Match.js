@@ -43,9 +43,13 @@ export default (sequelize) => {
       }
     },
     status: {
-      type: DataTypes.ENUM('pending', 'completed'),
-      defaultValue: 'pending',
-      allowNull: false
+      type: DataTypes.ENUM('PENDING', 'COMPLETED', 'CANCELLED'),
+      defaultValue: 'PENDING',
+    },
+    match_time: {
+      type: DataTypes.DATE, // Lưu trữ cả ngày và giờ
+      allowNull: true,
+      comment: 'Thời gian thi đấu (do Admin gán)'
     }
   }, {
     tableName: 'matches',

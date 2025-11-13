@@ -5,6 +5,7 @@ import teamsRouter from './team.route.js';
 import seasonRouter from './season.route.js';
 import rankingBoardRouter from './rankingBoard.route.js';
 import tournamentRouter from './tournament.routes.js';
+import walletRouter from './wallet.route.js';
 
 const router = express.Router();
 
@@ -15,5 +16,6 @@ router.use('/seasons', seasonRouter);
 router.use('/ranking-board', rankingBoardRouter);
 
 router.use('/tournaments', tournamentRouter);
+router.use('/wallet', walletRouter);
 
 export default router;

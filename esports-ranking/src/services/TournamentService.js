@@ -194,3 +194,24 @@ export const updateTournamentStatus = async (tournament, new_status, new_round) 
   });
   return true;
 };
+
+
+
+
+
+
+
+
+
+//
+export const findParticipantsByIds = async (participant_ids) => {
+  const participants = await models.Participant.findAll({
+    where: {
+      id: {
+        [Op.in]: participant_ids // Dùng Op.in để tìm tất cả ID trong mảng
+      }
+    },
+    attributes: ['id', 'team_name'] // Chỉ cần lấy ID và Tên
+  });
+  return participants;
+};
