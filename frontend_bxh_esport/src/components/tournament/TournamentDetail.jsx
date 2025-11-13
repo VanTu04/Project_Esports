@@ -21,6 +21,7 @@ export const TournamentDetail = () => {
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [isUpdateScoreModalOpen, setIsUpdateScoreModalOpen] = useState(false);
   const [isUpdateTimeModalOpen, setIsUpdateTimeModalOpen] = useState(false);
+  const [selectedWinnerId, setSelectedWinnerId] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -59,6 +60,19 @@ export const TournamentDetail = () => {
         }
         
         console.log('Parsed matches data:', matchesData);
+        
+        // Debug: Log match details
+        matchesData.forEach(match => {
+          console.log(`Match ${match.id}:`, {
+            status: match.status,
+            score_a: match.score_a,
+            score_b: match.score_b,
+            winner_participant_id: match.winner_participant_id,
+            team_a_name: match.team_a_name,
+            team_b_name: match.team_b_name
+          });
+        });
+        
         setMatches(matchesData);
       } catch (err) {
         console.warn('No matches yet:', err);
@@ -124,6 +138,7 @@ export const TournamentDetail = () => {
 
   const handleOpenScoreModal = (match) => {
     setSelectedMatch(match);
+    setSelectedWinnerId(null); // Reset winner selection
     setIsUpdateScoreModalOpen(true);
   };
 
@@ -136,31 +151,92 @@ export const TournamentDetail = () => {
     setSelectedMatch(null);
     setIsUpdateScoreModalOpen(false);
     setIsUpdateTimeModalOpen(false);
+    setSelectedWinnerId(null);
   };
 
   const handleUpdateScore = async (matchId, scoreA, scoreB) => {
     try {
-      await tournamentService.updateMatchScore(matchId, { score_a: scoreA, score_b: scoreB });
-      showSuccess('Cập nhật tỷ số thành công!');
-      handleCloseModals();
-      loadData();
+      // Xác định đội thắng dựa trên điểm
+      const winnerId = scoreA > scoreB ? selectedMatch.team_a_participant_id : selectedMatch.team_b_participant_id;
+      
+      console.log('📊 Updating match result:', { 
+        matchId, 
+        scoreA, 
+        scoreB, 
+        winnerId,
+        selectedMatch 
+      });
+      
+      // Report match result với winner_participant_id
+      const response = await tournamentService.reportMatchResult(matchId, { 
+        winner_participant_id: winnerId 
+      });
+      
+      console.log('📊 Response:', response);
+      
+      // Kiểm tra response code
+      if (response?.code === 0) {
+        showSuccess(response?.message || 'Cập nhật kết quả thành công!');
+        handleCloseModals();
+        loadData();
+      } else {
+        console.error('❌ Response error:', response);
+        showError(response?.message || 'Không thể cập nhật kết quả');
+      }
     } catch (error) {
-      console.error('Error updating score:', error);
-      showError('Không thể cập nhật tỷ số');
+      console.error('❌ Error updating score:', error);
+      console.error('❌ Error details:', error.response);
+      showError(error?.response?.data?.message || error?.message || 'Không thể cập nhật kết quả');
     }
   };
 
   const handleUpdateTime = async (matchId, scheduledTime) => {
     try {
-      await tournamentService.updateMatchScore(matchId, { 
-        scheduled_time: new Date(scheduledTime).toISOString() 
+      console.log('⏰ Updating match schedule:', { 
+        matchId, 
+        scheduledTime,
+        isoTime: new Date(scheduledTime).toISOString()
       });
-      showSuccess('Cập nhật thời gian thành công!');
-      handleCloseModals();
-      loadData();
+
+      const response = await tournamentService.updateMatchSchedule(matchId, { 
+        match_time: new Date(scheduledTime).toISOString() 
+      });
+      
+      console.log('⏰ Response:', response);
+      
+      // Kiểm tra response code
+      if (response?.code === 0) {
+        showSuccess('Cập nhật thời gian thành công!');
+        handleCloseModals();
+        loadData();
+      } else {
+        console.error('❌ Response error:', response);
+        showError(response?.message || 'Không thể cập nhật thời gian');
+      }
     } catch (error) {
-      console.error('Error updating time:', error);
-      showError('Không thể cập nhật thời gian');
+      console.error('❌ Error updating time:', error);
+      console.error('❌ Error details:', error.response);
+      showError(error?.response?.data?.message || error?.message || 'Không thể cập nhật thời gian');
+    }
+  };
+
+  const handleStartNewRound = async () => {
+    try {
+      console.log('🎯 Starting new round for tournament:', tournamentId);
+      
+      const response = await tournamentService.startTournament(tournamentId);
+      
+      console.log('🎯 Response:', response);
+      
+      if (response?.code === 0) {
+        showSuccess(response?.message || 'Tạo vòng mới thành công!');
+        loadData();
+      } else {
+        showError(response?.message || 'Không thể tạo vòng mới');
+      }
+    } catch (error) {
+      console.error('❌ Error starting new round:', error);
+      showError(error?.response?.data?.message || error?.message || 'Không thể tạo vòng mới');
     }
   };
 
@@ -341,12 +417,36 @@ export const TournamentDetail = () => {
         {/* Tab Content - Danh sách trận & Lịch */}
         {activeTab === 'matches' && (
           <div className="space-y-6">
+            {/* Button Tạo Vòng Mới */}
+            <Card padding="lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-white">Quản lý vòng đấu</h3>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {Object.keys(groupedMatches).length > 0 
+                      ? `Hiện có ${Object.keys(groupedMatches).length} vòng đấu`
+                      : 'Chưa có vòng đấu nào'}
+                  </p>
+                </div>
+                <Button
+                  variant="primary"
+                  onClick={handleStartNewRound}
+                  disabled={tournament?.status === 'COMPLETED'}
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  {Object.keys(groupedMatches).length === 0 ? 'Bắt đầu Vòng 1' : 'Tạo Vòng Mới'}
+                </Button>
+              </div>
+            </Card>
+
             {Object.keys(groupedMatches).length === 0 ? (
               <Card padding="lg">
                 <div className="text-center py-12">
                   <div className="text-6xl mb-4">🏆</div>
                   <h3 className="text-lg font-medium text-white mb-2">Chưa có trận đấu</h3>
-                  <p className="text-gray-400">Giải đấu chưa bắt đầu hoặc chưa tạo trận đấu</p>
+                  <p className="text-gray-400">Nhấn nút "Bắt đầu Vòng 1" để tạo vòng đấu đầu tiên</p>
                 </div>
               </Card>
             ) : (
@@ -389,19 +489,27 @@ export const TournamentDetail = () => {
                                 : 'text-white'
                             }`}>
                               {match.team_a_name || 'TBD'}
+                              {match.status === 'COMPLETED' && match.winner_participant_id === match.team_a_participant_id && (
+                                <span className="ml-2 text-yellow-400">👑</span>
+                              )}
                             </div>
-                            {match.status === 'COMPLETED' && match.score_a !== null && (
+                            {match.status === 'COMPLETED' && (
                               <div className={`text-3xl font-bold mt-1 ${
                                 match.winner_participant_id === match.team_a_participant_id 
                                   ? 'text-green-400' 
-                                  : 'text-gray-400'
+                                  : 'text-gray-500'
                               }`}>
-                                {match.score_a}
+                                {match.score_a ?? 0}
                               </div>
                             )}
                           </div>
 
-                          <div className="text-2xl font-bold text-cyan-300 px-4">VS</div>
+                          <div className="flex flex-col items-center">
+                            <div className="text-2xl font-bold text-cyan-300 px-4">VS</div>
+                            {match.status === 'COMPLETED' && (
+                              <div className="text-xs text-gray-400 mt-1">Kết thúc</div>
+                            )}
+                          </div>
 
                           <div className="flex-1 text-left">
                             <div className={`text-lg font-bold ${
@@ -410,14 +518,17 @@ export const TournamentDetail = () => {
                                 : 'text-white'
                             }`}>
                               {match.team_b_name || 'TBD'}
+                              {match.status === 'COMPLETED' && match.winner_participant_id === match.team_b_participant_id && (
+                                <span className="ml-2 text-yellow-400">👑</span>
+                              )}
                             </div>
-                            {match.status === 'COMPLETED' && match.score_b !== null && (
+                            {match.status === 'COMPLETED' && (
                               <div className={`text-3xl font-bold mt-1 ${
                                 match.winner_participant_id === match.team_b_participant_id 
                                   ? 'text-green-400' 
-                                  : 'text-gray-400'
+                                  : 'text-gray-500'
                               }`}>
-                                {match.score_b}
+                                {match.score_b ?? 0}
                               </div>
                             )}
                           </div>
@@ -502,11 +613,24 @@ export const TournamentDetail = () => {
                   className="flex-1"
                   onClick={() => {
                     const scheduledTime = document.getElementById('scheduledTime').value;
-                    if (scheduledTime) {
-                      handleUpdateTime(selectedMatch.id, scheduledTime);
-                    } else {
+                    console.log('🔍 Debug:', {
+                      selectedMatch,
+                      matchId: selectedMatch.id,
+                      scheduledTime,
+                      hasValue: !!scheduledTime
+                    });
+                    
+                    if (!scheduledTime) {
                       showError('Vui lòng chọn thời gian');
+                      return;
                     }
+                    
+                    if (!selectedMatch?.id) {
+                      showError('Không tìm thấy ID trận đấu');
+                      return;
+                    }
+                    
+                    handleUpdateTime(selectedMatch.id, scheduledTime);
                   }}
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -529,46 +653,69 @@ export const TournamentDetail = () => {
                 <svg className="w-6 h-6 inline mr-2 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
-                Cập nhật tỷ số
+                Chọn đội thắng cuộc
               </h2>
 
               {/* Match Info */}
-              <div className="bg-gradient-to-r from-primary-500/10 to-purple-500/10 rounded-lg p-4 border border-primary-500/30">
-                <div className="flex items-center justify-center gap-4">
-                  <span className="text-white font-semibold text-lg">{selectedMatch.team_a_name || 'TBD'}</span>
-                  <span className="text-cyan-300 font-bold">VS</span>
-                  <span className="text-white font-semibold text-lg">{selectedMatch.team_b_name || 'TBD'}</span>
-                </div>
+              <div className="bg-gradient-to-r from-primary-500/10 to-purple-500/10 rounded-lg p-3 border border-primary-500/30 text-center">
+                <div className="text-gray-300 text-xs mb-2">Đội thắng: +2 điểm | Đội thua: +1 điểm</div>
               </div>
 
+              {/* Winner Selection */}
               <div className="space-y-3">
-                {/* Team A Score */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Tỷ số {selectedMatch.team_a_name || 'Team A'}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    defaultValue={selectedMatch.score_a || 0}
-                    className="w-full px-3 py-2 bg-white border border-primary-700/30 rounded-lg text-gray-900 text-lg font-semibold focus:outline-none focus:border-primary-500"
-                    id="scoreA"
-                  />
-                </div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Chọn đội chiến thắng:
+                </label>
+                
+                {/* Team A Button */}
+                <button
+                  onClick={() => setSelectedWinnerId(selectedMatch.team_a_participant_id)}
+                  className={`w-full p-4 border-2 rounded-lg transition-all text-left group ${
+                    selectedWinnerId === selectedMatch.team_a_participant_id
+                      ? 'bg-gradient-to-r from-green-500/30 to-green-600/20 border-green-400 shadow-lg shadow-green-500/20'
+                      : 'bg-gradient-to-r from-green-500/10 to-green-600/5 border-green-500/30 hover:border-green-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="text-white font-bold text-lg">{selectedMatch.team_a_name || 'Team A'}</div>
+                      <div className="text-green-400 text-sm mt-1">
+                        {selectedWinnerId === selectedMatch.team_a_participant_id ? '✅ ' : ''}
+                        👑 Thắng +2 điểm
+                      </div>
+                    </div>
+                    <div className={`text-4xl transition-transform ${
+                      selectedWinnerId === selectedMatch.team_a_participant_id ? 'scale-110' : 'group-hover:scale-110'
+                    }`}>
+                      {selectedWinnerId === selectedMatch.team_a_participant_id ? '🏆' : '🎯'}
+                    </div>
+                  </div>
+                </button>
 
-                {/* Team B Score */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Tỷ số {selectedMatch.team_b_name || 'Team B'}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    defaultValue={selectedMatch.score_b || 0}
-                    className="w-full px-3 py-2 bg-white border border-primary-700/30 rounded-lg text-gray-900 text-lg font-semibold focus:outline-none focus:border-primary-500"
-                    id="scoreB"
-                  />
-                </div>
+                {/* Team B Button */}
+                <button
+                  onClick={() => setSelectedWinnerId(selectedMatch.team_b_participant_id)}
+                  className={`w-full p-4 border-2 rounded-lg transition-all text-left group ${
+                    selectedWinnerId === selectedMatch.team_b_participant_id
+                      ? 'bg-gradient-to-r from-green-500/30 to-green-600/20 border-green-400 shadow-lg shadow-green-500/20'
+                      : 'bg-gradient-to-r from-green-500/10 to-green-600/5 border-green-500/30 hover:border-green-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="text-white font-bold text-lg">{selectedMatch.team_b_name || 'Team B'}</div>
+                      <div className="text-green-400 text-sm mt-1">
+                        {selectedWinnerId === selectedMatch.team_b_participant_id ? '✅ ' : ''}
+                        👑 Thắng +2 điểm
+                      </div>
+                    </div>
+                    <div className={`text-4xl transition-transform ${
+                      selectedWinnerId === selectedMatch.team_b_participant_id ? 'scale-110' : 'group-hover:scale-110'
+                    }`}>
+                      {selectedWinnerId === selectedMatch.team_b_participant_id ? '🏆' : '🎯'}
+                    </div>
+                  </div>
+                </button>
               </div>
 
               <div className="flex gap-3 pt-4">
@@ -582,16 +729,22 @@ export const TournamentDetail = () => {
                 <Button
                   variant="primary"
                   className="flex-1"
+                  disabled={!selectedWinnerId}
                   onClick={() => {
-                    const scoreA = parseInt(document.getElementById('scoreA').value);
-                    const scoreB = parseInt(document.getElementById('scoreB').value);
+                    if (!selectedWinnerId) {
+                      showError('Vui lòng chọn đội thắng');
+                      return;
+                    }
+                    // Đội thắng: 2 điểm, đội thua: 1 điểm
+                    const scoreA = selectedWinnerId === selectedMatch.team_a_participant_id ? 2 : 1;
+                    const scoreB = selectedWinnerId === selectedMatch.team_b_participant_id ? 2 : 1;
                     handleUpdateScore(selectedMatch.id, scoreA, scoreB);
                   }}
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  Cập nhật
+                  {selectedWinnerId ? 'Xác nhận kết quả' : 'Chọn đội thắng trước'}
                 </Button>
               </div>
             </div>
