@@ -1,7 +1,6 @@
 // File: controllers/match.controller.js
 import * as matchService from '../services/MatchService.js';
 import * as tournamentService from '../services/TournamentService.js';
-import { getMatchesByTournamentFromChain, getMatchScoreFromChain, updateMatchScoreOnChain } from '../services/BlockchainService.js';
 import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
 import models from '../models/index.js';
@@ -48,9 +47,6 @@ export const getAllMatches = async (req, res) => {
       // Gắn tên
       matchData.team_a_name = participantMap.get(match.team_a_participant_id) || 'N/A';
       matchData.team_b_name = participantMap.get(match.team_b_participant_id) || 'BYE'; // Nếu team_b_id là null
-      
-      // Map match_time -> scheduled_time cho frontend
-      matchData.scheduled_time = matchData.match_time;
 
       return matchData;
     });

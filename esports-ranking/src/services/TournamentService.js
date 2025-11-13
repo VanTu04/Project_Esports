@@ -269,7 +269,7 @@ export const markParticipantBye = async (participantId) => {
   return participant;
 };
 
-//
+
 export const findParticipantsByIds = async (participant_ids) => {
   return await models.Participant.findAll({
     where: {

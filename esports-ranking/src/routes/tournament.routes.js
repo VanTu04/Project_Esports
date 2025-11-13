@@ -13,7 +13,7 @@ const router = express.Router();
 router.post(
   '/',
   checkRole([roles.ADMIN]),
-  tournamentController.createTournament
+  tournamentController.createTournamentWithRewards
 );
 
 /**
@@ -45,7 +45,7 @@ router.get(
 router.put(
   '/:id',
   checkRole([roles.ADMIN]),
-  tournamentController.updateTournament
+  tournamentController.updateTournamentRewards
 );
 
 /**
@@ -95,8 +95,10 @@ router.post(
 router.post('/rounds/matches', tournamentController.getMatchesByRound);
 // POST cập nhật điểm trận đấu
 router.post('/matches/:match_id/update-score', tournamentController.updateMatchScore);
+// POST /tournaments/:tournament_id/next-round
+router.post('/tournaments/:tournament_id/next-round', tournamentController.startNextRound);
 
-router.get('/:id/leaderboard', tournamentController.getTournamentLeaderboard);
-router.get('/:id/rounds-result', tournamentController.getTournamentRoundsResult);
+// ghi bxh len blockchain
+router.post('/:tournament_id/record-ranking', checkRole([roles.ADMIN]), tournamentController.writeLeaderboardToBlockchain);
 
 export default router;

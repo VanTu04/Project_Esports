@@ -60,64 +60,23 @@ export const writeLeaderboardToBlockchain = async (tournamentId, roundNumber, le
 };
 
 
-/**
- * Cập nhật điểm trận đấu
- * @param {number} matchId 
- * @param {number} scoreA 
- * @param {number} scoreB 
- */
-export const updateMatchScoreOnChain = async (matchId, scoreA, scoreB) => {
-  const tx = await leaderboardContract.updateMatchScore(matchId, scoreA, scoreB);
-  const receipt = await tx.wait(1);
+// === Ghi BXH vòng đấu ===
+export const updateLeaderboardOnChain = async ({ tournamentId, tournamentName, roundNumber, participants, scores }) => {
+  const tx = await leaderboardContract.updateLeaderboard(tournamentId, roundNumber, participants, scores);
+  const receipt = await tx.wait();
   return { txHash: tx.hash, blockNumber: receipt.blockNumber };
 };
 
-/**
- * Lấy điểm 1 trận
- * @param {number} matchId 
- */
-export const getMatchScoreFromChain = async (matchId) => {
-  const [scoreA, scoreB] = await leaderboardContract.getMatchScore(matchId);
-  return { scoreA: Number(scoreA), scoreB: Number(scoreB) };
+// === Lấy BXH vòng đấu ===
+export const getLeaderboardFromChain = async (tournamentId, roundNumber) => {
+  const [addresses, points] = await leaderboardContract.getLeaderboard(tournamentId, roundNumber);
+  return addresses.map((addr, i) => ({ address: addr, score: points[i].toNumber() }));
 };
 
-/**
- * Lấy toàn bộ trận của 1 giải đấu
- * @param {number} tournamentId 
- */
-export const getMatchesByTournamentFromChain = async (tournamentId) => {
-  const matches = await leaderboardContract.getMatchesByTournament(tournamentId);
-  // convert BigInt to Number
-  return matches.map(m => ({
-    tournamentId: Number(m.tournamentId),
-    roundNumber: Number(m.roundNumber),
-    matchId: Number(m.matchCount), // matchId không có trong struct, cần quản lý bên backend
-    teamA: m.teamA,
-    teamB: m.teamB,
-    scoreA: Number(m.scoreA),
-    scoreB: Number(m.scoreB),
-    updatedAt: Number(m.updatedAt),
-    updatedBy: m.updatedBy
-  }));
-};
-
-/**
- * Lấy điểm của một địa chỉ ví (team) từ blockchain
- * @param {string} walletAddress - Địa chỉ ví của team
- * @returns {Promise<number>} Tổng điểm
- */
-export const getScoreFromContract = async (walletAddress) => {
-  try {
-    // Giả sử contract có function getScore(address) hoặc tương tự
-    // Nếu chưa có, return 0 tạm thời
-    // const score = await leaderboardContract.getScore(walletAddress);
-    // return Number(score);
-    
-    // Mock data tạm thời - trả về 0 để không bị lỗi
-    console.log(`Mock: Getting score for wallet ${walletAddress}`);
-    return 0;
-  } catch (error) {
-    console.error('Error getting score from contract:', error);
-    return 0;
-  }
+// === Phân phối ETH cho 1 người ===
+export const distributeRewardOnChain = async (to, amountEther) => {
+  const weiAmount = ethers.parseEther(amountEther.toString());
+  const tx = await leaderboardContract.distribute(to, weiAmount);
+  const receipt = await tx.wait();
+  return { txHash: tx.hash, blockNumber: receipt.blockNumber };
 };
