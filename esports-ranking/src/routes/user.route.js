@@ -29,5 +29,8 @@ router.get('/profile', checkAccessToken, usersController.getProfile);
 
 //ADMIN
 router.post('/new-account', checkRole([roles.ADMIN]), usersController.createNewAccountByAdmin);
+router.get('/', checkRole([roles.ADMIN]), usersController.getAllUsers);
+router.put('/:id', checkRole([roles.ADMIN]), usersController.updateUser);
+router.delete('/:id', checkRole([roles.ADMIN]), usersController.deleteUser);
 
 export default router;

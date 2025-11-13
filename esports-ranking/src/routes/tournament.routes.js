@@ -75,7 +75,7 @@ router.post(
 
 router.post(
   '/:id/request-join',
-  checkAccessToken,
+  checkRole([roles.USER, roles.TEAM_MANAGER, roles.ADMIN]), // Cho phép User, Team Manager gọi
   tournamentController.requestJoinTournament
 );
 
