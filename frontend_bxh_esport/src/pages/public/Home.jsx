@@ -128,7 +128,7 @@ const Home = () => {
     <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
       <Header />
 
-  <main className="flex flex-1 pt-20">
+  <main className="flex flex-1 mt-20">
         {/* Cột trái: Game + Mùa giải */}
         <aside className="w-1/4 border-r border-gray-800 p-6 bg-gradient-to-br from-[#031014] via-[#071018] to-[#081216]">
           <h2 className="text-2xl font-bold mb-6 text-cyan-400">

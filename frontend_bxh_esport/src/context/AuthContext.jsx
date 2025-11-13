@@ -2,6 +2,7 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import authService from "../services/authService";
 import { STORAGE_KEYS } from "../utils/constants";
+import storage from "../utils/storage";
 
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -29,19 +30,19 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Khi app khởi chạy → kiểm tra token trong localStorage
+  // Khi app khởi chạy → kiểm tra token trong sessionStorage
   useEffect(() => {
-    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-    const savedUser = localStorage.getItem(STORAGE_KEYS.USER_DATA);
+    const token = storage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+    const savedUser = storage.getItem(STORAGE_KEYS.USER_DATA);
 
     if (token && savedUser) {
       try {
-        setUser(JSON.parse(savedUser));
+        setUser(typeof savedUser === 'string' ? JSON.parse(savedUser) : savedUser);
         setIsAuthenticated(true);
       } catch (error) {
         console.error('Error parsing saved user:', error);
-        localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-        localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+        storage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+        storage.removeItem(STORAGE_KEYS.USER_DATA);
       }
     } else {
       setUser(null);
@@ -62,10 +63,10 @@ export const AuthProvider = ({ children }) => {
       if (response?.code === 0 && response?.data?.accessToken) {
         const { accessToken, refreshToken } = response.data;
         
-        // Lưu token vào localStorage
-        localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, accessToken);
+        // Lưu token vào sessionStorage (mất khi đóng trình duyệt)
+        storage.setItem(STORAGE_KEYS.AUTH_TOKEN, accessToken);
         if (refreshToken) {
-          localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+          storage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
         }
         
         // Decode token và lấy thông tin user
@@ -80,14 +81,11 @@ export const AuthProvider = ({ children }) => {
           full_name: decodedToken.full_name,
         };
         
-        console.log('User data to save:', userData);
         
-        // Lưu vào state
         setUser(userData);
         setIsAuthenticated(true);
         
-        // Lưu vào localStorage để persist
-        localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
+        storage.setItem(STORAGE_KEYS.USER_DATA, userData);
       }
       
       return response;
@@ -105,8 +103,8 @@ export const AuthProvider = ({ children }) => {
       const userInfo = response?.data?.user;
 
       if (token && userInfo) {
-        localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-        localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userInfo));
+        storage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+        storage.setItem(STORAGE_KEYS.USER_DATA, userInfo);
         setUser(userInfo);
         setIsAuthenticated(true);
       }
@@ -125,9 +123,9 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.USER_DATA);
-      localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+      storage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+      storage.removeItem(STORAGE_KEYS.USER_DATA);
+      storage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
       setUser(null);
       setIsAuthenticated(false);
     }
@@ -136,7 +134,7 @@ export const AuthProvider = ({ children }) => {
   // ==================== UPDATE USER ==================== //
   const updateUser = (updatedUser) => {
     setUser(updatedUser);
-    localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(updatedUser));
+    storage.setItem(STORAGE_KEYS.USER_DATA, updatedUser);
   };
 
   const value = {

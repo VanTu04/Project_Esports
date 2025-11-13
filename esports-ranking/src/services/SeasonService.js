@@ -3,19 +3,23 @@ import models from '../models/index.js';
 
 /**
  * Tạo season mới
- * @param {number} gameId
- * @param {string} seasonName
+ * @param {object} seasonData - Dữ liệu season {gameId, seasonName, description, start_date, end_date, status}
  * @returns {Promise<Season>}
  */
-export const createSeason = async (gameId, seasonName) => {
+export const createSeason = async (seasonData) => {
   try {
+    const { gameId, seasonName, description, start_date, end_date, status } = seasonData;
+    
     const game = await models.Game.findByPk(gameId);
     if (!game) throw new Error('Game not found');
 
     const season = await models.Season.create({
       game_id: gameId,
       season_name: seasonName,
-      status: 'PREPARING'
+      description: description || null,
+      start_date: start_date || null,
+      end_date: end_date || null,
+      status: status || 'PREPARING'
     });
 
     return season;

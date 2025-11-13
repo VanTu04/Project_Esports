@@ -107,7 +107,7 @@ export const BLOCKCHAIN_NETWORK = {
   NETWORK_NAME: 'Ethereum',
 };
 
-// API Endpoints
+// API Endpoints (khớp với backend hiện có)
 export const API_ENDPOINTS = {
   LOGIN: '/users/login',
   REGISTER: '/users/register',
@@ -115,12 +115,20 @@ export const API_ENDPOINTS = {
   LOGOUT: '/auth/logout',
   USERS: '/users',
   USER_PROFILE: '/users/profile',
+  ADMIN_CREATE_ACCOUNT: '/users/new-account',  // Fixed: Match backend route
+  
+  // Backend có các endpoint này
+  GAMES: '/games',
   TEAMS: '/teams',
+  SEASONS: '/seasons',
+  RANKING_BOARD: '/ranking-board',
+  
+  // Backend chưa có các endpoint này (TODO)
   TEAM_MEMBERS: '/teams/:id/members',
   TEAM_INVITATIONS: '/teams/:id/invitations',
   PLAYERS: '/players',
   PLAYER_STATS: '/players/:id/stats',
-  TOURNAMENTS: '/tournaments',
+  TOURNAMENTS: '/tournaments',  // Chưa có backend - đang dùng /ranking-board thay thế
   TOURNAMENT_REGISTRATIONS: '/tournaments/:id/registrations',
   TOURNAMENT_LEADERBOARD: '/tournaments/:id/leaderboard',
   MATCHES: '/matches',
@@ -158,5 +166,7 @@ export const ROUTES = {
   TOURNAMENTS: '/tournaments',
   LEADERBOARD: '/leaderboard',
   TEAMS: '/teams',
+  ADMIN_CREATE_ACCOUNT: '/users/new-account',  
+  ADMIN_GAMES: '/admin/games',
   USER_PROFILE: '/user/profile',
 };

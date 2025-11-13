@@ -25,13 +25,22 @@ export const getSeasonById = async (req, res) => {
 
 export const createSeason = async (req, res) => {
   try {
-    const { gameId, seasonName } = req.body;
+    const { gameId, seasonName, description, start_date, end_date, status } = req.body;
 
     if (!gameId || !seasonName) {
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Game hoặc tên mùa giải không được để trống'));
     }
 
-    const result = await seasonService.createSeason(gameId, seasonName);
+    const seasonData = {
+      gameId,
+      seasonName,
+      description: description || null,
+      start_date: start_date || null,
+      end_date: end_date || null,
+      status: status || 'PREPARING'
+    };
+
+    const result = await seasonService.createSeason(seasonData);
     return res.json(responseSuccess(result, 'Tạo mùa giải thành công'));
   } catch (error) {
     console.error('createSeason error', error);

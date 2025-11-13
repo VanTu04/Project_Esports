@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import session from 'express-session';
 import passport from 'passport';
+import cors from 'cors';
 import routes from './routes/index.js';
 import { sequelize } from './models/index.js';
 import './config/passport.js'; // Import để kích hoạt cấu hình Passport
@@ -10,6 +11,13 @@ import { initAdminAccount } from './init/initAdmin.js';
 dotenv.config();
 
 const app = express();
+
+app.use(cors({
+  origin: [process.env.CLIENT_URL],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // --- View engine ---
 app.set('view engine', 'ejs');
@@ -73,7 +81,7 @@ app.get('/api/auth/fail', (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 sequelize
-  .sync({ alter: true })
+  .sync({ force: true })
   .then(async () => {
     console.log('Database synced');
 

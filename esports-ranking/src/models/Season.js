@@ -13,6 +13,18 @@ export default (sequelize) => {
       allowNull: false,
       unique: false
     },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    start_date: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    end_date: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
     status: {
       type: DataTypes.ENUM('PREPARING', 'IN_PROGRESS', 'FINISHED'),
       defaultValue: 'PREPARING'

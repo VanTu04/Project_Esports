@@ -32,5 +32,10 @@ export default (sequelize) => {
     updatedAt: 'updated_date'
   });
 
+  // Associations
+  Game.associate = (models) => {
+    Game.hasMany(models.Season, { foreignKey: 'game_id', as: 'seasons' });
+  };
+
   return Game;
 };

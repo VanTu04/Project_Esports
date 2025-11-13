@@ -11,12 +11,13 @@ const DashboardLayout = ({ children }) => {
       {/* Sidebar */}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+  {/* Main Content */}
+  {/* add left margin on large screens to accommodate the fixed sidebar (w-64) */}
+  <div className="flex-1 flex flex-col lg:ml-64">
         <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
         {/* offset main content to account for fixed header (h-20) */}
-        <main className="flex-1 pt-20 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 mt-20 p-4 sm:p-6 lg:p-8">
           {children}
         </main>
 
