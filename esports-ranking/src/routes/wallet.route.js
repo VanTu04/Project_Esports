@@ -17,5 +17,5 @@ router.get("/balance", checkAccessToken, walletController.getBalanceController);
  * @access  ADMIN, USER đều có thể xem
  */
 router.get("/transactions", checkAccessToken, walletController.getTransactionsController);
-router.post("/distribute-rewards/:tournamentId", checkAccessToken, walletController.distributeRewardsController);
+router.post("/distribute-rewards", checkAccessToken, walletController.distributeRewardsController);
 export default router;
