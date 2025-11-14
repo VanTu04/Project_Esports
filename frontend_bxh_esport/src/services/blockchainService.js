@@ -105,6 +105,28 @@ const blockchainService = {
     }
   },
 
+  // GET current logged-in user's wallet balance (backend: GET /wallet/balance)
+  getMyWalletBalance: async () => {
+    try {
+      const response = await apiClient.get('/wallet/balance');
+      // backend returns { success, message, data }
+      return response.data?.data ?? response.data ?? response;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // GET current logged-in user's wallet transactions (backend: GET /wallet/transactions)
+  getMyWalletTransactions: async () => {
+    try {
+      const response = await apiClient.get('/wallet/transactions');
+      // backend returns { success, message, data }
+      return response.data?.data ?? response.data ?? response;
+    } catch (error) {
+      throw error;
+    }
+  },
+
   /**
    * Verify wallet ownership
    */
