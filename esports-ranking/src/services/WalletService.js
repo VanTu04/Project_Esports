@@ -7,6 +7,76 @@ import models from "../models/index.js";
 dotenv.config();
 const walletsFile = path.resolve("src/data/wallets.json");
 const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+const privateKey = process.env.ADMIN_PRIVATE_KEY;
+const wallet = new ethers.Wallet(privateKey, provider);
+import * as blockService from "./BlockchainService.js";
+
+async function sendEthWithNonce(toAddress, amountEth, nonce) {
+  const tx = {
+    to: toAddress,
+    value: ethers.parseEther(amountEth.toString()),
+    nonce: nonce,
+    gasLimit: 21000,
+    gasPrice: (await provider.getFeeData()).gasPrice || ethers.parseUnits("1", "gwei")
+  };
+
+  const sentTx = await wallet.sendTransaction(tx);
+  const receipt = await sentTx.wait();
+  return receipt;
+}
+
+// Hàm phân phối rewards song song
+export async function distributeRewardsTournament(idTournament) {
+  // 1️⃣ Lấy reward từ DB
+  console.log("Distributing rewards for tournament:", idTournament);
+  const rewards = await models.TournamentReward.findAll({
+    where: { tournament_id: idTournament },
+    order: [['rank', 'ASC']]
+  });
+
+  if (!rewards.length) throw new Error("No rewards found for tournament");
+
+  // 2️⃣ Lấy leaderboard từ blockchain
+  const leaderboard = await blockService.getLeaderboardFromChain(idTournament, 999); // round cuối
+
+  console.log("Leaderboard:", leaderboard);
+  // 3️⃣ Ghép rank -> reward
+  const winners = leaderboard
+    .sort((a,b) => b.score - a.score)
+    .slice(0, rewards.length)
+    .map((player, index) => ({
+      ...player,
+      reward: rewards[index].reward_amount
+    }));
+
+  console.log("Rewards db:", rewards.map(r => r.reward_amount));
+  console.log("Rewards:", rewards.map(r => r.reward_amount));
+  console.log("Leaderboard:", leaderboard.map(p => p.username));
+
+
+  // 4️⃣ Gửi ETH song song
+  let nonce = await provider.getTransactionCount(wallet.address);
+  const promises = winners.map(winner => {
+    const currentNonce = nonce++;
+    return sendEthWithNonce(winner.wallet, winner.reward, currentNonce)
+      .then(receipt => ({
+        user: winner.username,
+        wallet: winner.wallet,
+        reward: winner.reward,
+        txHash: receipt.transactionHash,
+        status: receipt.status
+      }))
+      .catch(err => ({
+        user: winner.username,
+        wallet: winner.wallet,
+        reward: winner.reward,
+        error: err.message
+      }));
+  });
+
+  const results = await Promise.all(promises);
+  return results;
+}
 
 function initFile() {
   if (!fs.existsSync(walletsFile)) {
@@ -166,7 +236,7 @@ export const distributeTournamentRewards = async (tournamentId) => {
   if (!rewards || rewards.length === 0) throw new Error("Không có reward tiers để chia");
 
   // 2️⃣ Lấy leaderboard từ blockchain
-  const leaderboard = await getLeaderboardFromChain(tournamentId, 999); // round cuối
+  const leaderboard = await blockService.getLeaderboardFromChain(tournamentId, 999); // round cuối
   if (!leaderboard || leaderboard.length === 0) throw new Error("Leaderboard trống");
 
   const results = [];
