@@ -42,12 +42,61 @@ export const getLeaderboardFromChain = async (tournamentId, roundNumber) => {
   }));
 };
 
-// ================= Chia thưởng =================
-export const distributeRewardOnChain = async (to, amountEther) => {
+/**
+ * Lấy số dư ETH của một ví
+ */
+export const getWalletBalance = async (address) => {
+  if (!ethers.isAddress(address)) throw new Error("Địa chỉ ví không hợp lệ");
+  const balanceWei = await provider.getBalance(address);
+  return parseFloat(ethers.formatEther(balanceWei));
+};
+
+/**
+ * Lấy lịch sử giao dịch dựa trên event Distribute
+ */
+export const getWalletTransactions = async (address) => {
+  if (!ethers.isAddress(address)) throw new Error("Địa chỉ ví không hợp lệ");
+
+  // Event phải có trong ABI: Distribute(address indexed to, uint256 amountWei)
+  const filter = leaderboardContract.filters.Distribute(address);
+  const events = await leaderboardContract.queryFilter(filter, 0, "latest");
+
+  const txs = await Promise.all(events.map(async (e) => {
+    const block = await provider.getBlock(e.blockNumber);
+    return {
+      txHash: e.transactionHash,
+      to: e.args.to,
+      amount: parseFloat(ethers.formatEther(e.args.amount)),
+      blockNumber: e.blockNumber,
+      timestamp: block.timestamp,
+    };
+  }));
+
+  return txs;
+};
+
+/**
+ * Admin phân phối ETH từ contract
+ */
+export const distributeRewardOnChain = async (to, amountEth) => {
   if (!ethers.isAddress(to)) throw new Error("Địa chỉ nhận không hợp lệ");
 
-  const weiAmount = ethers.parseEther(amountEther.toString());
-  const tx = await leaderboardContract.distribute(to, weiAmount);
+  // Kiểm tra số dư contract
+  const contractBalance = await provider.getBalance(leaderboardContract.address);
+  if (parseFloat(ethers.formatEther(contractBalance)) < amountEth) {
+    throw new Error("Contract không đủ ETH để phân phối");
+  }
+
+  const tx = await leaderboardContract.connect(adminWallet).distribute(
+    to,
+    ethers.parseEther(amountEth.toString())
+  );
+
   const receipt = await tx.wait();
-  return { txHash: tx.hash, blockNumber: receipt.blockNumber };
+  return {
+    to,
+    amount: amountEth,
+    txHash: tx.hash,
+    blockNumber: receipt.blockNumber,
+  };
 };
