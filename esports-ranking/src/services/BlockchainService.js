@@ -1,80 +1,51 @@
 import { ethers } from 'ethers';
-import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
+import { leaderboardContract } from '../init/blockchain.js';
 
-dotenv.config();
+// ================= Ghi BXH =================
+export const updateLeaderboardOnChain = async ({ tournamentId, roundNumber, participantsArr, scoresArr }) => {
+  if (!Array.isArray(participantsArr) || !Array.isArray(scoresArr)) {
+    throw new Error("participantsArr và scoresArr phải là mảng");
+  }
+  if (participantsArr.length !== scoresArr.length) {
+    throw new Error("participantsArr và scoresArr phải có cùng độ dài");
+  }
 
-const rpcUrl = process.env.RPC_URL;
-const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY;
-const contractAddress = process.env.LEADERBOARD_CONTRACT_ADDRESS;
-
-if (!rpcUrl || !adminPrivateKey || !contractAddress) {
-  throw new Error("Missing RPC_URL, ADMIN_PRIVATE_KEY or LEADERBOARD_CONTRACT_ADDRESS");
-}
-
-const provider = new ethers.JsonRpcProvider(rpcUrl);
-const adminWallet = new ethers.Wallet(adminPrivateKey, provider);
-
-// Load ABI
-const abiPath = path.resolve('./artifacts/contracts/Leaderboard.sol/Leaderboard.json');
-const abiFile = fs.readFileSync(abiPath, 'utf8');
-const { abi } = JSON.parse(abiFile);
-
-const leaderboardContract = new ethers.Contract(contractAddress, abi, adminWallet);
-
-export const createMatchOnChain = async (tournamentId, roundNumber, teamA, teamB) => {
-  const tx = await leaderboardContract.createMatch(tournamentId, roundNumber, teamA, teamB || ethers.constants.AddressZero);
-  const receipt = await tx.wait(1);
-  // matchId = matchCount (trả về trong event, hoặc từ backend theo thứ tự tạo)
-  const matchId = await leaderboardContract.matchCount();
-  return { matchId: Number(matchId), txHash: tx.hash, blockNumber: receipt.blockNumber };
-};
-
-/**
- * Ghi BXH vòng lên blockchain
- * @param {number} tournamentId
- * @param {number} roundNumber
- * @param {Array} leaderboard - [{ participant_id, wallet_address, total_points }]
- */
-export const writeLeaderboardToBlockchain = async (tournamentId, roundNumber, leaderboard) => {
-  const participants = leaderboard.map(p => p.wallet_address);
-  const points = leaderboard.map(p => p.total_points);
-
-  const tx = await leaderboardContract.updateRoundLeaderboard(
+  const tx = await leaderboardContract.updateLeaderboard(
     tournamentId,
     roundNumber,
-    participants,
-    points
+    participantsArr,
+    scoresArr
   );
 
-  const receipt = await tx.wait(1);
-
+  const receipt = await tx.wait();
   return {
     txHash: tx.hash,
-    blockNumber: receipt.blockNumber,
-    tournamentId,
-    roundNumber,
-    participantCount: participants.length
+    blockNumber: receipt.blockNumber
   };
 };
 
-
-// === Ghi BXH vòng đấu ===
-export const updateLeaderboardOnChain = async ({ tournamentId, roundNumber, participants, scores }) => {
-  const tx = await leaderboardContract.updateLeaderboard(tournamentId, roundNumber, participants, scores);
-  const receipt = await tx.wait();
-  return { txHash: tx.hash, blockNumber: receipt.blockNumber };
-};
-
-// === Lấy BXH vòng đấu ===
+// ================= Lấy BXH =================
 export const getLeaderboardFromChain = async (tournamentId, roundNumber) => {
-  const [addresses, points] = await leaderboardContract.getLeaderboard(tournamentId, roundNumber);
-  return addresses.map((addr, i) => ({ address: addr, score: points[i].toNumber() }));
+  console.log("Getting leaderboard from chain for tournamentId:", tournamentId, "roundNumber:", roundNumber);
+
+  const [participantsResult, scoresResult] = await leaderboardContract.getLeaderboard(tournamentId, roundNumber);
+
+  // Chuyển Result sang array JS thuần
+  const participants = Array.from(participantsResult);
+  const scores = Array.from(scoresResult).map(s => Number(s)); // Convert bigint sang number
+
+  console.log("participants:", participants, "scores:", scores);
+
+  return participants.map((wallet, index) => ({
+    wallet,
+    score: scores[index]
+  }));
 };
 
-// === Phân phối ETH cho 1 người ===
+// ================= Chia thưởng =================
 export const distributeRewardOnChain = async (to, amountEther) => {
+  if (!ethers.isAddress(to)) throw new Error("Địa chỉ nhận không hợp lệ");
+
   const weiAmount = ethers.parseEther(amountEther.toString());
   const tx = await leaderboardContract.distribute(to, weiAmount);
   const receipt = await tx.wait();
