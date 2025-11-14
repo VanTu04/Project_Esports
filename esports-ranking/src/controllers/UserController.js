@@ -1,6 +1,7 @@
 import * as userService from '../services/UserService.js';
 import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
+import models from "../models/index.js";
 
 export const register = async (req, res, next) => {
   try {
@@ -193,3 +194,57 @@ export const deleteUser = async (req, res, next) => {
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi xóa người dùng', error.message));
   }
 }
+
+export const uploadAvatar = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!req.file) {
+      return res.json(responseWithError(400, "Không có file nào được upload"));
+    }
+
+    const filePath = `/uploads/avatars/${req.file.filename}`;
+
+    const result = await userService.updateUser(userId, {
+      avatar: filePath,
+    });
+
+    return res.json(
+      responseSuccess({ avatar: filePath }, "Upload avatar thành công")
+    );
+  } catch (err) {
+    console.error(err);
+    return res.json(
+      responseWithError(500, "Lỗi upload avatar", err.message)
+    );
+  }
+};
+
+export const updateProfileUser = async (req, res) => {
+  try {
+    const userId = req.user.id; // Lấy từ token
+
+    const { full_name, username, email, phone, gender } = req.body;
+
+    const updateData = {
+      full_name,
+      username,
+      email,
+      phone,
+      gender,
+      updated_by: userId,
+      updated_date: new Date()
+    };
+
+    await models.User.update(updateData, { where: { id: userId } });
+
+    return res.status(200).json({
+      success: true,
+      data: updateData
+    });
+
+  } catch (error) {
+    console.error("updateProfileUser error:", error);
+    return res.status(500).json({ message: error.message });
+  }
+};

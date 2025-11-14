@@ -2,6 +2,7 @@ import express from 'express';
 import * as usersController from '../controllers/UserController.js';
 import roles from '../constant/roles.js';
 import { checkAccessToken, checkRole } from '../middlewares/jwt_token.js';
+import upload from "../middlewares/upload.js";
 
 const router = express.Router();
 
@@ -32,5 +33,14 @@ router.post('/new-account', checkRole([roles.ADMIN]), usersController.createNewA
 router.get('/', checkRole([roles.ADMIN]), usersController.getAllUsers);
 router.put('/:id', checkRole([roles.ADMIN]), usersController.updateUser);
 router.delete('/:id', checkRole([roles.ADMIN]), usersController.deleteUser);
+
+router.post(
+  "/upload-avatar",
+  checkAccessToken,
+  upload.single("avatar"),
+  usersController.uploadAvatar
+);
+
+router.put('/profile/update', checkAccessToken, usersController.updateProfileUser);
 
 export default router;

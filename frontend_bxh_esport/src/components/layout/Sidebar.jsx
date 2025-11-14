@@ -74,24 +74,28 @@ const Sidebar = ({ isOpen, onClose }) => {
       {/* Mobile overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={onClose}
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
         />
       )}
 
       {/* Sidebar */}
       <aside
         className={clsx(
-          // place the sidebar below the fixed header (header height = h-20)
-          // use calc to set height = 100vh - headerHeight so it doesn't overflow
           'fixed top-20 left-0 z-40 w-64 bg-dark-500 border-r border-primary-700/30 transition-transform duration-300',
-          // on larger screens keep it visible (no translate) and ensure it can scroll
-          isOpen ? 'translate-x-0 h-[calc(100vh-5rem)]' : '-translate-x-full lg:translate-x-0 lg:h-[calc(100vh-5rem)]'
+          isOpen ? 'translate-x-0 h-[calc(100vh-5rem)]'
+                 : '-translate-x-full lg:translate-x-0 lg:h-[calc(100vh-5rem)]'
         )}
       >
-        <div className="flex flex-col h-full">
+        {/* Nút đóng mobile */}
+        <button
+          onClick={onClose}
+          className="lg:hidden absolute top-3 right-3 p-2 text-gray-400 hover:text-white"
+        >
+          ✕
+        </button>
 
-          {/* Menu Items */}
+        <div className="flex flex-col h-full">
           <nav className="flex-1 overflow-y-auto py-4 px-2">
             <ul className="space-y-1">
               {menuItems.map((item, index) => (
@@ -114,11 +118,8 @@ const Sidebar = ({ isOpen, onClose }) => {
             </ul>
           </nav>
 
-          {/* Footer */}
-          <div className="p-4 border-t border-primary-700/30">
-            <div className="text-xs text-gray-500 text-center">
-              © 2024 Esports League
-            </div>
+          <div className="p-4 border-t border-primary-700/30 text-xs text-gray-500 text-center">
+            © 2024 Esports League
           </div>
         </div>
       </aside>

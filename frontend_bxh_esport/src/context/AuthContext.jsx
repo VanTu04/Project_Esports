@@ -3,6 +3,7 @@ import React, { createContext, useState, useEffect, useContext } from "react";
 import authService from "../services/authService";
 import { STORAGE_KEYS } from "../utils/constants";
 import storage from "../utils/storage";
+import userService from "../services/userService";
 
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -32,6 +33,30 @@ export const AuthProvider = ({ children }) => {
 
   // Khi app khởi chạy → kiểm tra token trong sessionStorage
   useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = storage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+        if (!token) return;
+
+        const res = await userService.getProfile();
+        
+        if (res?.data) {
+          const profile = res.data.data || res.data;
+
+          setUser(profile);
+          setIsAuthenticated(true);
+
+          storage.setItem(STORAGE_KEYS.USER_DATA, profile);
+        }
+      } catch (error) {
+        console.error("Load profile error:", error);
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    };
+
+    fetchProfile();
+    
     const token = storage.getItem(STORAGE_KEYS.AUTH_TOKEN);
     const savedUser = storage.getItem(STORAGE_KEYS.USER_DATA);
 

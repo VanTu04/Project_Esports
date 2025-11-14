@@ -12,12 +12,14 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors({
-  origin: [process.env.CLIENT_URL],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  })
+);
 
 // --- View engine ---
 app.set('view engine', 'ejs');
@@ -27,6 +29,8 @@ app.use(express.static('public'));
 // --- Middleware ---
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use("/uploads", express.static("uploads"));
 
 // --- Session middleware ---
 app.use(

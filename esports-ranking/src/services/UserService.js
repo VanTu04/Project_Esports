@@ -104,7 +104,17 @@ export const createAccount = async (data, adminId) => {
 export const getProfile = async (userId) => {
   let user = await models.User.findOne({
     where: { id: userId, status: 1, deleted: 0 },
-    attributes: ['id', 'username', 'full_name', 'email', 'role', 'wallet_address', 'private_key']
+    attributes: [
+      'id',
+      'username',
+      'full_name',
+      'email',
+      'role',
+      'wallet_address',
+      'private_key',
+      'gender',
+      'phone'
+    ]
   });
 
   if (!user) {
@@ -117,12 +127,15 @@ export const getProfile = async (userId) => {
     full_name: user.full_name,
     email: user.email,
     role: user.role,
+    gender: user.gender,
+    phone: user.phone,
     wallet_address: user.wallet_address,
     private_key: decrypt(user.private_key)
   }
 
   return user;
 };
+
 
 export const getWalletFromDB = async (username) => {
   const existUser = await models.User.findOne({ where: { username: username } });
@@ -317,6 +330,8 @@ export const updateUser = async (userId, data, adminId) => {
     if (data.email !== undefined) updateData.email = data.email;
     if (data.role !== undefined) updateData.role = data.role;
     if (data.status !== undefined) updateData.status = data.status;
+    if (data.gender !== undefined) updateData.gender = data.gender;
+    if (data.phone !== undefined) updateData.phone = data.phone;
 
     // If password is being changed, hash it
     if (data.password) {

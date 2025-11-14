@@ -77,7 +77,30 @@ const userService = {
     } catch (error) {
       throw error;
     }
+  },
+
+  getProfile: async () => {
+    try {
+      return await apiClient.get('/users/profile');
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  uploadAvatar: async (formData) => {
+    try {
+      return await apiClient.post("/users/upload-avatar", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+    } catch (err) {
+      throw err;
+    }
+  },
+
+  updateProfile(data) {
+    return apiClient.put("/users/profile/update", data);
   }
+
 };
 
 export default userService;
