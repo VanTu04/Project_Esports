@@ -129,15 +129,21 @@ const Home = () => {
       setLoadingTournamentLeaderboard(true);
       try {
         const resp = await tournamentService.getFinalLeaderboard(selectedTournamentId);
-        const raw = resp?.data?.data?.leaderboard ?? resp?.data?.leaderboard ?? resp?.data ?? resp;
-        const arr = Array.isArray(raw) ? raw : (raw?.leaderboard ?? []);
-        const rows = (arr || []).map((r, idx) => ({
+        // Backend returns { code, status, message, data: { tournamentId, leaderboard } }
+        let raw = [];
+        if (resp?.code === 0 && resp?.data?.leaderboard) raw = resp.data.leaderboard;
+        else if (resp?.data && Array.isArray(resp.data.leaderboard)) raw = resp.data.leaderboard;
+        else if (Array.isArray(resp)) raw = resp;
+        else if (resp?.leaderboard) raw = resp.leaderboard;
+
+        const rows = (raw || []).map((r, idx) => ({
           rank: idx + 1,
           team: { name: r.fullname || r.username || r.team_name || r.wallet || 'Unknown', logo: r.avatar || r.logo || null },
           wins: r.wins ?? 0,
           losses: r.losses ?? 0,
           points: r.score ?? r.points ?? r.total_points ?? 0
         }));
+
         setLeaderboardRows(rows);
       } catch (err) {
         console.error('Failed to load leaderboard:', err);

@@ -34,8 +34,19 @@ export const createTournamentWithRewards = async (req, res) => {
         await models.TournamentReward.bulkCreate(rewardsData, { transaction: t });
       }
 
-      // Return the created tournament so the outer call receives data
-      return tournament;
+      // Reload tournament including created rewards so caller gets rank & reward_amount
+      const tournamentWithRewards = await models.Tournament.findByPk(tournament.id, {
+        transaction: t,
+        include: [
+          {
+            model: models.TournamentReward,
+            as: 'rewards',
+            attributes: ['id', 'rank', 'reward_amount']
+          }
+        ]
+      });
+
+      return tournamentWithRewards;
     });
 
     return res.json(responseSuccess(result, 'Tạo giải đấu và reward thành công'));
@@ -55,6 +66,20 @@ export const getTournamentRewards = async (req, res) => {
     return res.json(responseSuccess(rewards));
   } catch (err) {
     console.error(err);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, err.message));
+  }
+};
+
+export const getTournamentDistributions = async (req, res) => {
+  try {
+    const { tournament_id } = req.params;
+    const distributions = await models.TournamentDistribution.findAll({
+      where: { tournament_id },
+      order: [['createdAt', 'DESC']]
+    });
+    return res.json(responseSuccess(distributions));
+  } catch (err) {
+    console.error('getTournamentDistributions error', err);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, err.message));
   }
 };

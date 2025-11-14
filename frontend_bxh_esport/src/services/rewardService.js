@@ -66,7 +66,8 @@ const rewardService = {
    */
   getTournamentRewards: async (tournamentId) => {
     try {
-      const response = await apiClient.get(`/rewards/tournament/${tournamentId}`);
+      // Backend route: GET /api/tournaments/:tournament_id/rewards
+      const response = await apiClient.get(`/tournaments/${tournamentId}/rewards`);
       return response;
     } catch (error) {
       throw error;
@@ -116,7 +117,8 @@ const rewardService = {
    */
   executeRewardDistribution: async (tournamentId) => {
     try {
-      const response = await apiClient.post(`/rewards/tournament/${tournamentId}/execute`);
+      // Backend provides tournament-level distribution endpoint: POST /tournaments/:tournament_id/distribute-rewards
+      const response = await apiClient.post(`/tournaments/${tournamentId}/distribute-rewards`);
       return response;
     } catch (error) {
       throw error;

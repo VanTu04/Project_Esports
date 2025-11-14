@@ -1,5 +1,7 @@
 // API Base URL
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// External backend (for stats or alternate API). Use VITE_API_BACKEND in .env to override.
+export const API_BACKEND = import.meta.env.VITE_API_BACKEND ;
 
 // Theme Colors (Esport Style)
 export const THEME_COLORS = {
@@ -66,22 +68,8 @@ export const PLAYER_STATUS = {
   INACTIVE: 'inactive',
 };
 
-// Registration Statuses
-export const REGISTRATION_STATUS = {
-  PENDING: 'pending',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
-};
 
-// Game Types
-export const GAME_TYPES = [
-  { value: 'valorant', label: 'Valorant' },
-  { value: 'lol', label: 'League of Legends' },
-  { value: 'dota2', label: 'Dota 2' },
-  { value: 'csgo', label: 'CS:GO' },
-  { value: 'pubg', label: 'PUBG' },
-  { value: 'fifa', label: 'FIFA' },
-];
+
 
 // Pagination config
 export const DEFAULT_PAGE_SIZE = 10;

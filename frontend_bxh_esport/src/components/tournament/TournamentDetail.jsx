@@ -318,8 +318,13 @@ export const TournamentDetail = () => {
                 setLeaderboardLoading(true);
                 try {
                   const resp = await tournamentService.getFinalLeaderboard(tournamentId);
-                  const data = resp?.data?.data?.leaderboard ?? resp?.data?.leaderboard ?? resp?.data ?? resp;
-                  setLeaderboard(Array.isArray(data) ? data : (data?.leaderboard ?? []));
+                  let raw = [];
+                  if (resp?.code === 0 && resp?.data?.leaderboard) raw = resp.data.leaderboard;
+                  else if (resp?.data && Array.isArray(resp.data.leaderboard)) raw = resp.data.leaderboard;
+                  else if (Array.isArray(resp)) raw = resp;
+                  else if (resp?.leaderboard) raw = resp.leaderboard;
+
+                  setLeaderboard(Array.isArray(raw) ? raw : raw?.leaderboard ?? []);
                 } catch (err) {
                   console.error('Failed to load leaderboard', err);
                   setLeaderboard([]);
@@ -340,31 +345,31 @@ export const TournamentDetail = () => {
         {activeTab === 'teams' && (
           <Card padding="lg">
             {teams.length === 0 ? (
-              <div className="text-center py-12 text-gray-300">Chưa có đội tham gia</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-primary-700/20">
-                  <thead>
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Hạng</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Tên đội</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Wallet</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Trạng thái</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teams.map((team, index) => (
-                      <tr key={team.id} className="hover:bg-primary-500/10 transition-colors">
-                        <td className="px-6 py-4 text-white font-bold">#{index + 1}</td>
-                        <td className="px-6 py-4 text-white font-medium">{team.team_name}</td>
-                        <td className="px-6 py-4 text-gray-300">{team.wallet_address ? `${team.wallet_address.substring(0, 10)}...` : 'N/A'}</td>
-                        <td className="px-6 py-4">{getStatusBadge(team.status || 'APPROVED')}</td>
+                <div className="text-center py-12 text-gray-300">Chưa có đội tham gia</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-primary-700/20">
+                    <thead>
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Hạng</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Tên đội</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Wallet</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Trạng thái</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody>
+                      {teams.map((team, index) => (
+                        <tr key={team.id} className="hover:bg-primary-500/10 transition-colors">
+                          <td className="px-6 py-4 text-white font-bold">#{index + 1}</td>
+                          <td className="px-6 py-4 text-white font-medium">{team.team_name}</td>
+                          <td className="px-6 py-4 text-gray-300">{team.wallet_address ? `${team.wallet_address.substring(0, 10)}...` : 'N/A'}</td>
+                          <td className="px-6 py-4">{getStatusBadge(team.status || 'APPROVED')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
           </Card>
         )}
 
@@ -501,12 +506,13 @@ export const TournamentDetail = () => {
 
                         try {
                           const lbResp = await tournamentService.getFinalLeaderboard(tournamentId);
-                          const data =
-                            lbResp?.data?.data?.leaderboard ??
-                            lbResp?.data?.leaderboard ??
-                            lbResp?.data ??
-                            lbResp;
-                          setLeaderboard(Array.isArray(data) ? data : data?.leaderboard ?? []);
+                          let raw = [];
+                          if (lbResp?.code === 0 && lbResp?.data?.leaderboard) raw = lbResp.data.leaderboard;
+                          else if (lbResp?.data && Array.isArray(lbResp.data.leaderboard)) raw = lbResp.data.leaderboard;
+                          else if (Array.isArray(lbResp)) raw = lbResp;
+                          else if (lbResp?.leaderboard) raw = lbResp.leaderboard;
+
+                          setLeaderboard(Array.isArray(raw) ? raw : raw?.leaderboard ?? []);
                           setActiveTab('leaderboard');
                         } catch (err) {
                           console.error('Không thể tải bảng xếp hạng', err);

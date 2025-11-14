@@ -13,6 +13,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
     start_date: '',
     end_date: '',
     description: '',
+    rewards: [],
   });
 
   const [loading, setLoading] = useState(false);
@@ -86,6 +87,23 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
       newErrors.description = 'Mô tả không được quá 1000 ký tự';
     }
 
+    // Validate rewards if present
+    if (Array.isArray(form.rewards) && form.rewards.length > 0) {
+      form.rewards.forEach((r, idx) => {
+        if (!r || typeof r.rank === 'undefined' || r.rank === null || String(r.rank).trim() === '') {
+          newErrors[`rewards.${idx}.rank`] = 'Rank bắt buộc';
+        } else if (Number(r.rank) < 1) {
+          newErrors[`rewards.${idx}.rank`] = 'Rank phải >= 1';
+        }
+
+        if (typeof r.reward_amount === 'undefined' || r.reward_amount === null || String(r.reward_amount).trim() === '') {
+          newErrors[`rewards.${idx}.reward_amount`] = 'Số tiền thưởng bắt buộc';
+        } else if (Number(r.reward_amount) < 0) {
+          newErrors[`rewards.${idx}.reward_amount`] = 'Số tiền thưởng không được âm';
+        }
+      });
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -99,6 +117,35 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
     const maxTeams = Math.pow(2, r);
     const minTeams = Math.max(2, r + 1);
     return { minTeams, maxTeams };
+  };
+
+  // Rewards handlers
+  const handleAddReward = () => {
+    setForm(prev => ({ ...prev, rewards: [...(prev.rewards || []), { rank: '', reward_amount: '' }] }));
+  };
+
+  const handleRemoveReward = (idx) => {
+    setForm(prev => ({ ...prev, rewards: prev.rewards.filter((_, i) => i !== idx) }));
+    setErrors(prev => {
+      const copy = { ...prev };
+      delete copy[`rewards.${idx}.rank`];
+      delete copy[`rewards.${idx}.reward_amount`];
+      return copy;
+    });
+  };
+
+  const handleRewardChange = (idx, field, value) => {
+    setForm(prev => {
+      const rewards = Array.isArray(prev.rewards) ? [...prev.rewards] : [];
+      rewards[idx] = { ...rewards[idx], [field]: value };
+      return { ...prev, rewards };
+    });
+    // clear specific error
+    setErrors(prev => {
+      const copy = { ...prev };
+      delete copy[`rewards.${idx}.${field}`];
+      return copy;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -119,6 +166,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
         end_date: form.end_date,
         expected_teams: form.expected_teams ? parseInt(form.expected_teams) : undefined,
         description: form.description.trim() || undefined,
+        rewards: Array.isArray(form.rewards) && form.rewards.length > 0 ? form.rewards.map(r => ({ rank: Number(r.rank), reward_amount: Number(r.reward_amount) })) : undefined,
       };
 
       const response = await apiClient.post(API_ENDPOINTS.TOURNAMENTS, payload);
@@ -132,6 +180,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
             start_date: '',
             end_date: '',
             description: '',
+            rewards: [],
         });
         setErrors({});
 
@@ -166,6 +215,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
       start_date: '',
       end_date: '',
       description: '',
+      rewards: [],
     });
     setErrors({});
   };
@@ -288,6 +338,50 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
               }`}
             />
             {errors.end_date && <p className="text-xs text-rose-400 mt-1">{errors.end_date}</p>}
+          </div>
+        </div>
+
+        {/* Phần thưởng (Rewards) */}
+        <div>
+          <label className="block text-sm font-semibold text-white mb-2">Phần thưởng (Rewards)</label>
+          <div className="space-y-2">
+            {(form.rewards || []).map((r, idx) => (
+              <div key={idx} className="grid grid-cols-3 gap-3 items-end">
+                <div>
+                  <label className="text-xs text-gray-300">Hạng</label>
+                  <input
+                    type="number"
+                    min="1"
+                    name={`rewards.${idx}.rank`}
+                    value={r.rank}
+                    onChange={(e) => handleRewardChange(idx, 'rank', e.target.value)}
+                    className={`w-full px-3 py-2 rounded border bg-white text-gray-900 ${errors[`rewards.${idx}.rank`] ? 'border-rose-500' : 'border-primary-700/30'}`}
+                  />
+                  {errors[`rewards.${idx}.rank`] && <p className="text-xs text-rose-400">{errors[`rewards.${idx}.rank`]}</p>}
+                </div>
+
+                <div>
+                  <label className="text-xs text-gray-300">Số tiền</label>
+                  <input
+                    type="number"
+                    min="0"
+                    name={`rewards.${idx}.reward_amount`}
+                    value={r.reward_amount}
+                    onChange={(e) => handleRewardChange(idx, 'reward_amount', e.target.value)}
+                    className={`w-full px-3 py-2 rounded border bg-white text-gray-900 ${errors[`rewards.${idx}.reward_amount`] ? 'border-rose-500' : 'border-primary-700/30'}`}
+                  />
+                  {errors[`rewards.${idx}.reward_amount`] && <p className="text-xs text-rose-400">{errors[`rewards.${idx}.reward_amount`]}</p>}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => handleRemoveReward(idx)} className="text-sm text-rose-400 hover:underline">Xóa</button>
+                </div>
+              </div>
+            ))}
+
+            <div>
+              <button type="button" onClick={handleAddReward} className="text-sm text-cyan-400 hover:underline">+ Thêm phần thưởng</button>
+            </div>
           </div>
         </div>
 

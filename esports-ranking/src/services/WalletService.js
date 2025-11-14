@@ -75,7 +75,38 @@ export async function distributeRewardsTournament(idTournament) {
   });
 
   const results = await Promise.all(promises);
-  return results;
+  // Persist distribution records to DB for auditing
+  try {
+    const distributionRecords = results.map((r, idx) => {
+      const winner = winners[idx];
+      return {
+        tournament_id: idTournament,
+        rank: idx + 1,
+        recipient_address: winner.wallet || winner.address || null,
+        recipient_user_id: winner.userId ?? null,
+        username: winner.username ?? null,
+        amount: winner.reward,
+        tx_hash: r.txHash || null,
+        block_number: r.blockNumber || null,
+        status: r.txHash ? 'SUCCESS' : 'FAILED',
+        error_message: r.error || null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+    });
+
+    // bulkCreate if there are records
+    let created = [];
+    if (distributionRecords.length > 0) {
+      created = await models.TournamentDistribution.bulkCreate(distributionRecords);
+    }
+
+    return { results, distributions: created };
+  } catch (err) {
+    console.error('Failed to persist distributions', err);
+    // still return results even if DB persist fails
+    return { results, distributions: [] };
+  }
 }
 
 function initFile() {

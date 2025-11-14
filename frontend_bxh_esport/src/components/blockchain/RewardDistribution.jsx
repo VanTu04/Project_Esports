@@ -12,7 +12,7 @@ export const RewardDistribution = ({ rewards, onDistribute }) => {
   const handleDistribute = async () => {
     setDistributing(true);
     try {
-      await onDistribute(selectedReward.id);
+      await onDistribute(selectedReward);
       setIsModalOpen(false);
     } catch (error) {
       console.error(error);

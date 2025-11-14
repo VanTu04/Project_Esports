@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { UsersIcon, UserGroupIcon, TrophyIcon, WalletIcon } from '@heroicons/react/24/outline';
 import Card from '../../components/common/Card';
+import { apiClient } from '../../services/api';
+import { API_BACKEND } from '../../utils/constants';
 
 export const AdminDashboard = () => {
   const [stats, setStats] = useState({
@@ -9,6 +11,37 @@ export const AdminDashboard = () => {
     totalTournaments: 0,
     totalRewards: 0,
   });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      // Try external API (use apiClient so Authorization token is attached); fallback to fake data
+      const external = `${API_BACKEND.replace(/\/$/, '')}/admin/stats`;
+      try {
+        const resp = await apiClient.get(external);
+        // apiClient interceptor unwraps wrapper objects; resp may be data or { data }
+        const payload = resp?.data ?? resp;
+        setStats({
+          totalUsers: payload.totalUsers ?? 0,
+          totalTeams: payload.totalTeams ?? 0,
+          totalTournaments: payload.totalTournaments ?? 0,
+          totalRewards: payload.totalRewards ?? 0,
+        });
+        return;
+      } catch (err) {
+        console.debug('External stats fetch failed, using fake data:', err?.message || err);
+      }
+
+      // Fake data fallback
+      setStats({
+        totalUsers: 1234,
+        totalTeams: 256,
+        totalTournaments: 12,
+        totalRewards: 48,
+      });
+    };
+
+    fetchStats();
+  }, []);
 
   return (
     <div className="space-y-6">

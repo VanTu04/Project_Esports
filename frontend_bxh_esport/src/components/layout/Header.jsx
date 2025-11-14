@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Bars3Icon, BellIcon, UserCircleIcon } from "@heroicons/react/24/outline";
 import { Menu, Transition } from "@headlessui/react";
 import { useAuth } from "../../context/AuthContext";
+import { USER_ROLES, ROUTES } from '../../utils/constants';
 import Button from '../common/Button';
 import { apiClient } from '../../services/api';
 
@@ -49,14 +50,8 @@ const Header = ({ onMenuClick }) => {
             <Bars3Icon className="h-7 w-7" />
           </button>
 
-          <Link to="/" className="flex items-center gap-3">
-            <img
-              src="https://cdn-icons-png.flaticon.com/512/5968/5968705.png"
-              alt="EsportChain Logo"
-              className="h-10 w-10"
-            />
-            <span className="text-2xl font-bold text-white tracking-wide">EsportChain</span>
-          </Link>
+          {/* Khi click logo sẽ điều hướng về trang tương ứng theo role */}
+          <LogoLink user={user} />
         </div>
 
         {/* Navigation */}
@@ -165,3 +160,34 @@ const Header = ({ onMenuClick }) => {
 };
 
 export default Header;
+
+// --- Helper component: LogoLink ---
+const LogoLink = ({ user }) => {
+  const navigate = useNavigate();
+
+  const handleClick = (e) => {
+    e.preventDefault();
+    // Determine target route by role
+    const role = user?.role ?? null;
+    const roleNum = role != null ? Number(role) : null;
+
+    let target = ROUTES.HOME || '/';
+    if (roleNum === Number(USER_ROLES.ADMIN)) target = ROUTES.ADMIN_DASHBOARD;
+    else if (roleNum === Number(USER_ROLES.TEAM_MANAGER)) target = ROUTES.TEAM_MANAGER_DASHBOARD;
+    else if (roleNum === Number(USER_ROLES.PLAYER)) target = ROUTES.PLAYER_DASHBOARD;
+    else target = ROUTES.HOME || '/';
+
+    navigate(target);
+  };
+
+  return (
+    <button onClick={handleClick} className="flex items-center gap-3">
+      <img
+        src="https://cdn-icons-png.flaticon.com/512/5968/5968705.png"
+        alt="EsportChain Logo"
+        className="h-10 w-10"
+      />
+      <span className="text-2xl font-bold text-white tracking-wide">EsportChain</span>
+    </button>
+  );
+};

@@ -188,6 +188,15 @@ const tournamentService = {
       throw error;
     }
   },
+
+  // Get distribution history for a tournament
+  getDistributions: async (tournamentId) => {
+    try {
+      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/distributions`);
+    } catch (error) {
+      throw error;
+    }
+  },
   // === MATCH APIs ===
   
   // Get matches by tournament and optional round
