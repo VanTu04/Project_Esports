@@ -1,7 +1,7 @@
 // File: controllers/tournament.controller.js
 import * as tournamentService from '../services/TournamentService.js';
 import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
-import { getLeaderboardFromChain, updateLeaderboardOnChain } from '../services/BlockchainService.js';
+import {  updateLeaderboardOnChain, getLeaderboardFromChain } from '../services/BlockchainService.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
 import models from '../models/index.js';
 import { isAddress } from 'ethers';
@@ -736,118 +736,96 @@ export const startNextRound = async (req, res) => {
 };
 
 export const writeLeaderboardToBlockchain = async (req, res) => {
-  const { tournamentId, roundNumber } = req.body;
+  try {
+    const { tournamentId } = req.params;
 
-  // 1️⃣ Lấy tournament (Giữ nguyên)
-  console.log("Ghi BXH lên blockchain cho giải", tournamentId, "vòng", roundNumber);
-  const tournament = await models.Tournament.findByPk(tournamentId);
-  if (!tournament) throw new Error('Tournament not found');
+    if (!tournamentId) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Missing tournamentId'));
+    }
 
-  // 2️⃣ Lấy participant và tính tổng điểm (Giữ nguyên)
-  const participants = await models.Participant.findAll({ 
-    where: { tournament_id: tournamentId },
-    include: [{
-      model: models.User,
-      as: 'user',
-      attributes: ['wallet_address'], // Chỉ lấy cột 'wallet_address'
-      required: false // Dùng LEFT JOIN, nếu participant không có user vẫn lấy
-    }]
-  });
+    // 1️⃣ Lấy tournament
+    const tournament = await models.Tournament.findByPk(tournamentId);
+    if (!tournament) {
+      return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại'));
+    }
 
-  for (const p of participants) {
-    const matches = await models.Match.findAll({
+    // 2️⃣ Lấy danh sách participant đã APPROVED
+    const participants = await models.Participant.findAll({
       where: {
         tournament_id: tournamentId,
-        status: 'COMPLETED',
-        [Op.or]: [
-          { team_a_participant_id: p.id },
-          { team_b_participant_id: p.id }
-        ]
+        status: 'APPROVED'
+      },
+      attributes: ['wallet_address', 'total_points'],
+      raw: true
+    });
+
+    if (!participants || participants.length === 0) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Không có đội tham gia hợp lệ'));
+    }
+
+    // 3️⃣ Lọc participant hợp lệ
+    const validParticipants = participants.filter(p => p.wallet_address && typeof p.total_points === 'number');
+    if (validParticipants.length === 0) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Không có participant hợp lệ để ghi blockchain'));
+    }
+
+    // 4️⃣ Sắp xếp theo tổng điểm giảm dần
+    validParticipants.sort((a, b) => b.total_points - a.total_points);
+
+    // 5️⃣ Chuẩn bị mảng wallet & scores
+    const participantsArr = validParticipants.map(p => p.wallet_address);
+    const scoresArr = validParticipants.map(p => p.total_points);
+
+    // 6️⃣ Ghi lên blockchain
+    const chainResult = await updateLeaderboardOnChain({
+      tournamentId: tournament.id,
+      roundNumber: 999, // round đặc biệt cuối giải
+      participantsArr,
+      scoresArr
+    });
+
+    // 7️⃣ Trả về kết quả
+    return res.json(responseSuccess({
+      tournamentId: tournament.id,
+      totalParticipants: validParticipants.length,
+      onChain: chainResult
+    }, 'BXH cuối giải đã được ghi lên blockchain'));
+
+  } catch (error) {
+    console.error('writeLeaderboardToBlockchain error:', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+/**
+ * Lấy BXH cuối giải từ blockchain
+ */
+export const getFinalLeaderboard = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+
+    if (!tournamentId) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Missing tournamentId'));
+    }
+    console.log("test", tournamentId);
+
+    // ✅ gọi service với tournamentId và roundNumber đặc biệt
+    // const leaderboard = await getLeaderboardFromChain(Number(tournamentId), 999);
+    const leaderboard = await getLeaderboardFromChain(3, 999);
+    console.log("leaderboard", leaderboard);
+    return res.status(200).json({
+      code: 0,
+      status: 200,
+      message: 'Lấy BXH cuối giải thành công',
+      data: {
+        tournamentId: Number(tournamentId),
+        leaderboard
       }
     });
 
-    let totalPoints = 0;
-    matches.forEach(m => {
-      if (m.team_a_participant_id === p.id) totalPoints += m.point_team_a;
-      if (m.team_b_participant_id === p.id) totalPoints += m.point_team_b;
-    });
-
-    await p.update({ total_points: totalPoints });
-  }
-
-  // a. Tạo mảng các promise
-  const leaderboardDataPromises = participants.map(async (p) => {
-    const matches_won = await models.Match.count({ 
-      where: { winner_participant_id: p.id, tournament_id: tournamentId } 
-    });
-    
-    return {
-      participant_id: p.id,
-      team_name: p.team_name,
-      wallet_address: p.wallet_address,
-      total_points: p.total_points || 0, // Đảm bảo điểm luôn là số
-      matches_won: matches_won
-    };
-  });
-
-  // b. Chờ tất cả promise hoàn thành để có mảng dữ liệu thật
-  let leaderboard = await Promise.all(leaderboardDataPromises);
-
-  // c. Sắp xếp (FIX 2: Sắp xếp sau khi đã await)
-  leaderboard.sort((a, b) => {
-    if (b.total_points !== a.total_points) return b.total_points - a.total_points;
-    return b.matches_won - a.matches_won;
-  });
-
-  // 4️⃣ Ghi lên blockchain (FIX 3: Chuẩn bị đúng tham số)
-
-  // a. (Rất quan trọng) Lọc ra những người có VÍ HỢP LỆ
-  // (Giả sử bạn đã import 'isAddress' từ 'ethers/lib/utils')
-  const validParticipants = leaderboard.filter(p => 
-      p.wallet_address && isAddress(p.wallet_address) 
-  );
-  
-  // b. Tách thành 2 mảng riêng biệt mà hàm updateLeaderboardOnChain mong đợi
-  const addresses = validParticipants.map(p => p.wallet_address);
-  const scores = validParticipants.map(p => p.total_points);
-
-  console.log("Data sending to blockchain:", { addresses, scores });
-
-  // c. Gọi hàm với đúng tham số
-  if (addresses.length > 0) {
-    await updateLeaderboardOnChain({
-      tournamentId,
-      tournamentName: tournament.name, // Bạn có thể thêm tên giải đấu
-      roundNumber,
-      participants: addresses, // <-- Đây là mảng địa chỉ
-      scores: scores           // <-- Đây là mảng điểm
-    });
-  } else {
-    console.log("Không có participant hợp lệ nào để ghi blockchain.");
-  }
-
-  return { leaderboard };
-};
-
-export const getMatchesByTournamentAndRound = async (req, res) => {
-  try {
-    const { tournament_id, round_number } = req.params;
-
-    if (!tournament_id || !round_number) {
-      return res.status(400).json({ error: 'Missing tournament_id or round_number' });
-    }
-
-    const leaderboard = await getLeaderboardFromChain(
-      parseInt(tournament_id),
-      parseInt(round_number)
-    );
-
-    // Trả về mảng { address, score } hoặc { participant_id, score } tuỳ service
-    return res.json({ tournament_id, round_number, leaderboard });
-
-  } catch (err) {
-    console.error('getLeaderboard error:', err);
-    return res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error('getFinalLeaderboard error:', error);
+    return responseWithError(res, 500, error.message);
   }
 };
 

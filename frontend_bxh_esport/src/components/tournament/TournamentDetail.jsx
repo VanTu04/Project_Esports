@@ -20,6 +20,10 @@ export const TournamentDetail = () => {
   const [isUpdateScoreModalOpen, setIsUpdateScoreModalOpen] = useState(false);
   const [isUpdateTimeModalOpen, setIsUpdateTimeModalOpen] = useState(false);
   const [selectedWinnerId, setSelectedWinnerId] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isRecorded, setIsRecorded] = useState(false);
+  const [leaderboard, setLeaderboard] = useState(null);
+  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -208,6 +212,12 @@ export const TournamentDetail = () => {
   }
 
   const groupedMatches = groupMatchesByRound();
+  const _currentRound = tournament?.current_round || 0;
+  const _totalRounds = tournament?.total_rounds || 0;
+  const _isFinalRound = _currentRound >= _totalRounds && _totalRounds > 0;
+  const buttonLabel = isRecording
+    ? 'Đang ghi BXH...'
+    : (_isFinalRound ? (isRecorded ? 'Xem BXH' : 'Ghi BXH lên blockchain') : (loading ? 'Đang tạo vòng...' : 'Tạo vòng tiếp theo'));
 
   return (
     <div className="min-h-screen bg-dark-400 p-6">
@@ -317,8 +327,42 @@ export const TournamentDetail = () => {
           if (!tournamentId) return;
           setLoading(true);
           try {
-            // Frontend-only pre-check: kiểm tra xem vòng hiện tại có PENDING matches không
             const currentRound = tournament?.current_round || 0;
+            const totalRounds = tournament?.total_rounds || 0;
+
+            const isFinalRound = currentRound >= totalRounds && totalRounds > 0;
+
+            if (isFinalRound) {
+              // If already recorded, open leaderboard; otherwise record ranking on-chain
+              if (isRecorded) {
+                try {
+                  const resp = await tournamentService.getFinalLeaderboard(tournamentId);
+                  setLeaderboard(resp?.data || resp);
+                  setIsLeaderboardOpen(true);
+                } catch (err) {
+                  showError(err?.response?.data?.message || err?.message || 'Không thể lấy bảng xếp hạng');
+                } finally {
+                  setLoading(false);
+                }
+                return;
+              }
+
+              // record leaderboard
+              setIsRecording(true);
+              try {
+                const resp = await tournamentService.recordRanking(tournamentId);
+                setIsRecorded(true);
+                showSuccess(resp?.message || 'Ghi BXH thành công');
+              } catch (err) {
+                showError(err?.response?.data?.message || err?.message || 'Không thể ghi BXH');
+              } finally {
+                setIsRecording(false);
+                setLoading(false);
+              }
+              return;
+            }
+
+            // Not final round: pre-check pending matches
             let checkMatches = [];
             try {
               const matchesRes = await tournamentService.getTournamentMatches(tournamentId, { round_number: currentRound });
@@ -327,7 +371,6 @@ export const TournamentDetail = () => {
               else if (matchesRes?.matches && Array.isArray(matchesRes.matches)) checkMatches = matchesRes.matches;
               else checkMatches = [];
             } catch (e) {
-              // Nếu request kiểm tra thất bại, cho phép tiếp tục và để backend trả lỗi (không sửa backend theo yêu cầu)
               console.warn('Pre-check matches failed, will attempt to create next round anyway', e);
               checkMatches = [];
             }
@@ -351,10 +394,10 @@ export const TournamentDetail = () => {
             }
 
             const nextRound = (tournament?.current_round || 0) + 1;
-                showSuccess(
-                response?.message ||
-                `✅ Vòng ${nextRound} đã được tạo với ${response?.data?.matches_created || 0} trận đấu!`
-                );
+            showSuccess(
+              response?.message ||
+              `✅ Vòng ${nextRound} đã được tạo với ${response?.data?.matches_created || 0} trận đấu!`
+            );
 
           } catch (err) {
             const errorMsg = err?.response?.data?.message || err?.message || 'Không thể tạo vòng mới';
@@ -365,7 +408,7 @@ export const TournamentDetail = () => {
         }}
         disabled={loading || tournament?.status === 'COMPLETED'}
       >
-        {loading ? 'Đang tạo vòng...' : 'Tạo vòng tiếp theo'}
+        {buttonLabel}
       </Button>
     </div>
             {Object.keys(groupedMatches).length === 0 ? (
@@ -531,6 +574,49 @@ export const TournamentDetail = () => {
                   handleUpdateScore(selectedMatch.id, scoreA, scoreB);
                 }}>Xác nhận kết quả</Button>
               </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Leaderboard modal (BXH) */}
+      {isLeaderboardOpen && (
+        <div className="fixed inset-0 bg-gray-900/80 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-2xl">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-white">Bảng xếp hạng</h2>
+                <div>
+                  <Button variant="secondary" onClick={()=>setIsLeaderboardOpen(false)}>Đóng</Button>
+                </div>
+              </div>
+
+              {(!leaderboard || (Array.isArray(leaderboard) && leaderboard.length === 0)) ? (
+                <div className="text-center text-gray-300">Chưa có bảng xếp hạng</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-primary-700/20">
+                    <thead>
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Hạng</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Tên đội</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Điểm</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.isArray(leaderboard) ? leaderboard.map((row, idx) => (
+                        <tr key={row.id || idx} className="hover:bg-primary-500/10 transition-colors">
+                          <td className="px-6 py-4 text-white font-bold">#{idx + 1}</td>
+                          <td className="px-6 py-4 text-white font-medium">{row.team_name || row.name || row.team?.team_name}</td>
+                          <td className="px-6 py-4 text-gray-300">{row.points ?? row.score ?? row.wins ?? '-'}</td>
+                        </tr>
+                      )) : (
+                        <tr><td className="px-6 py-4 text-gray-300">Không có dữ liệu</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </Card>
         </div>

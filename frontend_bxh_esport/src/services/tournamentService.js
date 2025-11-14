@@ -169,6 +169,25 @@ const tournamentService = {
       throw error;
     }
   },
+  // Record leaderboard on-chain (admin action)
+  // POST /api/tournaments/record-ranking/:tournamentId
+  recordRanking: async (tournamentId) => {
+    try {
+      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/record-ranking/${tournamentId}`);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Get final leaderboard (used after recording)
+  // GET /api/tournaments/bxh/:tournamentId
+  getFinalLeaderboard: async (tournamentId) => {
+    try {
+      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/bxh/${tournamentId}`);
+    } catch (error) {
+      throw error;
+    }
+  },
   // === MATCH APIs ===
   
   // Get matches by tournament and optional round
