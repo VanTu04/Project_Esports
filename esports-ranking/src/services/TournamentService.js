@@ -73,6 +73,15 @@ export const findAll = async (status) => {
   return tournaments;
 };
 
+export const getUserByWallet = async (walletAddress) => {
+  return await models.User.findOne({
+    where: {
+      wallet_address: walletAddress
+    },
+    attributes: ['id', 'username', 'email', 'wallet_address']
+  });
+};
+
 /**
  * (Helper) Tìm User (Đội) theo ID
  */

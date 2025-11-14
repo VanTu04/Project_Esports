@@ -1,4 +1,4 @@
-import { getWalletBalance, getWalletTransactions } from "../services/WalletService.js";
+import { getWalletBalance, getWalletTransactions, distributeTournamentRewards } from "../services/WalletService.js";
 import models from "../models/index.js"; // Sequelize models
 
 /**
@@ -59,5 +59,26 @@ export const getTransactionsController = async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+};
+
+
+/**
+ * POST /tournaments/:tournamentId/distribute-rewards
+ */
+export const distributeRewardsController = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+    if (!tournamentId) throw new Error("Thiếu tournamentId");
+
+    const results = await distributeTournamentRewards(tournamentId);
+    return res.status(200).json({
+      success: true,
+      message: "Đã phân phối giải thưởng",
+      count: results.length,
+      data: results,
+    });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
