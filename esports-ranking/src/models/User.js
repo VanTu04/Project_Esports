@@ -43,7 +43,7 @@ export default (sequelize) => {
     },
   }, {
     timestamps: false,
-    tableName: 'users',
+    tableName: 'Users',
   });
 
   return Users;
