@@ -33,6 +33,15 @@ export const TournamentTable = ({
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Thời gian
             </th>
+             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+               Số vòng
+             </th>
+             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+               Vòng hiện tại
+             </th>
+             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+               Mùa giải
+             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Trạng thái
             </th>
@@ -94,6 +103,15 @@ export const TournamentTable = ({
                   <span className="italic text-gray-500">Chưa xác định</span>
                 )}
               </td>
+               <td className="px-6 py-4 text-sm text-white text-center">
+                 {tournament.total_rounds ?? '-'}
+               </td>
+               <td className="px-6 py-4 text-sm text-white text-center">
+                 {tournament.current_round ?? '-'}
+               </td>
+               <td className="px-6 py-4 text-sm text-white text-center">
+                 {tournament.season_name || <span className="italic text-gray-500">Chưa cập nhật</span>}
+               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 {getStatusBadge(tournament.status || 'draft')}
               </td>

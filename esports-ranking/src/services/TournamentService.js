@@ -39,15 +39,10 @@ export const findById = async (id) => {
   if (!tournament) return null;
 
   const participants = await models.Participant.findAll({
-    where: { tournament_id: id },
-    attributes: [
-      'id',
-      'user_id',
-      'team_name',
-      'wallet_address',
-      'has_received_bye',
-      'status'
-    ]
+    where: {
+      tournament_id: id
+    },
+    attributes: ['id', 'user_id', 'team_name', 'total_points', 'wallet_address', 'has_received_bye', 'status']
   });
 
   const result = tournament.get({ plain: true });

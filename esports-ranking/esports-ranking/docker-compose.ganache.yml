@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  ganache:
+    image: trufflesuite/ganache:latest
+    container_name: ganache-local
+    ports:
+      - "8545:8545"
+    volumes:
+      - ganache_data:/data
+    command:
+      - --database.dbPath=/data
+      - --chain.chainId=1337
+      - --wallet.accounts=10
+      - --wallet.defaultBalance=1000
+      - --server.host=0.0.0.0
+
+volumes:
+  ganache_data:

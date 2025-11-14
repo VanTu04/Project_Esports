@@ -3,7 +3,7 @@ import { UserManagement } from '../pages/admin/UserManagement';
 import { TeamManagement } from '../pages/admin/TeamManagement';
 import GameManagementPage from '../pages/admin/GameManagement';
 import { TournamentManagement } from '../pages/admin/TournamentManagement';
-import { TournamentDetail } from '../components/tournament/TournamentDetail';
+import  TournamentDetail  from '../components/tournament/TournamentDetail';
 import { MatchResultUpdate } from '../pages/admin/MatchResultUpdate';
 import { RewardDistribution } from '../pages/admin/RewardDistribution';
 import { BlockchainTransactions } from '../pages/admin/BlockchainTransactions';

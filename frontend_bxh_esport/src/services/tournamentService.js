@@ -160,6 +160,15 @@ const tournamentService = {
     }
   },
 
+  startNextRound: async (tournamentId) => {
+    try {
+      // Gọi API tạo vòng mới (Swiss)
+      // Backend router defines the route as POST /api/tournaments/:tournament_id/next-round
+      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/next-round`);
+    } catch (error) {
+      throw error;
+    }
+  },
   // === MATCH APIs ===
   
   // Get matches by tournament and optional round
@@ -171,7 +180,7 @@ const tournamentService = {
         ...params,
         round_number: params.round_number || 1
       };
-      return await apiClient.get('/matches/matches', { params: queryParams });
+  return await apiClient.get(`${API_ENDPOINTS.MATCHES}/matches`, { params: queryParams });
     } catch (error) {
       throw error;
     }
@@ -181,7 +190,7 @@ const tournamentService = {
   // POST /api/matches/match/:id/report
   reportMatchResult: async (matchId, data) => {
     try {
-      return await apiClient.post(`/matches/match/${matchId}/report`, data);
+  return await apiClient.post(`${API_ENDPOINTS.MATCHES}/match/${matchId}/report`, data);
     } catch (error) {
       throw error;
     }
@@ -191,7 +200,7 @@ const tournamentService = {
   // PUT /api/matches/match/:id/schedule
   updateMatchSchedule: async (matchId, data) => {
     try {
-      return await apiClient.put(`/matches/match/${matchId}/schedule`, data);
+  return await apiClient.put(`${API_ENDPOINTS.MATCHES}/match/${matchId}/schedule`, data);
     } catch (error) {
       throw error;
     }
@@ -201,7 +210,7 @@ const tournamentService = {
   // GET /api/matches/match/:matchId/score
   getMatchScore: async (matchId) => {
     try {
-      return await apiClient.get(`/matches/match/${matchId}/score`);
+  return await apiClient.get(`${API_ENDPOINTS.MATCHES}/match/${matchId}/score`);
     } catch (error) {
       throw error;
     }
@@ -211,7 +220,7 @@ const tournamentService = {
   // GET /api/matches/tournament/:tournamentId/matches
   getTournamentMatchesFromBlockchain: async (tournamentId) => {
     try {
-      return await apiClient.get(`/matches/tournament/${tournamentId}/matches`);
+  return await apiClient.get(`${API_ENDPOINTS.MATCHES}/tournament/${tournamentId}/matches`);
     } catch (error) {
       throw error;
     }

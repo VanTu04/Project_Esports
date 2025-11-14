@@ -61,7 +61,7 @@ export const writeLeaderboardToBlockchain = async (tournamentId, roundNumber, le
 
 
 // === Ghi BXH vòng đấu ===
-export const updateLeaderboardOnChain = async ({ tournamentId, tournamentName, roundNumber, participants, scores }) => {
+export const updateLeaderboardOnChain = async ({ tournamentId, roundNumber, participants, scores }) => {
   const tx = await leaderboardContract.updateLeaderboard(tournamentId, roundNumber, participants, scores);
   const receipt = await tx.wait();
   return { txHash: tx.hash, blockNumber: receipt.blockNumber };

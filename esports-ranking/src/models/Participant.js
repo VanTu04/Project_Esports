@@ -34,6 +34,11 @@ export default (sequelize) => {
       allowNull: false,
       comment: 'Đã nhận "Bye" (miễn đấu) chưa?'
     },
+    total_points: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: false
+    },
     status: {
       type: DataTypes.ENUM(
         'PENDING',  // 1. Team đã gửi, chờ Admin duyệt
