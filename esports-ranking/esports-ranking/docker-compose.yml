@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: anvil-node
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./anvil-data:/data
+    command: >
+      anvil
+      --host 0.0.0.0
+      --port 8545
+      --chain-id 1337
+      --db /data/anvil.db
+      --mnemonic "test test test test test test test test test test test junk"
+      --accounts 10
+      --balance 1000000000000000000000

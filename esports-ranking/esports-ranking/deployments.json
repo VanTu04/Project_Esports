@@ -1,0 +1,13 @@
+{
+  "leaderboard": "0xEC54b00DfE1a5059222CEFf63AB5B4FF7b85aB5e",
+  "network": "anvil-local",
+  "rpcUrl": "http://183.81.33.178:8545",
+  "chainId": 1337,
+  "accounts": [
+    {
+      "address": "0xD81b0AB9bCd332eA8f7ff0f1d13B234a75500655",
+      "role": "admin"
+    }
+  ],
+  "deployedAt": "2025-11-12T17:13:10.048Z"
+}

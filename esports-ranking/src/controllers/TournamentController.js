@@ -10,7 +10,7 @@ import { Op } from 'sequelize';
 // 1. Tạo một giải đấu mới
 export const createTournamentWithRewards = async (req, res) => {
   try {
-    const { name, total_rounds, rewards } = req.body;
+    const { name, total_rounds, rewards, start_date, end_date } = req.body;
     // rewards = [{ rank: 1, reward_amount: 50 }, { rank: 2, reward_amount: 30 }, ...]
     
     if (!name || !total_rounds) {
@@ -23,17 +23,20 @@ export const createTournamentWithRewards = async (req, res) => {
     }
 
     const result = await models.sequelize.transaction(async (t) => {
-    const tournament = await tournamentService.create({ name, total_rounds }, { transaction: t });
+      const tournament = await tournamentService.create({ name, total_rounds, start_date, end_date }, { transaction: t });
 
-    if (Array.isArray(rewards) && rewards.length > 0) {
-      const rewardsData = rewards.map(r => ({
-        tournament_id: tournament.id,
-        rank: r.rank,
-        reward_amount: Number(r.reward_amount)
-      }));
-      await models.TournamentReward.bulkCreate(rewardsData, { transaction: t });
-    }
-  });
+      if (Array.isArray(rewards) && rewards.length > 0) {
+        const rewardsData = rewards.map(r => ({
+          tournament_id: tournament.id,
+          rank: r.rank,
+          reward_amount: Number(r.reward_amount)
+        }));
+        await models.TournamentReward.bulkCreate(rewardsData, { transaction: t });
+      }
+
+      // Return the created tournament so the outer call receives data
+      return tournament;
+    });
 
     return res.json(responseSuccess(result, 'Tạo giải đấu và reward thành công'));
   } catch (error) {
@@ -589,6 +592,8 @@ export const updateMatchScore = async (req, res) => {
 export const startNextRound = async (req, res) => {
   try {
     const { tournament_id } = req.params;
+    // Tạo transaction để đảm bảo các ghi vào DB là nguyên tử
+    const t = await models.sequelize.transaction();
 
     // 1️⃣ Lấy thông tin tournament
     const tournament = await models.Tournament.findByPk(tournament_id);
@@ -621,7 +626,8 @@ export const startNextRound = async (req, res) => {
       }
     });
 
-    if (incomplete > 0) {
+  if (incomplete > 0) {
+      await t.rollback();
       return res.json(
         responseWithError(
           ErrorCodes.ERROR_REQUEST_DATA_INVALID,
@@ -682,26 +688,33 @@ export const startNextRound = async (req, res) => {
         team_a_participant_id: byeTeam.id,
         team_b_participant_id: null,
         winner_participant_id: byeTeam.id,
-        status: "COMPLETED"
+        status: "COMPLETED",
+        point_team_a: 2,
+        point_team_b: 0
       });
 
+      // cộng điểm và gắn flag BYE trong cùng transaction
       await models.Participant.increment(
         { total_points: 2 },
         { where: { id: byeTeam.id } }
       );
 
-      // Gắn flag đã nhận BYE để Swiss không lặp lại
-      await tournamentService.markParticipantBye(byeTeam.id);
+      await models.Participant.update(
+        { has_received_bye: true },
+        { where: { id: byeTeam.id }, transaction: t }
+      );
     }
-    
-    // 9️⃣ Lưu vào DB
-    await tournamentService.createMatches(newMatches);
 
-    // 🔟 Cập nhật Tournament sang vòng mới
+    // 9️⃣ Lưu vào DB trong transaction
+    await models.Match.bulkCreate(newMatches, { transaction: t });
+
+    // 🔟 Cập nhật Tournament sang vòng mới (trong transaction)
     await tournament.update({
       current_round: nextRound,
       status: "ACTIVE"
-    });
+    }, { transaction: t });
+
+    await t.commit();
 
     return res.json(
       responseSuccess(
@@ -931,4 +944,3 @@ export const finishRound = async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 };
-

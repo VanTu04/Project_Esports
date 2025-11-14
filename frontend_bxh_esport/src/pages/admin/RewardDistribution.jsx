@@ -17,7 +17,9 @@ export const RewardDistribution = () => {
       const data = await rewardService.getPendingRewards();
       setRewards(data.rewards || []);
     } catch (error) {
-      showError('Không thể tải danh sách phần thưởng');
+      // API chưa được implement, chỉ log warning thay vì hiển thị lỗi
+      console.warn('Reward API not implemented yet:', error.message);
+      setRewards([]); // Set empty array
     } finally {
       setLoading(false);
     }

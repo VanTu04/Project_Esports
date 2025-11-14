@@ -4,14 +4,19 @@ import { Op } from 'sequelize';
 /**
  * Tạo record giải đấu mới
  */
-export const create = async (data) => {
+export const create = async (data, options = {}) => {
   const newTournament = await models.Tournament.create({
     name: data.name,
     total_rounds: data.total_rounds,
     created_by: data.created_by || null,
-    status: 'PENDING', // Đảm bảo dùng 'PENDING'
+    game_id: data.game_id || null,
+    season_id: data.season_id || null,
+    start_date: data.start_date || null,
+    end_date: data.end_date || null,
+    description: data.description || null,
+    status: 'PENDING',
     current_round: 0
-  });
+  }, options);
   return newTournament;
 };
 
@@ -19,20 +24,19 @@ export const create = async (data) => {
  * Tìm giải đấu theo tên
  */
 export const getTournamentByName = async (name) => {
-  const existing = await models.Tournament.findOne({ where: { name: name } });
+  const existing = await models.Tournament.findOne({
+    where: { name: name }
+  });
   return existing;
 };
 
 /**
  * Tìm giải đấu theo ID (bao gồm các đội tham gia)
- * Sửa lại: Lấy *tất cả* participant, không chỉ 'approved'
  */
 export const findById = async (id) => {
   const tournament = await models.Tournament.findByPk(id);
 
-  if (!tournament) {
-    return null; // Không tìm thấy giải đấu
-  }
+  if (!tournament) return null;
 
   const participants = await models.Participant.findAll({
     where: {
@@ -59,7 +63,7 @@ export const findAll = async (status) => {
   const tournaments = await models.Tournament.findAll({
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-    attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_time', 'end_time'],
+  attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'start_time', 'end_time'],
     include: [
       {
         model: models.TournamentReward,
@@ -69,6 +73,15 @@ export const findAll = async (status) => {
       }
     ]
   });
+
+  try {
+    // Log a compact sample to help debug missing date fields (removed in production later)
+    const sample = tournaments.slice(0, 5).map(t => (t && typeof t.get === 'function') ? t.get({ plain: true }) : t);
+    console.log('[TournamentService.findAll] sample tournaments (id, start_date, end_date, start_time, end_time):',
+      sample.map(s => ({ id: s.id, start_date: s.start_date, end_date: s.end_date, start_time: s.start_time, end_time: s.end_time })));
+  } catch (e) {
+    console.warn('Could not log tournaments sample', e);
+  }
 
   return tournaments;
 };
@@ -83,11 +96,10 @@ export const getUserByWallet = async (walletAddress) => {
 };
 
 /**
- * (Helper) Tìm User (Đội) theo ID
+ * Tìm User (Đội) theo ID
  */
 export const findUserById = async (user_id) => {
-  const team = await models.User.findByPk(user_id);
-  return team;
+  return await models.User.findByPk(user_id);
 };
 
 /**
@@ -97,69 +109,58 @@ export const update = async (tournament, data) => {
   await tournament.update({
     name: data.name || tournament.name,
     total_rounds: data.total_rounds || tournament.total_rounds,
-    status: data.status || tournament.status,
+    status: data.status || tournament.status
   });
   return true;
 };
 
+/**
+ * Xóa giải đấu
+ */
 export const deleteTournament = async (tournament_id) => {
-  // 1. Phải tìm lại (find) instance trước khi destroy
   const tournament = await models.Tournament.findByPk(tournament_id);
-
   if (tournament) {
     await tournament.destroy();
     return true;
   }
-
-  return false; 
+  return false;
 };
 
-
-// ========================================================
-// === CÁC HÀM MỚI VÀ ĐÃ SỬA TÊN CHO LUỒNG NGHIỆP VỤ MỚI ===
-// ========================================================
+// ============================
+// === CÁC HÀM NGHIỆP VỤ MỚI ===
+// ============================
 
 /**
- * (ĐÃ ĐỔI TÊN)
- * Tạo record Participant (khi team request join)
- * @param {object} data - Dữ liệu của Participant
+ * Tạo participant khi team request join
  */
 export const createParticipant = async (data) => {
-  const newParticipant = await models.Participant.create(data);
-  return newParticipant;
+  return await models.Participant.create(data);
 };
 
 /**
- * (ĐÃ ĐỔI TÊN)
  * Tìm xem đội đã đăng ký giải này chưa
- * @param {number} tournament_id
- * @param {number} user_id
  */
 export const findParticipantByUser = async (tournament_id, user_id) => {
-  const existing = await models.Participant.findOne({
+  return await models.Participant.findOne({
     where: { tournament_id, user_id }
   });
-  return existing;
 };
 
 /**
- * (HÀM MỚI)
- * Tìm một participant theo ID (Primary Key) của chính nó
- * @param {number} participant_id
+ * Tìm participant theo ID
  */
 export const findParticipantById = async (participant_id) => {
-  const participant = await models.Participant.findByPk(participant_id);
-  return participant;
+  return await models.Participant.findByPk(participant_id);
 };
 
 /**
- * (HÀM MỚI)
- * Cập nhật status của TẤT CẢ participant trong 1 giải đấu
- * @param {number} tournament_id
- * @param {string} old_status - Trạng thái cũ (ví dụ 'PENDING')
- * @param {string} new_status - Trạng thái mới (ví dụ 'REJECTED')
+ * Cập nhật status của toàn bộ participant trong 1 giải
  */
-export const updateParticipantStatusByTournament = async (tournament_id, old_status, new_status) => {
+export const updateParticipantStatusByTournament = async (
+  tournament_id,
+  old_status,
+  new_status
+) => {
   const [affectedRows] = await models.Participant.update(
     { status: new_status },
     {
@@ -169,43 +170,36 @@ export const updateParticipantStatusByTournament = async (tournament_id, old_sta
       }
     }
   );
-  return affectedRows; // Trả về số lượng dòng đã bị ảnh hưởng
+  return affectedRows;
 };
 
 /**
- * (HÀM MỚI)
  * Lấy danh sách participant của 1 giải theo status
- * @param {number} tournament_id
- * @param {string} status - (ví dụ 'APPROVED')
  */
 export const getParticipantsByStatus = async (tournament_id, status) => {
-  const participants = await models.Participant.findAll({
+  return await models.Participant.findAll({
     where: {
       tournament_id: tournament_id,
       status: status
     }
   });
-  return participants;
 };
 
 /**
- * (HÀM MỚI)
  * Tạo hàng loạt các trận đấu (Matches)
- * @param {Array<object>} matchesData - Mảng các đối tượng trận đấu
  */
 export const createMatches = async (matchesData) => {
-  const newMatches = await models.Match.bulkCreate(matchesData);
-  return newMatches;
+  return await models.Match.bulkCreate(matchesData);
 };
 
 /**
- * (HÀM MỚI)
  * Cập nhật trạng thái và vòng đấu của giải
- * @param {object} tournament - Instance Sequelize của giải đấu
- * @param {string} new_status - Trạng thái mới (ví dụ 'ACTIVE')
- * @param {number} new_round - Vòng đấu mới (ví dụ 1)
  */
-export const updateTournamentStatus = async (tournament, new_status, new_round) => {
+export const updateTournamentStatus = async (
+  tournament,
+  new_status,
+  new_round
+) => {
   await tournament.update({
     status: new_status,
     current_round: new_round
@@ -218,11 +212,11 @@ export const updateTournamentStatus = async (tournament, new_status, new_round) 
  */
 export const getTournamentMatches = async (tournament_id, round = null) => {
   const whereCondition = { tournament_id };
-  
+
   if (round !== null && round !== undefined) {
     whereCondition.round_number = parseInt(round);
   }
-  
+
   const matches = await models.Match.findAll({
     where: whereCondition,
     include: [
@@ -247,7 +241,7 @@ export const getTournamentMatches = async (tournament_id, round = null) => {
       ['id', 'ASC']
     ]
   });
-  
+
   return matches;
 };
 
@@ -263,13 +257,13 @@ export const markParticipantBye = async (participantId) => {
 
 
 export const findParticipantsByIds = async (participant_ids) => {
-  const participants = await models.Participant.findAll({
+  return await models.Participant.findAll({
     where: {
       id: {
-        [Op.in]: participant_ids // Dùng Op.in để tìm tất cả ID trong mảng
+        [Op.in]: participant_ids
       }
     },
-    attributes: ['id', 'team_name'] // Chỉ cần lấy ID và Tên
+    attributes: ['id', 'team_name']
   });
   return participants;
 };

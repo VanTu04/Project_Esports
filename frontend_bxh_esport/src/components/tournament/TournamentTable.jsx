@@ -2,9 +2,6 @@ import { TournamentActions } from './TournamentActions';
 import { useNavigate } from 'react-router-dom';
 import Button from '../common/Button';
 
-/**
- * Component hiển thị bảng danh sách giải đấu
- */
 export const TournamentTable = ({ 
   tournaments,
   onViewRanking,
@@ -27,12 +24,19 @@ export const TournamentTable = ({
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Tên Giải đấu
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-              Game
-            </th>
+
+
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Thời gian
             </th>
+
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              Số vòng
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              Vòng hiện tại
+            </th>
+
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Trạng thái
             </th>
@@ -41,12 +45,14 @@ export const TournamentTable = ({
             </th>
           </tr>
         </thead>
+
         <tbody className="divide-y divide-primary-700/20">
           {tournaments.map((tournament, index) => (
             <tr key={tournament.id} className="hover:bg-dark-300/50 transition-colors">
               <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                 #{tournament.id}
               </td>
+
               <td className="px-6 py-4 whitespace-nowrap">
                 <div 
                   className="text-sm font-medium text-white hover:text-primary-400 cursor-pointer transition-colors"
@@ -54,12 +60,14 @@ export const TournamentTable = ({
                 >
                   {tournament.name || tournament.tournament_name}
                 </div>
+
                 {tournament.description && (
                   <div className="text-xs text-gray-400 truncate max-w-xs">
                     {tournament.description}
                   </div>
                 )}
-                {/* Ghi chú đội chờ duyệt - Chỉ hiển thị khi giải đấu sắp diễn ra */}
+
+                {/* Đội chờ duyệt */}
                 {tournament.status === 'upcoming' && tournament.teams?.pending > 0 && (
                   <div className="flex items-center gap-1 mt-1">
                     <Button
@@ -76,22 +84,49 @@ export const TournamentTable = ({
                   </div>
                 )}
               </td>
+
+              {/*THỜI GIAN */}
               <td className="px-6 py-4 text-sm text-gray-400">
-                {tournament.game_name || tournament.game || '-'}
+                {
+                  (() => {
+                    // Prefer explicit start_date/end_date, fall back to start_time/end_time from backend
+                    const start = tournament.start_date || tournament.start_time || null;
+                    const end = tournament.end_date || tournament.end_time || null;
+
+                    if (start && end) {
+                      try {
+                        return (
+                          <div>
+                            <div className="text-white">{new Date(start).toLocaleDateString('vi-VN')}</div>
+                            <div className="text-xs">đến {new Date(end).toLocaleDateString('vi-VN')}</div>
+                          </div>
+                        );
+                      } catch (e) {
+                        return <span className="italic text-gray-500">Định dạng thời gian không hợp lệ</span>;
+                      }
+                    }
+
+                    return <span className="italic text-gray-500">Chưa xác định</span>;
+                  })()
+                }
               </td>
-              <td className="px-6 py-4 text-sm text-gray-400">
-                {tournament.start_date && tournament.end_date ? (
-                  <div>
-                    <div className="text-white">{new Date(tournament.start_date).toLocaleDateString('vi-VN')}</div>
-                    <div className="text-xs">đến {new Date(tournament.end_date).toLocaleDateString('vi-VN')}</div>
-                  </div>
-                ) : (
-                  'Chưa xác định'
-                )}
+
+              {/* Số vòng */}
+              <td className="px-6 py-4 text-sm text-white text-center">
+                {tournament.total_rounds ?? '-'}
               </td>
+
+              {/* Vòng hiện tại */}
+              <td className="px-6 py-4 text-sm text-white text-center">
+                {tournament.current_round ?? '-'}
+              </td>
+
+              {/* Trạng thái */}
               <td className="px-6 py-4 whitespace-nowrap">
                 {getStatusBadge(tournament.status || 'draft')}
               </td>
+
+              {/* Thao tác */}
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <TournamentActions
                   tournament={tournament}

@@ -3,8 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card } from '../common/Card';
 import { Loading } from '../common/Loading';
 import Button from '../common/Button';
-import { TournamentBracket } from './TournamentBracket';
-import { ArrowLeftIcon, CalendarIcon, TrophyIcon, UsersIcon } from '@heroicons/react/24/outline';
 import tournamentService from '../../services/tournamentService';
 import { useNotification } from '../../context/NotificationContext';
 
@@ -17,45 +15,70 @@ export const TournamentDetail = () => {
   const [tournament, setTournament] = useState(null);
   const [teams, setTeams] = useState([]);
   const [matches, setMatches] = useState([]);
-  const [activeTab, setActiveTab] = useState('teams'); // teams, matches, bracket
+  const [activeTab, setActiveTab] = useState('teams'); // 'teams' or 'matches'
   const [selectedMatch, setSelectedMatch] = useState(null);
-  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isUpdateScoreModalOpen, setIsUpdateScoreModalOpen] = useState(false);
+  const [isUpdateTimeModalOpen, setIsUpdateTimeModalOpen] = useState(false);
+  const [selectedWinnerId, setSelectedWinnerId] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isRecorded, setIsRecorded] = useState(false);
+  const [leaderboard, setLeaderboard] = useState(null);
+  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
 
   useEffect(() => {
     loadData();
   }, [tournamentId]);
-
+// Auto-create next round removed: manual creation only to avoid unexpected round generation
   const loadData = async () => {
     try {
       setLoading(true);
-      
-      // Load tournament info
+      // Lấy thông tin giải đấu
       const tournamentRes = await tournamentService.getTournamentById(tournamentId);
       setTournament(tournamentRes.data);
 
-      // Load teams (participants)
+      // Lấy danh sách đội
       try {
         const teamsRes = await tournamentService.getParticipants(tournamentId, 'APPROVED');
         setTeams(teamsRes.data || []);
-      } catch (err) {
-        console.warn('No teams yet:', err);
+      } catch {
         setTeams([]);
       }
 
-      // Load matches
+      // Lấy danh sách trận đấu: fetch tất cả vòng (1..total_rounds)
       try {
-        const matchesRes = await tournamentService.getTournamentMatches(tournamentId);
-        console.log('Matches response:', matchesRes);
-        console.log('Matches data:', matchesRes.data);
-        setMatches(matchesRes.data || []);
+        const totalRounds = tournamentRes?.data?.total_rounds || tournamentRes?.total_rounds || 1;
+
+        // Nếu totalRounds nhỏ (<=1) vẫn gọi 1 lần
+        const roundsToFetch = Math.max(1, Number(totalRounds));
+
+        const matchPromises = [];
+        for (let r = 1; r <= roundsToFetch; r++) {
+          matchPromises.push(
+            tournamentService.getTournamentMatches(tournamentId, { round_number: r })
+              .then(res => {
+                // apiClient returns response.data (responseSuccess), but service might return array
+                if (Array.isArray(res)) return res;
+                if (res?.data && Array.isArray(res.data)) return res.data;
+                // some endpoints return { matches: [...] }
+                if (res?.matches && Array.isArray(res.matches)) return res.matches;
+                return [];
+              })
+              .catch(() => [])
+          );
+        }
+
+        const roundsMatches = await Promise.all(matchPromises);
+        // flatten
+        const matchesData = roundsMatches.flat();
+        setMatches(matchesData);
       } catch (err) {
-        console.warn('No matches yet:', err);
+        console.error('loadData getTournamentMatches error', err);
         setMatches([]);
       }
 
       setLoading(false);
-    } catch (error) {
-      console.error('Error loading data:', error);
+    } catch {
       showError('Không thể tải dữ liệu giải đấu');
       setLoading(false);
     }
@@ -68,7 +91,7 @@ export const TournamentDetail = () => {
       pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
       APPROVED: 'bg-green-500/20 text-green-400 border-green-500/30'
     };
-    
+
     const labels = {
       active: 'Đang thi đấu',
       eliminated: 'Bị loại',
@@ -89,7 +112,6 @@ export const TournamentDetail = () => {
       LIVE: { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', label: 'Đang diễn ra' },
       COMPLETED: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', label: 'Đã kết thúc' }
     };
-
     const badge = badges[status] || badges.PENDING;
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${badge.bg} ${badge.text} ${badge.border}`}>
@@ -102,33 +124,72 @@ export const TournamentDetail = () => {
     const grouped = {};
     matches.forEach(match => {
       const roundNum = match.round_number || 1;
-      if (!grouped[roundNum]) {
-        grouped[roundNum] = [];
-      }
+      if (!grouped[roundNum]) grouped[roundNum] = [];
       grouped[roundNum].push(match);
     });
     return grouped;
   };
 
-  const handleOpenUpdateModal = (match) => {
+  const handleOpenScoreModal = (match) => {
     setSelectedMatch(match);
-    setIsUpdateModalOpen(true);
+    setSelectedWinnerId(null);
+    setIsUpdateScoreModalOpen(true);
   };
 
-  const handleCloseUpdateModal = () => {
+  const handleOpenTimeModal = (match) => {
+    setSelectedMatch(match);
+    setIsUpdateTimeModalOpen(true);
+  };
+
+  const handleCloseModals = () => {
     setSelectedMatch(null);
-    setIsUpdateModalOpen(false);
+    setIsUpdateScoreModalOpen(false);
+    setIsUpdateTimeModalOpen(false);
+    setSelectedWinnerId(null);
   };
 
-  const handleUpdateMatch = async (matchId, scoreA, scoreB) => {
+  const handleUpdateScore = async (matchId, scoreA, scoreB) => {
     try {
-      await tournamentService.updateMatchScore(matchId, scoreA, scoreB);
-      showSuccess('Cập nhật kết quả thành công!');
-      handleCloseUpdateModal();
-      loadData(); // Reload data
+      const winnerId = scoreA > scoreB ? selectedMatch.team_a_participant_id : selectedMatch.team_b_participant_id;
+      const response = await tournamentService.reportMatchResult(matchId, { winner_participant_id: winnerId });
+      if (response?.code === 0) {
+        showSuccess(response?.message || 'Cập nhật kết quả thành công!');
+        handleCloseModals();
+        loadData();
+      } else {
+        showError(response?.message || 'Không thể cập nhật kết quả');
+      }
     } catch (error) {
-      console.error('Error updating match:', error);
-      showError('Không thể cập nhật kết quả trận đấu');
+      showError(error?.response?.data?.message || error?.message || 'Không thể cập nhật kết quả');
+    }
+  };
+
+  const handleUpdateTime = async (matchId, scheduledTime) => {
+    try {
+      const response = await tournamentService.updateMatchSchedule(matchId, { match_time: new Date(scheduledTime).toISOString() });
+      if (response?.code === 0) {
+        showSuccess('Cập nhật thời gian thành công!');
+        handleCloseModals();
+        loadData();
+      } else {
+        showError(response?.message || 'Không thể cập nhật thời gian');
+      }
+    } catch (error) {
+      showError(error?.response?.data?.message || error?.message || 'Không thể cập nhật thời gian');
+    }
+  };
+
+  const handleStartNewRound = async () => {
+    try {
+      const response = await tournamentService.startTournament(tournamentId);
+      if (response?.code === 0) {
+        showSuccess(response?.message || 'Tạo vòng mới thành công!');
+        loadData();
+      } else {
+        showError(response?.message || 'Không thể tạo vòng mới');
+      }
+    } catch (error) {
+      showError(error?.response?.data?.message || error?.message || 'Không thể tạo vòng mới');
     }
   };
 
@@ -156,6 +217,7 @@ export const TournamentDetail = () => {
   return (
     <div className="min-h-screen bg-dark-400 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -164,7 +226,6 @@ export const TournamentDetail = () => {
               size="sm"
               onClick={() => navigate('/admin/tournaments')}
             >
-              <ArrowLeftIcon className="w-5 h-5 mr-2" />
               Quay lại
             </Button>
             <div>
@@ -174,75 +235,36 @@ export const TournamentDetail = () => {
           </div>
         </div>
 
-        {/* Chi tiết giải đấu */}
+        {/* Thông tin giải đấu */}
         <Card padding="lg">
           <h2 className="text-xl font-bold text-white mb-4">Thông tin giải đấu</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-gradient-to-br from-primary-500/10 to-primary-600/5 rounded-lg p-4 border border-primary-500/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-300 text-sm">Vòng đấu</span>
-                <TrophyIcon className="w-5 h-5 text-cyan-300" />
-              </div>
-              <p className="text-2xl font-bold text-white">
-                {tournament.current_round || 0}/{tournament.total_rounds || 0}
-              </p>
+            <div className="rounded-lg p-4 border border-primary-500/30 bg-primary-500/10">
+              <span className="text-gray-300 text-sm">Vòng đấu</span>
+              <p className="text-2xl font-bold text-white">{tournament.current_round || 0}/{tournament.total_rounds || 0}</p>
             </div>
-
-            <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 rounded-lg p-4 border border-blue-500/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-300 text-sm">Số đội</span>
-                <UsersIcon className="w-5 h-5 text-blue-400" />
-              </div>
-              <p className="text-2xl font-bold text-white">
-                {teams.length}
-              </p>
+            <div className="rounded-lg p-4 border border-blue-500/30 bg-blue-500/10">
+              <span className="text-gray-300 text-sm">Số đội</span>
+              <p className="text-2xl font-bold text-white">{teams.length}</p>
             </div>
-
-            <div className="bg-gradient-to-br from-green-500/10 to-green-600/5 rounded-lg p-4 border border-green-500/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-300 text-sm">Trận đấu</span>
-                <CalendarIcon className="w-5 h-5 text-green-400" />
-              </div>
+            <div className="rounded-lg p-4 border border-green-500/30 bg-green-500/10">
+              <span className="text-gray-300 text-sm">Trận đấu</span>
               <p className="text-2xl font-bold text-white">{matches.length}</p>
             </div>
-
-            <div className="bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 rounded-lg p-4 border border-yellow-500/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-300 text-sm">Trạng thái</span>
-                <TrophyIcon className="w-5 h-5 text-yellow-400" />
-              </div>
-              <p className="text-lg font-bold text-yellow-400">
-                {tournament.status || 'PENDING'}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center gap-4 text-sm">
-            <div>
-              <span className="text-gray-300">Bắt đầu:</span>
-              <span className="text-white ml-2 font-medium">
-                {tournament.start_date ? new Date(tournament.start_date).toLocaleDateString('vi-VN') : 'N/A'}
-              </span>
-            </div>
-            <span className="text-cyan-300">→</span>
-            <div>
-              <span className="text-gray-300">Kết thúc:</span>
-              <span className="text-white ml-2 font-medium">
-                {tournament.end_date ? new Date(tournament.end_date).toLocaleDateString('vi-VN') : 'N/A'}
-              </span>
+            <div className="rounded-lg p-4 border border-yellow-500/30 bg-yellow-500/10">
+              <span className="text-gray-300 text-sm">Trạng thái</span>
+              <p className="text-lg font-bold text-yellow-400">{tournament.status || 'PENDING'}</p>
             </div>
           </div>
         </Card>
 
-        {/* Tabs Navigation */}
-        <div className="border-b border-primary-700/20 bg-gradient-to-r from-primary-500/5 to-purple-500/5">
+        {/* Tabs */}
+        <div className="border-b border-primary-700/20">
           <div className="flex space-x-8">
             <button
               onClick={() => setActiveTab('teams')}
               className={`pb-4 px-2 border-b-2 font-medium transition-colors ${
-                activeTab === 'teams'
-                  ? 'border-cyan-300 text-cyan-300'
-                  : 'border-transparent text-gray-300 hover:text-cyan-200 hover:border-cyan-400/50'
+                activeTab === 'teams' ? 'border-cyan-300 text-cyan-300' : 'border-transparent text-gray-300 hover:text-cyan-200 hover:border-cyan-400/50'
               }`}
             >
               Danh sách đội
@@ -250,40 +272,44 @@ export const TournamentDetail = () => {
             <button
               onClick={() => setActiveTab('matches')}
               className={`pb-4 px-2 border-b-2 font-medium transition-colors ${
-                activeTab === 'matches'
-                  ? 'border-cyan-300 text-cyan-300'
-                  : 'border-transparent text-gray-300 hover:text-cyan-200 hover:border-cyan-400/50'
+                activeTab === 'matches' ? 'border-cyan-300 text-cyan-300' : 'border-transparent text-gray-300 hover:text-cyan-200 hover:border-cyan-400/50'
               }`}
             >
-              Danh sách trận & Lịch
+              Danh sách trận
             </button>
             <button
-              onClick={() => setActiveTab('bracket')}
+              onClick={async () => {
+                setActiveTab('leaderboard');
+                setLeaderboardLoading(true);
+                try {
+                  const resp = await tournamentService.getFinalLeaderboard(tournamentId);
+                  const data = resp?.data?.data?.leaderboard ?? resp?.data?.leaderboard ?? resp?.data ?? resp;
+                  setLeaderboard(Array.isArray(data) ? data : (data?.leaderboard ?? []));
+                } catch (err) {
+                  console.error('Failed to load leaderboard', err);
+                  setLeaderboard([]);
+                } finally {
+                  setLeaderboardLoading(false);
+                }
+              }}
               className={`pb-4 px-2 border-b-2 font-medium transition-colors ${
-                activeTab === 'bracket'
-                  ? 'border-cyan-300 text-cyan-300'
-                  : 'border-transparent text-gray-300 hover:text-cyan-200 hover:border-cyan-400/50'
+                activeTab === 'leaderboard' ? 'border-cyan-300 text-cyan-300' : 'border-transparent text-gray-300 hover:text-cyan-200 hover:border-cyan-400/50'
               }`}
             >
-              Sơ đồ
+              Bảng xếp hạng
             </button>
           </div>
         </div>
 
-        {/* Tab Content - Danh sách đội */}
+        {/* Tab Content - Teams */}
         {activeTab === 'teams' && (
           <Card padding="lg">
-            <h2 className="text-xl font-bold text-white mb-4">Danh sách đội tham gia</h2>
             {teams.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">👥</div>
-                <h3 className="text-lg font-medium text-white mb-2">Chưa có đội tham gia</h3>
-                <p className="text-gray-400">Chưa có đội nào được duyệt tham gia giải đấu</p>
-              </div>
+              <div className="text-center py-12 text-gray-300">Chưa có đội tham gia</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-primary-700/20">
-                  <thead className="bg-gradient-to-r from-primary-500/10 to-purple-500/10">
+                  <thead>
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Hạng</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Tên đội</th>
@@ -291,22 +317,13 @@ export const TournamentDetail = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Trạng thái</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-primary-700/20">
+                  <tbody>
                     {teams.map((team, index) => (
                       <tr key={team.id} className="hover:bg-primary-500/10 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-white font-bold">#{index + 1}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center mr-3">
-                              <span className="text-cyan-300 font-bold text-sm">{team.team_name?.substring(0, 2).toUpperCase()}</span>
-                            </div>
-                            <span className="text-white font-medium">{team.team_name}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-300">
-                          {team.wallet_address ? `${team.wallet_address.substring(0, 10)}...` : 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(team.status || 'APPROVED')}</td>
+                        <td className="px-6 py-4 text-white font-bold">#{index + 1}</td>
+                        <td className="px-6 py-4 text-white font-medium">{team.team_name}</td>
+                        <td className="px-6 py-4 text-gray-300">{team.wallet_address ? `${team.wallet_address.substring(0, 10)}...` : 'N/A'}</td>
+                        <td className="px-6 py-4">{getStatusBadge(team.status || 'APPROVED')}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -316,83 +333,133 @@ export const TournamentDetail = () => {
           </Card>
         )}
 
-        {/* Tab Content - Danh sách trận & Lịch */}
+        {/* Tab Content - Matches */}
         {activeTab === 'matches' && (
           <div className="space-y-6">
+            <div className="flex justify-end mb-4">
+    <Button
+  variant="primary"
+  onClick={async () => {
+    if (!tournamentId) return;
+
+    // Chỉ cho phép ghi BXH khi giải đấu đã hoàn thành
+    if ((tournament?.status || '').toUpperCase() !== 'COMPLETED') {
+      showError('Chỉ có thể ghi BXH khi giải đấu đã kết thúc.');
+      return;
+    }
+
+    // Ngăn chặn double click
+    if (isRecording || isRecorded) return;
+
+    setIsRecording(true);
+    try {
+      // Gọi backend để ghi BXH
+      const resp = await tournamentService.recordRanking(tournamentId);
+
+      if (resp?.code !== 0) {
+        showError(resp.message || 'Không thể ghi BXH');
+        setIsRecording(false);
+        return;
+      }
+
+      setIsRecorded(true);
+      showSuccess(resp.message || 'Ghi BXH thành công.');
+
+      // Load lại BXH để hiển thị
+      try {
+        const lbResp = await tournamentService.getFinalLeaderboard(tournamentId);
+        const data =
+          lbResp?.data?.data?.leaderboard ??
+          lbResp?.data?.leaderboard ??
+          lbResp?.data ??
+          lbResp;
+        setLeaderboard(Array.isArray(data) ? data : data?.leaderboard ?? []);
+        setActiveTab('leaderboard');
+      } catch (err) {
+        console.error('Không thể tải bảng xếp hạng', err);
+        showError('Ghi BXH thành công nhưng không thể tải bảng xếp hạng.');
+      }
+    } catch (err) {
+      const serverMsg = err?.response?.data?.message || err?.message || 'Không thể ghi BXH';
+      showError(serverMsg);
+    } finally {
+      setIsRecording(false);
+    }
+  }}
+  disabled={loading || isRecording || isRecorded}
+>
+  {isRecording
+    ? 'Đang ghi BXH...'
+    : isRecorded
+    ? 'Đã ghi BXH'
+    : 'Ghi BXH'}
+</Button>
+
+
+        </div>
             {Object.keys(groupedMatches).length === 0 ? (
-              <Card padding="lg">
-                <div className="text-center py-12">
-                  <div className="text-6xl mb-4">🏆</div>
-                  <h3 className="text-lg font-medium text-white mb-2">Chưa có trận đấu</h3>
-                  <p className="text-gray-400">Giải đấu chưa bắt đầu hoặc chưa tạo trận đấu</p>
-                </div>
-              </Card>
+              <Card padding="lg" className="text-center text-gray-300">Chưa có trận đấu</Card>
             ) : (
-              Object.keys(groupedMatches).sort((a, b) => a - b).map(round => (
+              Object.keys(groupedMatches).sort((a,b)=>a-b).map(round => (
                 <Card key={round} padding="lg">
                   <h3 className="text-xl font-bold text-white mb-4">Vòng {round}</h3>
                   <div className="space-y-3">
-                    {groupedMatches[round].map((match) => (
-                      <div
-                        key={match.id}
-                        className="bg-gradient-to-r from-primary-500/5 to-purple-500/5 rounded-lg p-4 border border-primary-500/30 hover:border-primary-400/60 transition-all"
-                      >
-                        <div className="flex items-center justify-between">
-                          {/* Schedule Time */}
-                          <div className="flex items-center space-x-4 mr-4">
-                            {match.scheduled_time && (
-                              <div className="text-center min-w-[80px] bg-gradient-to-br from-primary-500/20 to-purple-500/20 rounded-lg p-2 border border-primary-400/30">
-                                <p className="text-sm font-bold text-blue-300">
-                                  {new Date(match.scheduled_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                                <p className="text-xs text-gray-300">
-                                  {new Date(match.scheduled_time).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
-                                </p>
-                              </div>
-                            )}
-                          </div>
+                    {groupedMatches[round].map(match => (
+                      <div key={match.id} className="rounded-lg p-4 border border-primary-500/30 bg-primary-500/10">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-gray-300 text-sm">
+                            {match.match_time ? new Date(match.match_time).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Chưa có lịch'}
+                          </span>
+                          {getMatchStatusBadge(match.status)}
+                        </div>
+                        <div className="flex items-center justify-center gap-4 mb-3">
+                          <div className="flex-1 text-right text-lg font-bold text-white">
+                    {match.team_a_name || 'TBD'}
+                    {match.winner_participant_id && (
+                        <div className={`text-sm mt-1 ${match.winner_participant_id === match.team_a_participant_id ? 'text-green-400' : 'text-red-400'}`}>
+                        {match.winner_participant_id === match.team_a_participant_id ? 'Thắng' : 'Thua'}
+                        </div>
+                    )}
+                    </div>
 
-                          {/* Teams */}
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center space-x-3">
-                                <span className="text-white font-semibold">{match.teamA?.team_name || 'TBD'}</span>
-                                {match.status === 'COMPLETED' && match.score_a !== null && (
-                                  <span className={`text-2xl font-bold ${
-                                    match.winner_participant_id === match.team_a_participant_id ? 'text-green-400' : 'text-gray-300'
-                                  }`}>
-                                    {match.score_a}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-3">
-                                <span className="text-white font-semibold">{match.teamB?.team_name || 'TBD'}</span>
-                                {match.status === 'COMPLETED' && match.score_b !== null && (
-                                  <span className={`text-2xl font-bold ${
-                                    match.winner_participant_id === match.team_b_participant_id ? 'text-green-400' : 'text-gray-300'
-                                  }`}>
-                                    {match.score_b}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
+                    <div className="text-2xl font-bold text-cyan-300 px-4">VS</div>
 
-                          {/* Status & Action */}
-                          <div className="ml-4 flex items-center gap-3">
-                            {getMatchStatusBadge(match.status)}
-                            {match.status !== 'PENDING' && (
-                              <Button
+                    <div className="flex-1 text-left text-lg font-bold text-white">
+                    {match.team_b_name || 'TBD'}
+                    {match.winner_participant_id && (
+                        <div className={`text-sm mt-1 ${match.winner_participant_id === match.team_b_participant_id ? 'text-green-400' : 'text-red-400'}`}>
+                        {match.winner_participant_id === match.team_b_participant_id ? 'Thắng' : 'Thua'}
+                        </div>
+                    )}
+                    </div>
+
+                        </div>
+                        <div className="flex justify-center gap-3 mt-2">
+                    <div className="flex justify-center gap-3">
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleOpenTimeModal(match)}
+                                disabled={match.status === 'COMPLETED'}
+                                title={match.status === 'COMPLETED' ? 'Không thể thay đổi lịch trận đã kết thúc' : ''}
+                            >
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Cập nhật thời gian
+                            </Button>
+                            <Button
                                 variant="primary"
                                 size="sm"
-                                onClick={() => handleOpenUpdateModal(match)}
-                              >
-                                Cập nhật
-                              </Button>
-                            )}
-                          </div>
+                                onClick={() => handleOpenScoreModal(match)}
+                            >
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                                Cập nhật kết quả
+                            </Button>
+                            </div>
+
                         </div>
                       </div>
                     ))}
@@ -403,84 +470,136 @@ export const TournamentDetail = () => {
           </div>
         )}
 
-        {/* Tab Content - Sơ đồ */}
-        {activeTab === 'bracket' && (
+        {/* Tab Content - Leaderboard */}
+        {activeTab === 'leaderboard' && (
           <Card padding="lg">
-            <h2 className="text-2xl font-bold text-white mb-4">Sơ đồ cây giải đấu</h2>
-            <div className="overflow-x-auto">
-              <TournamentBracket 
-                matches={matches} 
-                tournament={tournament}
-                compact={true}
-              />
-            </div>
+            <h2 className="text-xl font-bold text-white mb-4">Bảng xếp hạng cuối cùng</h2>
+            {leaderboardLoading ? (
+              <div className="text-center text-gray-300">Đang tải bảng xếp hạng...</div>
+            ) : (!leaderboard || (Array.isArray(leaderboard) && leaderboard.length === 0)) ? (
+              <div className="text-center text-gray-300">Chưa có bảng xếp hạng</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-primary-700/20">
+                  <thead>
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Hạng</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Tên đội / Wallet</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Điểm</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.isArray(leaderboard) ? leaderboard.map((row, idx) => (
+                      <tr key={row.id || idx} className="hover:bg-primary-500/10 transition-colors">
+                        <td className="px-6 py-4 text-white font-bold">#{idx + 1}</td>
+                        <td className="px-6 py-4 text-white font-medium">{row.team_name || row.name || row.wallet || row.wallet_address || row.username}</td>
+                        <td className="px-6 py-4 text-gray-300">{row.points ?? row.score ?? row.total_points ?? '-'}</td>
+                      </tr>
+                    )) : (
+                      <tr><td className="px-6 py-4 text-gray-300">Không có dữ liệu</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
         )}
       </div>
 
-      {/* Update Match Result Modal */}
-      {isUpdateModalOpen && selectedMatch && (
-        <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      {/* Modals */}
+      {isUpdateTimeModalOpen && selectedMatch && (
+  <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <Card className="w-full max-w-md">
+      <div className="p-6 space-y-4">
+        <h2 className="text-xl font-bold text-white">
+          <svg className="w-6 h-6 inline mr-2 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Cập nhật thời gian thi đấu
+        </h2>
+
+        {/* Match Info */}
+        <div className="bg-gradient-to-r from-primary-500/10 to-purple-500/10 rounded-lg p-3 border border-primary-500/30 text-center">
+          <span className="text-white font-semibold">
+            {selectedMatch.team_a_name || 'TBD'} VS {selectedMatch.team_b_name || 'TBD'}
+          </span>
+        </div>
+
+        {/* Scheduled Time */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Chọn ngày & giờ thi đấu
+          </label>
+          <input
+            type="datetime-local"
+            defaultValue={selectedMatch.scheduled_time ? new Date(selectedMatch.scheduled_time).toISOString().slice(0, 16) : ''}
+            className="w-full px-3 py-2 bg-white border border-primary-700/30 rounded-lg text-gray-900 focus:outline-none focus:border-primary-500"
+            id="scheduledTime"
+            disabled={selectedMatch.status === 'COMPLETED'}
+          />
+        </div>
+
+        <div className="flex gap-3 pt-4">
+          <Button
+            variant="secondary"
+            className="flex-1"
+            onClick={handleCloseModals}
+          >
+            Hủy
+          </Button>
+          <Button
+            variant="primary"
+            className="flex-1"
+            onClick={() => {
+              if (selectedMatch.status === 'COMPLETED') {
+                showError('Không thể gán lịch cho trận đấu đã kết thúc.');
+                return;
+              }
+              const scheduledTime = document.getElementById('scheduledTime').value;
+              if (!scheduledTime) {
+                showError('Vui lòng chọn thời gian');
+                return;
+              }
+              handleUpdateTime(selectedMatch.id, scheduledTime);
+            }}
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Cập nhật
+          </Button>
+        </div>
+      </div>
+    </Card>
+  </div>
+)}
+      {isUpdateScoreModalOpen && selectedMatch && (
+        <div className="fixed inset-0 bg-gray-900/70 flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-md">
             <div className="p-6 space-y-4">
-              <h2 className="text-xl font-bold text-white">
-                Cập nhật kết quả trận đấu
-              </h2>
-
-              <div className="space-y-3">
-                {/* Team A */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    {selectedMatch.TeamA?.team_name || 'Team A'}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    defaultValue={selectedMatch.score_a || 0}
-                    className="w-full px-3 py-2 bg-dark-300 border border-primary-700/30 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                    id="scoreA"
-                  />
-                </div>
-
-                {/* Team B */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    {selectedMatch.TeamB?.team_name || 'Team B'}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    defaultValue={selectedMatch.score_b || 0}
-                    className="w-full px-3 py-2 bg-dark-300 border border-primary-700/30 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                    id="scoreB"
-                  />
-                </div>
+              <h2 className="text-xl font-bold text-white">Chọn đội thắng</h2>
+              <div className="flex flex-col space-y-3">
+                <button className={`p-4 border rounded ${selectedWinnerId===selectedMatch.team_a_participant_id?'bg-green-200':''}`} onClick={()=>setSelectedWinnerId(selectedMatch.team_a_participant_id)}>
+                  {selectedMatch.team_a_name || 'Team A'}
+                </button>
+                <button className={`p-4 border rounded ${selectedWinnerId===selectedMatch.team_b_participant_id?'bg-green-200':''}`} onClick={()=>setSelectedWinnerId(selectedMatch.team_b_participant_id)}>
+                  {selectedMatch.team_b_name || 'Team B'}
+                </button>
               </div>
-
               <div className="flex gap-3 pt-4">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={handleCloseUpdateModal}
-                >
-                  Hủy
-                </Button>
-                <Button
-                  variant="primary"
-                  className="flex-1"
-                  onClick={() => {
-                    const scoreA = parseInt(document.getElementById('scoreA').value);
-                    const scoreB = parseInt(document.getElementById('scoreB').value);
-                    handleUpdateMatch(selectedMatch.id, scoreA, scoreB);
-                  }}
-                >
-                  Cập nhật
-                </Button>
+                <Button variant="secondary" className="flex-1" onClick={handleCloseModals}>Hủy</Button>
+                <Button variant="primary" className="flex-1" disabled={!selectedWinnerId} onClick={()=>{
+                  if(!selectedWinnerId) return;
+                  const scoreA = selectedWinnerId===selectedMatch.team_a_participant_id?2:1;
+                  const scoreB = selectedWinnerId===selectedMatch.team_b_participant_id?2:1;
+                  handleUpdateScore(selectedMatch.id, scoreA, scoreB);
+                }}>Xác nhận kết quả</Button>
               </div>
             </div>
           </Card>
         </div>
       )}
+
     </div>
   );
 };

@@ -35,7 +35,14 @@ api.interceptors.request.use(
 
 // Interceptor response: xử lý lỗi và trả data trực tiếp
 api.interceptors.response.use(
-  (response) => response.data, // trả thẳng phần data bên trong response
+  (response) => {
+    const data = response.data;
+    // If backend uses a { code } wrapper, treat non-zero code as an error and reject
+    if (data && typeof data.code !== 'undefined' && data.code !== 0) {
+      return Promise.reject(data);
+    }
+    return data;
+  },
 
   (error) => {
     if (error.response) {

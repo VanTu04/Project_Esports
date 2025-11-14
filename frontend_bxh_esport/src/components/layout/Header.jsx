@@ -19,23 +19,28 @@ const Header = ({ onMenuClick }) => {
 
   const dropdownRef = useRef(null);
 
+  // TODO: Implement notifications API endpoint
   // Lấy số lượng thông báo chưa đọc
   useEffect(() => {
     if (!user) return; // Chỉ fetch khi đã login
     
-    async function fetchUnreadCount() {
-      try {
-        const data = await apiClient.get('/notifications/unread-count');
-        setUnreadCount(data?.count || 0);
-      } catch (error) {
-        console.error('Lỗi lấy số thông báo:', error);
-      }
-    }
-    fetchUnreadCount();
+    // Temporarily disabled - waiting for backend API implementation
+    // async function fetchUnreadCount() {
+    //   try {
+    //     const data = await apiClient.get('/notifications/unread-count');
+    //     setUnreadCount(data?.count || 0);
+    //   } catch (error) {
+    //     console.error('Lỗi lấy số thông báo:', error);
+    //   }
+    // }
+    // fetchUnreadCount();
 
-    // Polling mỗi 30 giây để cập nhật thông báo
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+    // // Polling mỗi 30 giây để cập nhật thông báo
+    // const interval = setInterval(fetchUnreadCount, 30000);
+    // return () => clearInterval(interval);
+    
+    // For now, just set to 0
+    setUnreadCount(0);
   }, [user]);
 
   // Lấy danh sách games
