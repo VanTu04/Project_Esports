@@ -2,7 +2,7 @@
 import { DataTypes } from 'sequelize';
 
 export default (sequelize) => {
-  const Users = sequelize.define('users', {
+  const Users = sequelize.define('Users', {
     id: {
       allowNull: false,
       autoIncrement: true,
