@@ -31,33 +31,16 @@ export default (sequelize) => {
         key: 'id'
       }
     },
-    game_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: 'games',
-        key: 'id'
-      }
-    },
-    season_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: 'seasons',
-        key: 'id'
-      }
-    },
-    start_date: {
+    start_time: {
       type: DataTypes.DATE,
-      allowNull: true
+      allowNull: true,
+      comment: 'Thời gian bắt đầu giải đấu'
     },
-    end_date: {
+
+    end_time: {
       type: DataTypes.DATE,
-      allowNull: true
-    },
-    description: {
-      type: DataTypes.TEXT,
-      allowNull: true
+      allowNull: true,
+      comment: 'Thời gian kết thúc giải đấu'
     },
     deleted: {
       type: DataTypes.INTEGER,
@@ -84,15 +67,9 @@ export default (sequelize) => {
       foreignKey: 'created_by', 
       as: 'admin' 
     });
-    // Một giải đấu thuộc về 1 Game
-    Tournament.belongsTo(models.Game, {
-      foreignKey: 'game_id',
-      as: 'Game'
-    });
-    // Một giải đấu thuộc về 1 Season
-    Tournament.belongsTo(models.Season, {
-      foreignKey: 'season_id',
-      as: 'Season'
+    Tournament.hasMany(models.TournamentReward, {
+      foreignKey: 'tournament_id',
+      as: 'rewards'
     });
   };
 

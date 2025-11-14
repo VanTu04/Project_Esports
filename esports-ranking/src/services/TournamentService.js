@@ -42,7 +42,7 @@ export const findById = async (id) => {
     where: {
       tournament_id: id
     },
-    attributes: ['id', 'user_id', 'team_name', 'total_points', 'wallet_address', 'has_received_bye', 'status']
+    attributes: ['id', 'user_id', 'team_name', 'total_points', 'wallet_address', 'has_received_bye', 'status', 'createdAt', 'updatedAt']
   });
 
   const result = tournament.get({ plain: true });
@@ -56,52 +56,34 @@ export const findById = async (id) => {
  */
 export const findAll = async (status) => {
   const whereCondition = {};
-  if (status) whereCondition.status = status;
-
-  let tournaments;
-  
-  try {
-    tournaments = await models.Tournament.findAll({
-      where: whereCondition,
-      order: [['createdAt', 'DESC']],
-      attributes: ['id', 'name', 'description', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'game_id', 'season_id', 'created_by', 'createdAt', 'updatedAt'],
-      include: [
-        {
-          model: models.Game,
-          as: 'Game',
-          attributes: ['id', 'game_name'],
-          required: false
-        },
-        {
-          model: models.Season,
-          as: 'Season',
-          attributes: ['id', 'name'],
-          required: false
-        }
-      ]
-    });
-
-    // Map data để frontend dễ sử dụng
-    return tournaments.map(t => {
-      const tData = t.get({ plain: true });
-      return {
-        ...tData,
-        game_name: tData.Game?.game_name || null,
-        season_name: tData.Season?.name || null
-      };
-    });
-  } catch (error) {
-    console.error('❌ Error loading tournaments with includes:', error.message);
-    
-    // Fallback: Load without includes if associations fail
-    tournaments = await models.Tournament.findAll({
-      where: whereCondition,
-      order: [['createdAt', 'DESC']],
-      attributes: ['id', 'name', 'description', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'game_id', 'season_id', 'created_by', 'createdAt', 'updatedAt']
-    });
-
-    return tournaments.map(t => t.get({ plain: true }));
+  if (status !== undefined && status !== null && status !== '') {
+    whereCondition.status = status;
   }
+
+  const tournaments = await models.Tournament.findAll({
+    where: whereCondition,
+    order: [['createdAt', 'DESC']],
+    attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_time', 'end_time'],
+    include: [
+      {
+        model: models.TournamentReward,
+        as: 'rewards',
+        attributes: ['id', 'rank', 'reward_amount'],
+        required: false // nếu giải đấu chưa có reward vẫn trả về
+      }
+    ]
+  });
+
+  return tournaments;
+};
+
+export const getUserByWallet = async (walletAddress) => {
+  return await models.User.findOne({
+    where: {
+      wallet_address: walletAddress
+    },
+    attributes: ['id', 'username', 'email', 'wallet_address']
+  });
 };
 
 /**

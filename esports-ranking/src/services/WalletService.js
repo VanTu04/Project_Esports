@@ -2,6 +2,8 @@ import fs from "fs";
 import path from "path";
 import { ethers } from "ethers";
 import dotenv from "dotenv";
+import { leaderboardContract } from "../init/blockchain.js";
+import models from "../models/index.js";
 dotenv.config();
 const walletsFile = path.resolve("src/data/wallets.json");
 const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
@@ -117,4 +119,76 @@ export const getWalletTransactions = async (
 
   // Sắp xếp giảm dần theo block mới nhất
   return transactions.reverse();
+}
+
+/**
+ * Lấy leaderboard JSON từ contract
+ */
+export const getLeaderboardFromChain = async (tournamentId, roundNumber) => {
+  const jsonData = await leaderboardContract.getLeaderboardJSON(tournamentId, roundNumber);
+  return JSON.parse(jsonData);
+};
+
+/**
+ * Gửi ETH từ contract cho user
+ */
+export const distributeRewardOnChain = async (to, amountEth) => {
+  if (!ethers.isAddress(to)) throw new Error("Địa chỉ nhận không hợp lệ");
+
+  // Check balance contract
+  const contractBalance = await provider.getBalance(leaderboardContract.address);
+  if (parseFloat(ethers.formatEther(contractBalance)) < amountEth) {
+    throw new Error("Contract không đủ ETH để phân phối");
+  }
+
+  const tx = await leaderboardContract.connect(signer).distribute(
+    to,
+    ethers.parseEther(amountEth.toString())
+  );
+
+  const receipt = await tx.wait();
+  return {
+    to,
+    amount: amountEth,
+    txHash: tx.hash,
+    blockNumber: receipt.blockNumber,
+  };
+};
+
+export const distributeTournamentRewards = async (tournamentId) => {
+  // 1️⃣ Lấy reward tiers từ DB
+  const rewards = await models.TournamentReward.findAll({
+    where: { tournament_id: tournamentId },
+    order: [["rank", "ASC"]],
+    raw: true,
+  });
+
+  if (!rewards || rewards.length === 0) throw new Error("Không có reward tiers để chia");
+
+  // 2️⃣ Lấy leaderboard từ blockchain
+  const leaderboard = await getLeaderboardFromChain(tournamentId, 999); // round cuối
+  if (!leaderboard || leaderboard.length === 0) throw new Error("Leaderboard trống");
+
+  const results = [];
+
+  // 3️⃣ Lặp qua reward tiers → match với leaderboard
+  for (const reward of rewards) {
+    const player = leaderboard[reward.rank - 1]; // top 1 = index 0
+    if (!player || !player.wallet) continue;
+
+    // 4️⃣ Gửi ETH
+    const tx = await distributeRewardOnChain(player.wallet, reward.reward_amount);
+
+    results.push({
+      rank: reward.rank,
+      userId: player.userId,
+      username: player.username,
+      wallet: player.wallet,
+      reward_amount: reward.reward_amount,
+      txHash: tx.txHash,
+      blockNumber: tx.blockNumber,
+    });
+  }
+
+  return results;
 };
