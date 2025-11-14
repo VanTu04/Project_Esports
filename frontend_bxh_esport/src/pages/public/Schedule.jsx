@@ -9,9 +9,11 @@ const Schedule = () => {
   const [selectedTournamentId, setSelectedTournamentId] = useState(null);
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingTournaments, setLoadingTournaments] = useState(true);
 
   useEffect(() => {
     const load = async () => {
+      setLoadingTournaments(true);
       try {
         const resp = await tournamentService.getAllTournaments();
         const data = resp?.data?.data ?? resp?.data ?? [];
@@ -27,6 +29,8 @@ const Schedule = () => {
       } catch (err) {
         console.error('Failed to load tournaments for schedule', err);
         setTournaments([]);
+      } finally {
+        setLoadingTournaments(false);
       }
     };
     load();
@@ -63,42 +67,32 @@ const Schedule = () => {
 
 <aside className="w-1/4 border-r border-gray-800 p-6 bg-gradient-to-br from-[#031014] via-[#071018] to-[#081216]">
   <h2 className="text-lg font-semibold mb-4 text-cyan-400">Danh sách giải đấu</h2>
-  {tournaments.length === 0 ? (
+  {loadingTournaments ? (
+    <div className="text-center py-8 text-gray-400">Đang tải...</div>
+  ) : tournaments.length === 0 ? (
     <div className="text-center py-8 text-gray-400">Chưa có giải đấu</div>
   ) : (
     <div className="space-y-3">
       {tournaments
-        .filter(t => {
-          const status = (t.status || '').toUpperCase();
-          return status === 'ONGOING' || status === 'ACTIVE' || status === 'PENDING' || status === 'UPCOMING' || status === 'REGISTRATION';
-        })
-        .map(t => {
+        .filter(t => t.status === 'COMPLETED') // chỉ lấy giải đã kết thúc
+        .map((t) => {
           const isSelected = selectedTournamentId === t.id;
-          const status = (t.status || '').toUpperCase();
-          const isOngoing = status === 'ONGOING' || status === 'ACTIVE';
-          const isRegistration = status === 'PENDING' || status === 'UPCOMING' || status === 'REGISTRATION';
-
-          const handleClick = () => {
-            setSelectedTournamentId(t.id);
-            if (isRegistration) {
-              alert('Giải đấu đang trong thời gian đăng ký');
-            }
-          };
+          const tournamentNameClass = 'text-gray-200';
 
           return (
             <div
               key={t.id}
-              onClick={handleClick}
-              className={`p-3 rounded-lg cursor-pointer border ${isSelected ? 'border-cyan-500 bg-[#041517]' : 'border-transparent hover:border-neutral-700/40'}`}
+              onClick={() => setSelectedTournamentId(t.id)}
+              className={`p-3 rounded-lg cursor-pointer border ${isSelected ? 'border-cyan-500 bg-[#041f3c]' : 'border-transparent hover:border-neutral-700/40'}`}
             >
+              <div className={`text-md font-semibold truncate ${tournamentNameClass}`}>
+                {t.name}
+              </div>
               <div className="text-sm text-gray-300">
                 {t.startDate ? new Date(t.startDate).toLocaleDateString('vi-VN') : 'Chưa có lịch'} 
                 {t.endDate && ` - ${new Date(t.endDate).toLocaleDateString('vi-VN')}`}
               </div>
-              <div className={`text-md font-semibold truncate text-white`}>{t.name}</div>
-              <div className={`text-xs mt-1 px-2 py-0.5 rounded-full inline-block ${isOngoing ? 'bg-green-500 text-white' : 'bg-yellow-500 text-black'}`}>
-                Đang diễn ra
-              </div>
+              
             </div>
           );
         })}
