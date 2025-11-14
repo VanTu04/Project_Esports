@@ -687,7 +687,7 @@ export const startNextRound = async (req, res) => {
 
       await models.Participant.increment(
         { total_points: 2 },
-        { where: { id: byeTeam.id }, transaction: t }
+        { where: { id: byeTeam.id } }
       );
 
       // Gắn flag đã nhận BYE để Swiss không lặp lại
@@ -799,10 +799,30 @@ export const getFinalLeaderboard = async (req, res) => {
     }
     console.log("test", tournamentId);
 
-    // ✅ gọi service với tournamentId và roundNumber đặc biệt
-    // const leaderboard = await getLeaderboardFromChain(Number(tournamentId), 999);
-    const leaderboard = await getLeaderboardFromChain(3, 999);
-    console.log("leaderboard", leaderboard);
+    // Lấy BXH cuối từ blockchain
+    const rawLeaderboard = await getLeaderboardFromChain(
+      Number(tournamentId),
+      999
+    );
+
+    console.log("Blockchain leaderboard:", rawLeaderboard);
+
+    // Map thêm thông tin user
+    const leaderboard = await Promise.all(
+      rawLeaderboard.map(async (entry) => {
+        const user = await tournamentService.getUserByWallet(entry.wallet);
+
+        return {
+          wallet: entry.wallet,
+          score: entry.score,
+
+          userId: user ? user.id : null,
+          username: user ? user.username : null,
+          fullname: user ? user.full_name : null,
+          avatar: user ? user.avatar : null, // nếu có
+        };
+      })
+    );
     return res.status(200).json({
       code: 0,
       status: 200,
