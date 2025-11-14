@@ -34,12 +34,6 @@ export const AdminDashboard = () => {
           value={stats.totalTournaments}
           color="yellow"
         />
-        <StatCard
-          icon={WalletIcon}
-          label="Tổng phần thưởng"
-          value={`${stats.totalRewards} ETH`}
-          color="purple"
-        />
       </div>
 
       {/* Recent Activities */}

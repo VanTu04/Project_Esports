@@ -118,9 +118,11 @@ export const TournamentManagement = () => {
       if (filters.status) params.status = filters.status;
       if (filters.search) params.search = filters.search;
       
-      // Call real API
-      const response = await tournamentService.getAllTournaments(params);
-      const tournamentsData = response?.data || [];
+  // Call real API
+  const response = await tournamentService.getAllTournaments(params);
+  console.debug('GET /tournaments response:', response);
+  const tournamentsData = response?.data || [];
+  console.debug('tournamentsData (first 5):', tournamentsData.slice(0,5).map(t => ({ id: t.id, start_date: t.start_date, end_date: t.end_date, start_time: t.start_time, end_time: t.end_time })));
       
       // Load participants count for each tournament
       const mappedTournaments = await Promise.all(tournamentsData.map(async (tournament) => {

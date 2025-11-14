@@ -10,7 +10,7 @@ import { Op } from 'sequelize';
 // 1. Tạo một giải đấu mới
 export const createTournamentWithRewards = async (req, res) => {
   try {
-    const { name, total_rounds, rewards } = req.body;
+    const { name, total_rounds, rewards, start_date, end_date } = req.body;
     // rewards = [{ rank: 1, reward_amount: 50 }, { rank: 2, reward_amount: 30 }, ...]
     
     if (!name || !total_rounds) {
@@ -23,17 +23,20 @@ export const createTournamentWithRewards = async (req, res) => {
     }
 
     const result = await models.sequelize.transaction(async (t) => {
-    const tournament = await tournamentService.create({ name, total_rounds }, { transaction: t });
+      const tournament = await tournamentService.create({ name, total_rounds, start_date, end_date }, { transaction: t });
 
-    if (Array.isArray(rewards) && rewards.length > 0) {
-      const rewardsData = rewards.map(r => ({
-        tournament_id: tournament.id,
-        rank: r.rank,
-        reward_amount: Number(r.reward_amount)
-      }));
-      await models.TournamentReward.bulkCreate(rewardsData, { transaction: t });
-    }
-  });
+      if (Array.isArray(rewards) && rewards.length > 0) {
+        const rewardsData = rewards.map(r => ({
+          tournament_id: tournament.id,
+          rank: r.rank,
+          reward_amount: Number(r.reward_amount)
+        }));
+        await models.TournamentReward.bulkCreate(rewardsData, { transaction: t });
+      }
+
+      // Return the created tournament so the outer call receives data
+      return tournament;
+    });
 
     return res.json(responseSuccess(result, 'Tạo giải đấu và reward thành công'));
   } catch (error) {

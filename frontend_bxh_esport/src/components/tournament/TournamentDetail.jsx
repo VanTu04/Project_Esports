@@ -337,105 +337,65 @@ export const TournamentDetail = () => {
         {activeTab === 'matches' && (
           <div className="space-y-6">
             <div className="flex justify-end mb-4">
-          <Button
-            variant="primary"
-            onClick={async () => {
-              if (!tournamentId) return;
-              // If tournament is completed, show the "Ghi BXH lên blockchain" action
-              if ((tournament?.status || '').toUpperCase() === 'COMPLETED') {
-                // Prevent double submissions
-                if (isRecording || isRecorded) return;
-                setIsRecording(true);
-                try {
-                  const resp = await tournamentService.recordRanking(tournamentId);
-                  setIsRecorded(true);
-                  showSuccess(resp?.message || 'Ghi BXH thành công.');
-                  // Try to refresh the final leaderboard in the leaderboard tab
-                  try {
-                    const lb = await tournamentService.getFinalLeaderboard(tournamentId);
-                    const data = lb?.data?.data?.leaderboard ?? lb?.data?.leaderboard ?? lb?.data ?? lb;
-                    setLeaderboard(Array.isArray(data) ? data : (data?.leaderboard ?? []));
-                    setActiveTab('leaderboard');
-                  } catch (e) {
-                    // ignore leaderboard load errors
-                  }
-                } catch (err) {
-                  const serverMsg = err?.response?.data?.message || err?.message || '';
-                  const lower = (serverMsg || '').toString().toLowerCase();
-                  const isAbiError = lower.includes('updateleaderboard') || lower.includes('not a function') || lower.includes('does not expose') || lower.includes('no leaderboard found');
-                  if (isAbiError) {
-                    // Try to fetch internal leaderboard so admin can still view standings
-                    try {
-                      const lb = await tournamentService.getFinalLeaderboard(tournamentId);
-                      const data = lb?.data?.data?.leaderboard ?? lb?.data?.leaderboard ?? lb?.data ?? lb;
-                      setLeaderboard(Array.isArray(data) ? data : (data?.leaderboard ?? []));
-                      setActiveTab('leaderboard');
-                      showError('Ghi BXH lên blockchain thất bại do khác biệt ABI/contract. Hiện bảng xếp hạng nội bộ.');
-                    } catch (innerErr) {
-                      showError('Ghi BXH lên blockchain thất bại và không thể tải bảng xếp hạng nội bộ.');
-                    }
-                  } else {
-                    showError(serverMsg || 'Không thể ghi BXH');
-                  }
-                } finally {
-                  setIsRecording(false);
-                }
-                return;
-              }
+    <Button
+  variant="primary"
+  onClick={async () => {
+    if (!tournamentId) return;
 
-              // Not completed: keep existing create-next-round logic
-              setLoading(true);
-              try {
-                // Frontend-only pre-check: kiểm tra xem vòng hiện tại có PENDING matches không
-                const currentRound = tournament?.current_round || 0;
-                let checkMatches = [];
-                try {
-                  const matchesRes = await tournamentService.getTournamentMatches(tournamentId, { round_number: currentRound });
-                  if (Array.isArray(matchesRes)) checkMatches = matchesRes;
-                  else if (matchesRes?.data && Array.isArray(matchesRes.data)) checkMatches = matchesRes.data;
-                  else if (matchesRes?.matches && Array.isArray(matchesRes.matches)) checkMatches = matchesRes.matches;
-                  else checkMatches = [];
-                } catch (e) {
-                  // Nếu request kiểm tra thất bại, cho phép tiếp tục và để backend trả lỗi (không sửa backend theo yêu cầu)
-                  console.warn('Pre-check matches failed, will attempt to create next round anyway', e);
-                  checkMatches = [];
-                }
+    // Chỉ cho phép ghi BXH khi giải đấu đã hoàn thành
+    if ((tournament?.status || '').toUpperCase() !== 'COMPLETED') {
+      showError('Chỉ có thể ghi BXH khi giải đấu đã kết thúc.');
+      return;
+    }
 
-                const pending = checkMatches.filter(m => (m.status || '').toUpperCase() === 'PENDING');
-                if (pending.length > 0) {
-                  showError(`Còn ${pending.length} trận chưa hoàn thành (vòng ${currentRound}). Vui lòng hoàn thành trước khi tạo vòng mới.`);
-                  setLoading(false);
-                  return;
-                }
+    // Ngăn chặn double click
+    if (isRecording || isRecorded) return;
 
-                const response = await tournamentService.startNextRound(tournamentId);
+    setIsRecording(true);
+    try {
+      // Gọi backend để ghi BXH
+      const resp = await tournamentService.recordRanking(tournamentId);
 
-                // Reload data first; if reload fails we show error instead of success
-                try {
-                  await loadData();
-                } catch (reloadErr) {
-                  const reloadMsg = reloadErr?.response?.data?.message || reloadErr?.message || 'Không thể tải lại dữ liệu sau khi tạo vòng';
-                  showError(reloadMsg);
-                  return;
-                }
+      if (resp?.code !== 0) {
+        showError(resp.message || 'Không thể ghi BXH');
+        setIsRecording(false);
+        return;
+      }
 
-                const nextRound = (tournament?.current_round || 0) + 1;
-                    showSuccess(
-                    response?.message ||
-                    `✅ Vòng ${nextRound} đã được tạo với ${response?.data?.matches_created || 0} trận đấu!`
-                    );
+      setIsRecorded(true);
+      showSuccess(resp.message || 'Ghi BXH thành công.');
 
-              } catch (err) {
-                const errorMsg = err?.response?.data?.message || err?.message || 'Không thể tạo vòng mới';
-                showError(errorMsg);
-              } finally {
-                setLoading(false);
-              }
-            }}
-            disabled={loading || isRecording || isRecorded}
-          >
-            {( (tournament?.status || '').toUpperCase() === 'COMPLETED') ? (isRecording ? 'Đang ghi BXH...' : (isRecorded ? 'Đã ghi BXH' : 'Ghi BXH lên blockchain')) : (loading ? 'Đang tạo vòng...' : 'Tạo vòng tiếp theo')}
-          </Button>
+      // Load lại BXH để hiển thị
+      try {
+        const lbResp = await tournamentService.getFinalLeaderboard(tournamentId);
+        const data =
+          lbResp?.data?.data?.leaderboard ??
+          lbResp?.data?.leaderboard ??
+          lbResp?.data ??
+          lbResp;
+        setLeaderboard(Array.isArray(data) ? data : data?.leaderboard ?? []);
+        setActiveTab('leaderboard');
+      } catch (err) {
+        console.error('Không thể tải bảng xếp hạng', err);
+        showError('Ghi BXH thành công nhưng không thể tải bảng xếp hạng.');
+      }
+    } catch (err) {
+      const serverMsg = err?.response?.data?.message || err?.message || 'Không thể ghi BXH';
+      showError(serverMsg);
+    } finally {
+      setIsRecording(false);
+    }
+  }}
+  disabled={loading || isRecording || isRecorded}
+>
+  {isRecording
+    ? 'Đang ghi BXH...'
+    : isRecorded
+    ? 'Đã ghi BXH'
+    : 'Ghi BXH'}
+</Button>
+
+
         </div>
             {Object.keys(groupedMatches).length === 0 ? (
               <Card padding="lg" className="text-center text-gray-300">Chưa có trận đấu</Card>

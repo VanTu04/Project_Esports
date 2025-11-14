@@ -87,18 +87,28 @@ export const TournamentTable = ({
 
               {/*THỜI GIAN */}
               <td className="px-6 py-4 text-sm text-gray-400">
-                {tournament.start_date && tournament.end_date ? (
-                  <div>
-                    <div className="text-white">
-                      {new Date(tournament.start_date).toLocaleDateString('vi-VN')}
-                    </div>
-                    <div className="text-xs">
-                      đến {new Date(tournament.end_date).toLocaleDateString('vi-VN')}
-                    </div>
-                  </div>
-                ) : (
-                  <span className="italic text-gray-500">Chưa xác định</span>
-                )}
+                {
+                  (() => {
+                    // Prefer explicit start_date/end_date, fall back to start_time/end_time from backend
+                    const start = tournament.start_date || tournament.start_time || null;
+                    const end = tournament.end_date || tournament.end_time || null;
+
+                    if (start && end) {
+                      try {
+                        return (
+                          <div>
+                            <div className="text-white">{new Date(start).toLocaleDateString('vi-VN')}</div>
+                            <div className="text-xs">đến {new Date(end).toLocaleDateString('vi-VN')}</div>
+                          </div>
+                        );
+                      } catch (e) {
+                        return <span className="italic text-gray-500">Định dạng thời gian không hợp lệ</span>;
+                      }
+                    }
+
+                    return <span className="italic text-gray-500">Chưa xác định</span>;
+                  })()
+                }
               </td>
 
               {/* Số vòng */}

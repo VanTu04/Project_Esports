@@ -4,7 +4,7 @@ import { Op } from 'sequelize';
 /**
  * Tạo record giải đấu mới
  */
-export const create = async (data) => {
+export const create = async (data, options = {}) => {
   const newTournament = await models.Tournament.create({
     name: data.name,
     total_rounds: data.total_rounds,
@@ -16,7 +16,7 @@ export const create = async (data) => {
     description: data.description || null,
     status: 'PENDING',
     current_round: 0
-  });
+  }, options);
   return newTournament;
 };
 
@@ -63,7 +63,7 @@ export const findAll = async (status) => {
   const tournaments = await models.Tournament.findAll({
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-    attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_time', 'end_time'],
+  attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'start_time', 'end_time'],
     include: [
       {
         model: models.TournamentReward,
@@ -73,6 +73,15 @@ export const findAll = async (status) => {
       }
     ]
   });
+
+  try {
+    // Log a compact sample to help debug missing date fields (removed in production later)
+    const sample = tournaments.slice(0, 5).map(t => (t && typeof t.get === 'function') ? t.get({ plain: true }) : t);
+    console.log('[TournamentService.findAll] sample tournaments (id, start_date, end_date, start_time, end_time):',
+      sample.map(s => ({ id: s.id, start_date: s.start_date, end_date: s.end_date, start_time: s.start_time, end_time: s.end_time })));
+  } catch (e) {
+    console.warn('Could not log tournaments sample', e);
+  }
 
   return tournaments;
 };
