@@ -48,7 +48,6 @@ const EditUserModal = ({ isOpen, onClose }) => {
     }
   };
 
-
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="w-[420px] bg-[#18191c] text-white p-6 rounded-xl border border-gray-700 shadow-xl">

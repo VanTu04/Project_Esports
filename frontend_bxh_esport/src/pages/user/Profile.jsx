@@ -9,6 +9,9 @@ export const UserProfile = () => {
   const [uploading, setUploading] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
 
+  // ❗ ĐƯA BASE_URL RA NGOÀI JSX
+  const BASE_URL = import.meta.env.VITE_API_URL;
+
   const handleAvatarChange = async (e) => {
     if (!e.target.files[0]) return;
     const formData = new FormData();
@@ -31,7 +34,7 @@ export const UserProfile = () => {
   return (
     <div className="space-y-8 text-white">
 
-      {/* ===== TITLE + EDIT BUTTON ===== */}
+      {/* TITLE + BUTTON */}
       <div className="flex items-center justify-between">
         <h1 className="text-4xl font-bold">Hồ sơ của tôi</h1>
 
@@ -45,13 +48,13 @@ export const UserProfile = () => {
         </button>
       </div>
 
-      {/* ===== PROFILE CARD ===== */}
+      {/* PROFILE CARD */}
       <div className="bg-[#1d1f23] p-6 rounded-xl shadow-lg border border-gray-800 flex gap-8 items-center">
 
-        {/* Avatar */}
+        {/* AVATAR */}
         <div className="relative w-32 h-32">
           <img
-            src={user?.avatar || "/default-avatar.png"}
+            src={user?.avatar ? `${BASE_URL}${user.avatar}` : "/default-avatar.png"}
             className="w-32 h-32 rounded-full object-cover border-4 border-gray-700"
           />
 

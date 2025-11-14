@@ -97,9 +97,9 @@ const userService = {
     }
   },
 
-  updateProfile(data) {
-    return apiClient.put("/users/profile/update", data);
-  }
+  updateProfile: async (data) => {
+    return await apiClient.put("/users/update-profile", data);
+  },
 
 };
 

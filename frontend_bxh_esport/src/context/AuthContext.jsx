@@ -157,9 +157,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ==================== UPDATE USER ==================== //
-  const updateUser = (updatedUser) => {
-    setUser(updatedUser);
-    storage.setItem(STORAGE_KEYS.USER_DATA, updatedUser);
+  const updateUser = (newData) => {
+    const updated = { ...user, ...newData };
+    setUser(updated);
+
+    // cập nhật vào localStorage để dùng lại khi reload
+    localStorage.setItem("user", JSON.stringify(updated));
   };
 
   const value = {

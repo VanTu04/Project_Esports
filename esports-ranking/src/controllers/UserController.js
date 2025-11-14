@@ -209,9 +209,12 @@ export const uploadAvatar = async (req, res) => {
       avatar: filePath,
     });
 
-    return res.json(
-      responseSuccess({ avatar: filePath }, "Upload avatar thành công")
-    );
+    return res.json({
+      message: "Upload avatar thành công",
+      data: {
+        avatar: `/uploads/avatars/${req.file.filename}`
+      }
+    });
   } catch (err) {
     console.error(err);
     return res.json(

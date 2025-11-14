@@ -7,6 +7,7 @@ import rankingBoardRouter from './rankingBoard.route.js';
 import tournamentRouter from './tournament.routes.js';
 import walletRouter from './wallet.route.js';
 import matchRouter from './match.route.js';
+import blockchainRoutes from "./blockchain.route.js";
 
 const router = express.Router();
 
@@ -19,5 +20,6 @@ router.use('/ranking-board', rankingBoardRouter);
 router.use('/tournaments', tournamentRouter);
 router.use('/wallet', walletRouter);
 router.use('/matches', matchRouter);
+router.use("/blockchain", blockchainRoutes);
 
 export default router;

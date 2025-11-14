@@ -43,4 +43,11 @@ router.post(
 
 router.put('/profile/update', checkAccessToken, usersController.updateProfileUser);
 
+router.post(
+  "/upload-avatar",
+  checkAccessToken,
+  upload.single("avatar"),
+  usersController.uploadAvatar
+);
+
 export default router;
