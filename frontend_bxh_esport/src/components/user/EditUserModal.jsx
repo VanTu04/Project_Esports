@@ -38,7 +38,7 @@ const EditUserModal = ({ isOpen, onClose }) => {
 
       if (res?.data?.success) {
         // Cập nhật user vào AuthContext
-        updateUser(res.data.data);
+        updateUser({ ...user, ...formData });
 
         // Đóng modal
         onClose();

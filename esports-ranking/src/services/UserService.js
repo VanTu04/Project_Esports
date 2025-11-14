@@ -310,41 +310,28 @@ export const getAllUsers = async (params = {}) => {
 };
 
 // Update user (Admin only)
-export const updateUser = async (userId, data, adminId) => {
+export const updateUser = async (id, data) => {
   try {
-    const user = await models.User.findOne({
-      where: { id: userId, deleted: 0 }
-    });
-
+    const user = await models.User.findByPk(id);
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
 
-    const updateData = {
-      updated_date: new Date(),
-      updated_by: adminId
+    await user.update(data);
+
+    return {
+      id: user.id,
+      username: user.username,
+      full_name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      gender: user.gender,
+      avatar: user.avatar,
+      role: user.role,
+      wallet_address: user.wallet_address
     };
-
-    // Only update allowed fields
-    if (data.full_name !== undefined) updateData.full_name = data.full_name;
-    if (data.email !== undefined) updateData.email = data.email;
-    if (data.role !== undefined) updateData.role = data.role;
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.gender !== undefined) updateData.gender = data.gender;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-
-    // If password is being changed, hash it
-    if (data.password) {
-      updateData.password = await bcrypt.hash(data.password, 10);
-    }
-
-    await models.User.update(updateData, {
-      where: { id: userId }
-    });
-
-    return { success: true };
   } catch (error) {
-    console.error('updateUser error:', error);
+    console.error("updateUser error:", error);
     throw error;
   }
 };

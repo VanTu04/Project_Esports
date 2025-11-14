@@ -227,7 +227,7 @@ export const updateProfileUser = async (req, res) => {
   try {
     const userId = req.user.id; // Lấy từ token
 
-    const { full_name, username, email, phone, gender } = req.body;
+    const { full_name, username, email, phone, gender, avatar } = req.body;
 
     const updateData = {
       full_name,
@@ -235,6 +235,7 @@ export const updateProfileUser = async (req, res) => {
       email,
       phone,
       gender,
+      avatar,
       updated_by: userId,
       updated_date: new Date()
     };

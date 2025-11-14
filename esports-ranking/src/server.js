@@ -38,8 +38,6 @@ app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use("/uploads", express.static("uploads"));
-
 // --- Session middleware ---
 app.use(
   session({

@@ -103,6 +103,11 @@ export const AuthProvider = ({ children }) => {
           username: decodedToken.username,
           email: decodedToken.email,
           role: decodedToken.role,
+          avatar: decodedToken.avatar,
+          wallet_address: decodedToken.wallet_address,
+          phone: decodedToken.phone,
+          gender: decodedToken.gender,
+          created_at: decodedToken.created_at,
           full_name: decodedToken.full_name,
         };
         
@@ -162,7 +167,7 @@ export const AuthProvider = ({ children }) => {
     setUser(updated);
 
     // cập nhật vào localStorage để dùng lại khi reload
-    localStorage.setItem("user", JSON.stringify(updated));
+    storage.setItem(STORAGE_KEYS.USER_DATA, updated);
   };
 
   const value = {
