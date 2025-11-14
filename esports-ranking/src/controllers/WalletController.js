@@ -1,5 +1,6 @@
-import { getWalletBalance, getWalletTransactions, distributeTournamentRewards } from "../services/WalletService.js";
+import { getWalletBalance, getWalletTransactions, distributeTournamentRewards, distributeRewardsTournament } from "../services/WalletService.js";
 import models from "../models/index.js"; // Sequelize models
+import { getLeaderboardFromChain } from "../services/BlockchainService.js";
 
 /**
  * API: Lấy số dư ví (ETH) của user đăng nhập
@@ -68,17 +69,14 @@ export const getTransactionsController = async (req, res) => {
  */
 export const distributeRewardsController = async (req, res) => {
   try {
-    const { tournamentId } = req.params;
-    if (!tournamentId) throw new Error("Thiếu tournamentId");
+    const { idTournament } = req.body;
+    if (!idTournament) return res.status(400).json({ success: false, message: "Missing idTournament" });
 
-    const results = await distributeTournamentRewards(tournamentId);
-    return res.status(200).json({
-      success: true,
-      message: "Đã phân phối giải thưởng",
-      count: results.length,
-      data: results,
-    });
-  } catch (error) {
-    return res.status(400).json({ success: false, message: error.message });
+    const results = await distributeRewardsTournament(idTournament);
+
+    res.json({ success: true, results });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };
