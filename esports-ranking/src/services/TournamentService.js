@@ -38,7 +38,7 @@ export const findById = async (id) => {
     where: {
       tournament_id: id
     },
-    attributes: ['id', 'user_id', 'team_name', 'total_points', 'wallet_address', 'has_received_bye', 'status']
+    attributes: ['id', 'user_id', 'team_name', 'total_points', 'wallet_address', 'has_received_bye', 'status', 'createdAt', 'updatedAt']
   });
 
   const result = tournament.get({ plain: true });
@@ -59,8 +59,17 @@ export const findAll = async (status) => {
   const tournaments = await models.Tournament.findAll({
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-    attributes: ['id', 'name', 'status', 'total_rounds', 'current_round']
+    attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_time', 'end_time'],
+    include: [
+      {
+        model: models.TournamentReward,
+        as: 'rewards',
+        attributes: ['id', 'rank', 'reward_amount'],
+        required: false // nếu giải đấu chưa có reward vẫn trả về
+      }
+    ]
   });
+
   return tournaments;
 };
 

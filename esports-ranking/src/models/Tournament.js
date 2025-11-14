@@ -31,6 +31,17 @@ export default (sequelize) => {
         key: 'id'
       }
     },
+    start_time: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Thời gian bắt đầu giải đấu'
+    },
+
+    end_time: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Thời gian kết thúc giải đấu'
+    },
     deleted: {
       type: DataTypes.INTEGER,
       defaultValue: 0
@@ -55,6 +66,10 @@ export default (sequelize) => {
     Tournament.belongsTo(models.User, { 
       foreignKey: 'created_by', 
       as: 'admin' 
+    });
+    Tournament.hasMany(models.TournamentReward, {
+      foreignKey: 'tournament_id',
+      as: 'rewards'
     });
   };
 

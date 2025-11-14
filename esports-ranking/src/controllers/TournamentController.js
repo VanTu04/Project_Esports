@@ -22,20 +22,20 @@ export const createTournamentWithRewards = async (req, res) => {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_EXIST, 'Giải đấu đã tồn tại.'));
     }
 
-    const tournament = await tournamentService.create({ name, total_rounds });
+    const result = await models.sequelize.transaction(async (t) => {
+    const tournament = await tournamentService.create({ name, total_rounds }, { transaction: t });
 
-    // Tạo reward tiers
     if (Array.isArray(rewards) && rewards.length > 0) {
-      for (const r of rewards) {
-        await models.TournamentReward.create({
-          tournament_id: tournament.id,
-          rank: r.rank,
-          reward_amount: r.reward_amount
-        });
-      }
+      const rewardsData = rewards.map(r => ({
+        tournament_id: tournament.id,
+        rank: r.rank,
+        reward_amount: Number(r.reward_amount)
+      }));
+      await models.TournamentReward.bulkCreate(rewardsData, { transaction: t });
     }
+  });
 
-    return res.json(responseSuccess(tournament, 'Tạo giải đấu và reward thành công'));
+    return res.json(responseSuccess(result, 'Tạo giải đấu và reward thành công'));
   } catch (error) {
     console.error('createTournamentWithRewards error', error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
