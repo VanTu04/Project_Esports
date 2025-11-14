@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import teamService from '../../services/teamService';
-import { LeaderboardTable } from '../../components/tournament/LeaderboardTable';
+import LeaderboardTable from '../../components/tournament/LeaderboardTable';
 
 export const Leaderboard = () => {
   const [rankings, setRankings] = useState([]);

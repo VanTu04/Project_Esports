@@ -9,6 +9,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
   const [form, setForm] = useState({
     name: '',
     total_rounds: 3,
+    expected_teams: '',
     start_date: '',
     end_date: '',
     description: '',
@@ -49,6 +50,14 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
       newErrors.total_rounds = 'Số vòng đấu không được quá 20';
     }
 
+    // Validate expected teams (optional)
+    if (form.expected_teams) {
+      const t = parseInt(form.expected_teams);
+      if (!t || t < 2) {
+        newErrors.expected_teams = 'Số đội phải là số nguyên >= 2';
+      }
+    }
+
     if (!form.start_date) {
       newErrors.start_date = 'Vui lòng chọn ngày bắt đầu';
     }
@@ -81,6 +90,17 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Compute Swiss-system recommended min/max participants for given rounds
+  // Assumptions:
+  // - To reliably determine a clear winner in Swiss, a conservative upper bound is 2^rounds.
+  // - A practical minimum is rounds + 1 (so teams can be paired across rounds without extreme repetition).
+  const computeSwissBounds = (rounds) => {
+    const r = Number(rounds) || 0;
+    const maxTeams = Math.pow(2, r);
+    const minTeams = Math.max(2, r + 1);
+    return { minTeams, maxTeams };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -97,6 +117,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
         total_rounds: parseInt(form.total_rounds),
         start_date: form.start_date,
         end_date: form.end_date,
+        expected_teams: form.expected_teams ? parseInt(form.expected_teams) : undefined,
         description: form.description.trim() || undefined,
       };
 
@@ -107,9 +128,10 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
         setForm({
           name: '',
           total_rounds: 3,
-          start_date: '',
-          end_date: '',
-          description: '',
+            expected_teams: '',
+            start_date: '',
+            end_date: '',
+            description: '',
         });
         setErrors({});
 
@@ -140,6 +162,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
     setForm({
       name: '',
       total_rounds: 3,
+      expected_teams: '',
       start_date: '',
       end_date: '',
       description: '',
@@ -187,6 +210,49 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
           />
           {errors.total_rounds && <p className="text-xs text-rose-400 mt-1">{errors.total_rounds}</p>}
           <p className="text-xs text-gray-400 mt-1">Số vòng đấu trong giải (1-20 vòng)</p>
+
+          {/* Swiss-system bounds info */}
+          <div className="mt-2 text-sm text-gray-300">
+            {(() => {
+              const { minTeams, maxTeams } = computeSwissBounds(form.total_rounds);
+              return (
+                <>
+                  <div>Gợi ý cho chế độ Thụy Sĩ: tối thiểu <strong>{minTeams}</strong> đội, tối đa khuyến nghị <strong>{maxTeams}</strong> đội (dựa trên {form.total_rounds} vòng).</div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* Expected / planned number of teams (optional) */}
+        <div>
+          <label className="block text-sm font-semibold text-white mb-2">
+            Số đội dự kiến (tuỳ chọn)
+          </label>
+          <input
+            name="expected_teams"
+            type="number"
+            min="1"
+            value={form.expected_teams}
+            onChange={handleChange}
+            className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${
+              errors.expected_teams ? 'border-rose-500' : 'border-primary-700/30'
+            }`}
+          />
+          {errors.expected_teams && <p className="text-xs text-rose-400 mt-1">{errors.expected_teams}</p>}
+          {/* Show notification inline if expected_teams is outside recommended bounds */}
+          {form.expected_teams && (() => {
+            const t = parseInt(form.expected_teams);
+            const { minTeams, maxTeams } = computeSwissBounds(form.total_rounds);
+            if (!t) return null;
+            if (t < minTeams) {
+              return <p className="text-xs text-amber-300 mt-1">Số đội {t} nhỏ hơn tối thiểu khuyến nghị {minTeams} cho {form.total_rounds} vòng. Bạn nên giảm số vòng hoặc thêm đội.</p>;
+            }
+            if (t > maxTeams) {
+              return <p className="text-xs text-amber-300 mt-1">Số đội {t} lớn hơn tối đa khuyến nghị {maxTeams} cho {form.total_rounds} vòng. Xem xét tăng số vòng để phân định thứ hạng tốt hơn.</p>;
+            }
+            return <p className="text-xs text-green-400 mt-1">Số đội {t} nằm trong khoảng khuyến nghị.</p>;
+          })()}
         </div>
 
         {/* Ngày bắt đầu và kết thúc */}

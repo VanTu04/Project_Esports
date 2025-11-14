@@ -25,6 +25,7 @@ export const TournamentDetail = () => {
   const [leaderboard, setLeaderboard] = useState(null);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [creatingRound, setCreatingRound] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -155,7 +156,19 @@ export const TournamentDetail = () => {
       if (response?.code === 0) {
         showSuccess(response?.message || 'Cập nhật kết quả thành công!');
         handleCloseModals();
-        loadData();
+        // Update matches locally without reloading all data
+        setMatches(prev => prev.map(m => {
+          if (m.id === matchId) {
+            return {
+              ...m,
+              winner_participant_id: winnerId,
+              score_a: scoreA,
+              score_b: scoreB,
+              status: 'COMPLETED'
+            };
+          }
+          return m;
+        }));
       } else {
         showError(response?.message || 'Không thể cập nhật kết quả');
       }
@@ -170,7 +183,8 @@ export const TournamentDetail = () => {
       if (response?.code === 0) {
         showSuccess('Cập nhật thời gian thành công!');
         handleCloseModals();
-        loadData();
+        // Update match time locally without reloading everything
+        setMatches(prev => prev.map(m => m.id === matchId ? { ...m, match_time: new Date(scheduledTime).toISOString() } : m));
       } else {
         showError(response?.message || 'Không thể cập nhật thời gian');
       }
@@ -181,10 +195,28 @@ export const TournamentDetail = () => {
 
   const handleStartNewRound = async () => {
     try {
-      const response = await tournamentService.startTournament(tournamentId);
+      const response = await tournamentService.startNextRound(tournamentId);
       if (response?.code === 0) {
-        showSuccess(response?.message || 'Tạo vòng mới thành công!');
-        loadData();
+        const nextRound = response?.data?.round_number;
+        showSuccess(response?.message || `Tạo vòng ${nextRound} thành công!`);
+
+        // Fetch matches for the newly created round and append to local state
+        try {
+          const matchesResp = await tournamentService.getTournamentMatches(tournamentId, { round_number: nextRound });
+          let newMatches = [];
+          if (Array.isArray(matchesResp)) newMatches = matchesResp;
+          else if (matchesResp?.data && Array.isArray(matchesResp.data)) newMatches = matchesResp.data;
+          else if (matchesResp?.matches && Array.isArray(matchesResp.matches)) newMatches = matchesResp.matches;
+
+          if (newMatches.length > 0) {
+            setMatches(prev => [...prev, ...newMatches]);
+          }
+
+          // Update tournament current_round locally
+          setTournament(prev => ({ ...prev, current_round: nextRound, status: 'ACTIVE' }));
+        } catch (err) {
+          console.warn('Could not fetch new round matches', err);
+        }
       } else {
         showError(response?.message || 'Không thể tạo vòng mới');
       }
@@ -213,6 +245,9 @@ export const TournamentDetail = () => {
   }
 
   const groupedMatches = groupMatchesByRound();
+  const currentRoundNumber = tournament?.current_round || 1;
+  const currentRoundMatches = groupedMatches[currentRoundNumber] || [];
+  const roundFinished = currentRoundMatches.length > 0 && currentRoundMatches.every(m => m.status === 'COMPLETED');
 
   return (
     <div className="min-h-screen bg-dark-400 p-6">
@@ -336,70 +371,10 @@ export const TournamentDetail = () => {
         {/* Tab Content - Matches */}
         {activeTab === 'matches' && (
           <div className="space-y-6">
-            <div className="flex justify-end mb-4">
-    <Button
-  variant="primary"
-  onClick={async () => {
-    if (!tournamentId) return;
-
-    // Chỉ cho phép ghi BXH khi giải đấu đã hoàn thành
-    if ((tournament?.status || '').toUpperCase() !== 'COMPLETED') {
-      showError('Chỉ có thể ghi BXH khi giải đấu đã kết thúc.');
-      return;
-    }
-
-    // Ngăn chặn double click
-    if (isRecording || isRecorded) return;
-
-    setIsRecording(true);
-    try {
-      // Gọi backend để ghi BXH
-      const resp = await tournamentService.recordRanking(tournamentId);
-
-      if (resp?.code !== 0) {
-        showError(resp.message || 'Không thể ghi BXH');
-        setIsRecording(false);
-        return;
-      }
-
-      setIsRecorded(true);
-      showSuccess(resp.message || 'Ghi BXH thành công.');
-
-      // Load lại BXH để hiển thị
-      try {
-        const lbResp = await tournamentService.getFinalLeaderboard(tournamentId);
-        const data =
-          lbResp?.data?.data?.leaderboard ??
-          lbResp?.data?.leaderboard ??
-          lbResp?.data ??
-          lbResp;
-        setLeaderboard(Array.isArray(data) ? data : data?.leaderboard ?? []);
-        setActiveTab('leaderboard');
-      } catch (err) {
-        console.error('Không thể tải bảng xếp hạng', err);
-        showError('Ghi BXH thành công nhưng không thể tải bảng xếp hạng.');
-      }
-    } catch (err) {
-      const serverMsg = err?.response?.data?.message || err?.message || 'Không thể ghi BXH';
-      showError(serverMsg);
-    } finally {
-      setIsRecording(false);
-    }
-  }}
-  disabled={loading || isRecording || isRecorded}
->
-  {isRecording
-    ? 'Đang ghi BXH...'
-    : isRecorded
-    ? 'Đã ghi BXH'
-    : 'Ghi BXH'}
-</Button>
-
-
-        </div>
+            {/* top action area removed - Ghi BXH moved below */}
             {Object.keys(groupedMatches).length === 0 ? (
-              <Card padding="lg" className="text-center text-gray-300">Chưa có trận đấu</Card>
-            ) : (
+                  <Card padding="lg" className="text-center text-gray-300">Chưa có trận đấu</Card>
+                ) : (
               Object.keys(groupedMatches).sort((a,b)=>a-b).map(round => (
                 <Card key={round} padding="lg">
                   <h3 className="text-xl font-bold text-white mb-4">Vòng {round}</h3>
@@ -412,54 +387,68 @@ export const TournamentDetail = () => {
                           </span>
                           {getMatchStatusBadge(match.status)}
                         </div>
-                        <div className="flex items-center justify-center gap-4 mb-3">
-                          <div className="flex-1 text-right text-lg font-bold text-white">
-                    {match.team_a_name || 'TBD'}
-                    {match.winner_participant_id && (
-                        <div className={`text-sm mt-1 ${match.winner_participant_id === match.team_a_participant_id ? 'text-green-400' : 'text-red-400'}`}>
-                        {match.winner_participant_id === match.team_a_participant_id ? 'Thắng' : 'Thua'}
-                        </div>
-                    )}
-                    </div>
+                        {match.team_b_participant_id ? (
+                          <div className="flex items-center justify-center gap-4 mb-3">
+                            <div className="flex-1 text-right text-lg font-bold text-white">
+                              {match.team_a_name || 'TBD'}
+                              {match.winner_participant_id && (
+                                <div className={`text-sm mt-1 ${match.winner_participant_id === match.team_a_participant_id ? 'text-green-400' : 'text-red-400'}`}>
+                                  {match.winner_participant_id === match.team_a_participant_id ? 'Thắng' : 'Thua'}
+                                </div>
+                              )}
+                            </div>
 
-                    <div className="text-2xl font-bold text-cyan-300 px-4">VS</div>
+                            <div className="text-2xl font-bold text-cyan-300 px-4">VS</div>
 
-                    <div className="flex-1 text-left text-lg font-bold text-white">
-                    {match.team_b_name || 'TBD'}
-                    {match.winner_participant_id && (
-                        <div className={`text-sm mt-1 ${match.winner_participant_id === match.team_b_participant_id ? 'text-green-400' : 'text-red-400'}`}>
-                        {match.winner_participant_id === match.team_b_participant_id ? 'Thắng' : 'Thua'}
-                        </div>
-                    )}
-                    </div>
-
-                        </div>
+                            <div className="flex-1 text-left text-lg font-bold text-white">
+                              {match.team_b_name || 'TBD'}
+                              {match.winner_participant_id && (
+                                <div className={`text-sm mt-1 ${match.winner_participant_id === match.team_b_participant_id ? 'text-green-400' : 'text-red-400'}`}>
+                                  {match.winner_participant_id === match.team_b_participant_id ? 'Thắng' : 'Thua'}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-4 mb-3">
+                            <div className="w-full text-center text-lg font-bold text-white">
+                              {match.team_a_name || 'TBD'}
+                              <div className="text-sm mt-1 text-green-400">Thắng (BYE)</div>
+                            </div>
+                          </div>
+                        )}
                         <div className="flex justify-center gap-3 mt-2">
-                    <div className="flex justify-center gap-3">
-                            <Button
+                          <div className="flex justify-center gap-3">
+                            {/* Show update time button only when match not completed */}
+                            {match.status !== 'COMPLETED' && (
+                              <Button
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => handleOpenTimeModal(match)}
-                                disabled={match.status === 'COMPLETED'}
                                 title={match.status === 'COMPLETED' ? 'Không thể thay đổi lịch trận đã kết thúc' : ''}
-                            >
+                              >
                                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 Cập nhật thời gian
-                            </Button>
-                            <Button
+                              </Button>
+                            )}
+
+                            {/* Show update result only when match not completed, has opponent and match time has arrived */}
+                            {match.status !== 'COMPLETED' && match.team_b_participant_id && match.match_time && new Date(match.match_time).getTime() <= Date.now() && (
+                              <Button
                                 variant="primary"
                                 size="sm"
                                 onClick={() => handleOpenScoreModal(match)}
-                            >
+                                className="text-white"
+                              >
                                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                 </svg>
                                 Cập nhật kết quả
-                            </Button>
-                            </div>
-
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -467,6 +456,75 @@ export const TournamentDetail = () => {
                 </Card>
               ))
             )}
+            {/* Create Next Round Button: show as long as tournament isn't COMPLETED (allow pressing even when at last round) */}
+            {(tournament?.status || '').toUpperCase() !== 'COMPLETED' && (
+              <div className="flex justify-end mt-4">
+                <Button
+                  variant="primary"
+                  onClick={async () => {
+                    if (creatingRound) return;
+                    setCreatingRound(true);
+                    try {
+                      await handleStartNewRound();
+                    } finally {
+                      setCreatingRound(false);
+                    }
+                  }}
+                  loading={creatingRound}
+                  disabled={creatingRound}
+                >
+                  Tạo vòng tiếp theo
+                </Button>
+              </div>
+            )}
+
+              {/* Ghi BXH button: only visible when tournament is COMPLETED. Placed below create-next area */}
+              {(tournament?.status || '').toUpperCase() === 'COMPLETED' && (
+                <div className="flex justify-end mt-4">
+                  <Button
+                    variant="primary"
+                    onClick={async () => {
+                      if (!tournamentId) return;
+
+                      if (isRecording || isRecorded) return;
+
+                      setIsRecording(true);
+                      try {
+                        const resp = await tournamentService.recordRanking(tournamentId);
+                        if (resp?.code !== 0) {
+                          showError(resp.message || 'Không thể ghi BXH');
+                          setIsRecording(false);
+                          return;
+                        }
+                        setIsRecorded(true);
+                        showSuccess(resp.message || 'Ghi BXH thành công.');
+
+                        try {
+                          const lbResp = await tournamentService.getFinalLeaderboard(tournamentId);
+                          const data =
+                            lbResp?.data?.data?.leaderboard ??
+                            lbResp?.data?.leaderboard ??
+                            lbResp?.data ??
+                            lbResp;
+                          setLeaderboard(Array.isArray(data) ? data : data?.leaderboard ?? []);
+                          setActiveTab('leaderboard');
+                        } catch (err) {
+                          console.error('Không thể tải bảng xếp hạng', err);
+                          showError('Ghi BXH thành công nhưng không thể tải bảng xếp hạng.');
+                        }
+                      } catch (err) {
+                        const serverMsg = err?.response?.data?.message || err?.message || 'Không thể ghi BXH';
+                        showError(serverMsg);
+                      } finally {
+                        setIsRecording(false);
+                      }
+                    }}
+                    disabled={loading || isRecording || isRecorded}
+                  >
+                    {isRecording ? 'Đang ghi BXH...' : isRecorded ? 'Đã ghi BXH' : 'Ghi BXH'}
+                  </Button>
+                </div>
+              )}
           </div>
         )}
 

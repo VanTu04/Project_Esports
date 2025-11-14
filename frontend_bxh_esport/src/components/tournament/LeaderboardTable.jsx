@@ -1,7 +1,7 @@
 import Table from '../common/Table';
 import { formatRank } from '../../utils/formatters';
 
-export const LeaderboardTable = ({ data, loading }) => {
+const LeaderboardTable = ({ data, loading }) => {
   const columns = [
     {
       header: 'Hạng',
@@ -43,3 +43,5 @@ export const LeaderboardTable = ({ data, loading }) => {
 
   return <Table columns={columns} data={data} loading={loading} />;
 };
+
+export default LeaderboardTable;

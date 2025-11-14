@@ -14,6 +14,9 @@ export const TeamApprovalModal = ({
   onReject
 }) => {
   if (!show) return null;
+  const currentApproved = tournament?.teams?.current || 0;
+  const minTeams = tournament?.teams?.min || 2;
+  const isMinReached = currentApproved >= minTeams;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -38,6 +41,11 @@ export const TeamApprovalModal = ({
         </div>
 
         <div className="p-6">
+          {isMinReached && (
+            <div className="mb-4 p-3 rounded-md bg-emerald-600/10 border border-emerald-600/20 text-emerald-300">
+              Đã đủ số đội tối thiểu ({minTeams}) để bắt đầu giải. Không thể duyệt thêm đội.
+            </div>
+          )}
           {pendingTeams.length === 0 ? (
             <div className="text-center py-12">
               <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -83,7 +91,7 @@ export const TeamApprovalModal = ({
                         variant="success"
                         size="sm"
                         onClick={() => onApprove(team.id)}
-                        disabled={processingTeamId === team.id}
+                        disabled={processingTeamId === team.id || isMinReached}
                         loading={processingTeamId === team.id}
                       >
                         <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">

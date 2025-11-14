@@ -39,6 +39,26 @@ export const TournamentManagement = () => {
   const [selectedTournamentForApproval, setSelectedTournamentForApproval] = useState(null);
   const [processingTeamId, setProcessingTeamId] = useState(null);
 
+  // Confirm start modal state
+  const [confirmingTournament, setConfirmingTournament] = useState(null);
+  const [startingTournament, setStartingTournament] = useState(false);
+
+  const confirmStartTournament = async () => {
+    if (!confirmingTournament) return;
+    setStartingTournament(true);
+    try {
+      const response = await tournamentService.startTournament(confirmingTournament.id);
+      showSuccess(`Giải đấu đã bắt đầu! ${response?.data?.matches_created || 0} trận đấu đã được tạo.`);
+      setConfirmingTournament(null);
+      await loadTournaments();
+    } catch (error) {
+      console.error('❌ Failed to start tournament:', error);
+      showError(error?.message || 'Không thể bắt đầu giải đấu. Vui lòng kiểm tra đủ số đội đã được duyệt!');
+    } finally {
+      setStartingTournament(false);
+    }
+  };
+
   const loadLeaderboardData = () => {
     try {
       const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
@@ -150,6 +170,14 @@ export const TournamentManagement = () => {
           console.warn(`Could not load participants for tournament ${tournament.id}`);
         }
         
+        // compute swiss-system bounds when possible
+        const rounds = tournament.total_rounds || tournament.totalRounds || 0;
+        const computedMax = rounds > 0 ? Math.pow(2, Number(rounds)) : (tournament.max_teams || 32);
+        const computedMin = rounds > 0 ? Math.max(2, Number(rounds) + 1) : 2;
+
+        teamsCount.max = tournament.max_teams || computedMax;
+        teamsCount.min = computedMin;
+
         return {
           ...tournament,
           tournament_name: tournament.name,
@@ -434,28 +462,51 @@ export const TournamentManagement = () => {
     setProcessingTeamId(teamId);
     
     try {
+      // Prevent approving if already reached minimum required teams
+      const tournament = tournaments.find(t => t.id === selectedTournamentForApproval?.id);
+      const current = tournament?.teams?.current || 0;
+      const minTeams = tournament?.teams?.min || 2;
+      if (current >= minTeams) {
+        showError(`Đã có đủ số đội tối thiểu (${minTeams}). Không thể duyệt thêm đội.`);
+        setProcessingTeamId(null);
+        return;
+      }
       // Call real API to approve
       await tournamentService.reviewJoinRequest(teamId, 'APPROVE');
       
       // Remove team from pending list
       setPendingTeams(prev => prev.filter(t => t.id !== teamId));
       
-      // Update tournament pending count
+      // Compute updated counts based on current state (do not perform side-effects inside the state updater)
+      const targetTournament = tournaments.find(t => t.id === selectedTournamentForApproval?.id);
+      const prevPending = targetTournament?.teams?.pending || 0;
+      const prevCurrent = targetTournament?.teams?.current || 0;
+      const newPending = Math.max(0, prevPending - 1);
+      const newCurrent = prevCurrent + 1;
+      const minTeamsLocal = targetTournament?.teams?.min || targetTournament?.min_teams || 2;
+
+      // Update state (pure update)
       setTournaments(prev => prev.map(t => {
         if (t.id === selectedTournamentForApproval?.id) {
           return {
             ...t,
             teams: {
               ...t.teams,
-              pending: Math.max(0, (t.teams?.pending || 0) - 1),
-              current: (t.teams?.current || 0) + 1,
+              pending: newPending,
+              current: newCurrent,
             }
           };
         }
         return t;
       }));
-      
-      showSuccess('Đã duyệt đội thành công!');
+
+      // Notify once based on computed values
+      if (newCurrent >= minTeamsLocal) {
+        showSuccess(`Đã duyệt đội thành công! Hiện tại đã có ${newCurrent} đội — đủ số đội tối thiểu (${minTeamsLocal}) để bắt đầu giải.`);
+      } else {
+        const need = Math.max(0, minTeamsLocal - newCurrent);
+        showWarning(`Đã duyệt đội. Còn thiếu ${need} đội để đạt tối thiểu ${minTeamsLocal}.`);
+      }
     } catch (error) {
       console.error('❌ Failed to approve team:', error);
       showError('Không thể duyệt đội. Vui lòng thử lại!');
@@ -500,28 +551,17 @@ export const TournamentManagement = () => {
 
   // Bắt đầu giải đấu
   const handleStartTournament = async (tournamentId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn bắt đầu giải đấu? Sau khi bắt đầu, các đội chờ duyệt sẽ bị từ chối và vòng 1 sẽ được tạo tự động.')) {
+    const tournament = tournaments.find(t => t.id === tournamentId);
+    const current = tournament?.teams?.current || 0;
+    const minTeams = tournament?.teams?.min || 2;
+
+    if (current < minTeams) {
+      showError(`Chưa đủ đội tối thiểu để bắt đầu giải. Cần ít nhất ${minTeams} đội, hiện có ${current}.`);
       return;
     }
 
-    try {
-      console.log('🚀 Starting tournament:', tournamentId);
-      
-      // Call API to start tournament
-      const response = await tournamentService.startTournament(tournamentId);
-      
-      console.log('✅ Start tournament response:', response);
-      
-      showSuccess(`Giải đấu đã bắt đầu! ${response?.data?.matches_created || 0} trận đấu đã được tạo.`);
-      
-      // Reload tournaments to get updated status
-      await loadTournaments();
-      
-      console.log('✅ Tournaments reloaded');
-    } catch (error) {
-      console.error('❌ Failed to start tournament:', error);
-      showError(error?.message || 'Không thể bắt đầu giải đấu. Vui lòng kiểm tra đủ 2 đội đã được duyệt!');
-    }
+    // Open confirmation modal instead of window.confirm
+    setConfirmingTournament(tournament);
   };
 
   // Get filtered tournaments based on quick filter and search
@@ -1058,6 +1098,29 @@ export const TournamentManagement = () => {
         onApprove={handleApproveTeam}
         onReject={handleRejectTeam}
       />
+
+      {/* Confirm Start Tournament Modal */}
+      {confirmingTournament && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="max-w-lg w-full">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-white mb-2">Xác nhận bắt đầu giải đấu</h2>
+              <p className="text-gray-300 mb-4">
+                Bạn có chắc chắn muốn bắt đầu giải đấu "{confirmingTournament.name}"?
+                Sau khi bắt đầu, các đội chờ duyệt sẽ bị từ chối và vòng 1 sẽ được tạo tự động.
+              </p>
+              <div className="flex justify-end gap-3">
+                <Button variant="secondary" onClick={() => setConfirmingTournament(null)} disabled={startingTournament}>
+                  Hủy
+                </Button>
+                <Button variant="primary" onClick={confirmStartTournament} loading={startingTournament}>
+                  Bắt đầu giải đấu
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Leaderboard Modal */}
       <LeaderboardModal
