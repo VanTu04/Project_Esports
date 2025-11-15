@@ -180,10 +180,19 @@ const tournamentService = {
   },
 
   // Get final leaderboard (used after recording)
-  // GET /api/tournaments/bxh/:tournamentId
+  // Backend exposes POST /api/tournaments/bxh/:tournamentId
   getFinalLeaderboard: async (tournamentId) => {
     try {
-      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/bxh/${tournamentId}`);
+      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/bxh/${tournamentId}`);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Get distribution history for a tournament
+  getDistributions: async (tournamentId) => {
+    try {
+      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/distributions`);
     } catch (error) {
       throw error;
     }

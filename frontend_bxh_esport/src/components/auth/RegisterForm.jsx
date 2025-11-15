@@ -82,9 +82,10 @@ export const RegisterForm = () => {
 
     setLoading(true);
     try {
-      const res = await register(formData);
-      showSuccess('Đăng ký thành công!');
-      navigate('/');
+  const res = await register(formData);
+  showSuccess('Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.');
+  // Sau khi đăng ký thành công, chuyển sang trang login để người dùng đăng nhập
+  navigate('/login');
     } catch (err) {
       console.error('Register error:', err);
 

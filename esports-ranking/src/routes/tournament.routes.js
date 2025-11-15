@@ -104,4 +104,10 @@ router.post('/record-ranking/:tournamentId', checkRole([roles.ADMIN]), tournamen
 // lấy ra bxh từ blockchain
 router.post('/bxh/:tournamentId', tournamentController.getFinalLeaderboard);
 
+// Lấy cấu hình reward cho 1 giải
+router.get('/:tournament_id/rewards', tournamentController.getTournamentRewards);
+
+// Lấy lịch sử phân phối reward cho 1 giải
+router.get('/:tournament_id/distributions', tournamentController.getTournamentDistributions);
+
 export default router;

@@ -18,13 +18,15 @@ export const BlockchainWallet = () => {
   const loadWalletData = async () => {
     setWalletLoading(true);
     try {
-      // Lấy số dư ví team từ backend
-      const bal = await blockchainService.getTeamWalletBalance();
-      setBalance(bal?.balanceEth ?? bal?.balance ?? null);
+      // Use authenticated endpoints: /wallet/balance and /wallet/transactions
+      const balResp = await blockchainService.getMyWalletBalance();
+      const balObj = balResp?.data ?? balResp;
+      const finalBal = balObj?.data ?? balObj?.balance ?? balObj?.balanceEth ?? balObj ?? null;
+      setBalance(finalBal ?? null);
 
-      // Lấy lịch sử giao dịch của team
-      const txs = await blockchainService.getTeamWalletTransactions();
-      setWalletTransactions(Array.isArray(txs) ? txs : []);
+      const txResp = await blockchainService.getMyWalletTransactions();
+      const txPayload = txResp?.data ?? txResp ?? [];
+      setWalletTransactions(Array.isArray(txPayload) ? txPayload : txPayload?.data ?? []);
     } catch (err) {
       console.error(err);
       showError(err?.response?.data?.message || err?.message || 'Không thể tải dữ liệu ví');

@@ -71,7 +71,6 @@ export const AuthProvider = ({ children }) => {
         
         // Decode token và lấy thông tin user
         const decodedToken = decodeJWT(accessToken);
-        console.log('Decoded token in AuthContext:', decodedToken);
         
         const userData = {
           id: decodedToken.id,

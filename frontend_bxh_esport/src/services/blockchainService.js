@@ -57,8 +57,8 @@ const blockchainService = {
    */
   distributeRewards: async (tournamentId, distributionData) => {
     try {
-      const response = await apiClient.post('/blockchain/distribute-rewards', {
-        tournamentId,
+      // Backend exposes tournament-level distribute endpoint: POST /api/tournaments/:tournament_id/distribute-rewards
+      const response = await apiClient.post(`/tournaments/${tournamentId}/distribute-rewards`, {
         ...distributionData,
       });
       return response;
@@ -82,11 +82,20 @@ const blockchainService = {
   /**
    * Get wallet transactions
    */
-  getWalletTransactions: async (walletAddress, params = {}) => {
+  // Authenticated: get current user's wallet transactions
+  getMyWalletTransactions: async (params = {}) => {
     try {
-      const response = await apiClient.get(`/blockchain/wallets/${walletAddress}/transactions`, {
-        params,
-      });
+      const response = await apiClient.get('/wallet/transactions', { params });
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Team-scoped: backend will resolve team from auth context
+  getTeamWalletTransactions: async (params = {}) => {
+    try {
+      const response = await apiClient.get('/wallet/transactions', { params });
       return response;
     } catch (error) {
       throw error;
@@ -96,9 +105,20 @@ const blockchainService = {
   /**
    * Get wallet balance
    */
-  getWalletBalance: async (walletAddress) => {
+  // Authenticated: get current user's wallet balance
+  getMyWalletBalance: async () => {
     try {
-      const response = await apiClient.get(`/blockchain/wallets/${walletAddress}/balance`);
+      const response = await apiClient.get('/wallet/balance');
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Team-scoped: backend will resolve team from auth context
+  getTeamWalletBalance: async () => {
+    try {
+      const response = await apiClient.get('/wallet/balance');
       return response;
     } catch (error) {
       throw error;

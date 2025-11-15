@@ -25,12 +25,16 @@ export const RewardDistribution = () => {
     }
   };
 
-  const handleDistribute = async (rewardId) => {
+  const handleDistribute = async (reward) => {
     try {
-      await rewardService.executeRewardDistribution(rewardId);
+      // reward may contain tournamentId or tournament_id; fallback to id
+      const tournamentId = reward?.tournamentId ?? reward?.tournament_id ?? reward?.tournament?.id ?? reward?.id;
+      if (!tournamentId) throw new Error('Không xác định được tournamentId');
+      await rewardService.executeRewardDistribution(tournamentId);
       showSuccess('Phân phối phần thưởng thành công');
       loadRewards();
     } catch (error) {
+      console.error(error);
       showError('Không thể phân phối phần thưởng');
     }
   };

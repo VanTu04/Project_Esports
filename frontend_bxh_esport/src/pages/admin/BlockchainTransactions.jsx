@@ -21,8 +21,10 @@ export const BlockchainTransactions = () => {
 
   const loadTransactions = async () => {
     try {
-      const data = await blockchainService.getAllTransactions();
-      setTransactions(data.transactions || []);
+      const resp = await blockchainService.getAllTransactions();
+      const payload = resp?.data ?? resp;
+      const txs = payload?.data ?? payload?.transactions ?? payload ?? [];
+      setTransactions(Array.isArray(txs) ? txs : txs?.data ?? []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -34,12 +36,14 @@ export const BlockchainTransactions = () => {
     setWalletLoading(true);
     try {
       // Call authenticated endpoints that use req.user on the backend
-      const bal = await blockchainService.getMyWalletBalance();
-      // bal expected shape: { address, balanceEth }
-      setBalance(bal?.balanceEth ?? bal?.balance ?? null);
+      const balResp = await blockchainService.getMyWalletBalance();
+      const balObj = balResp?.data ?? balResp;
+      const finalBal = balObj?.data ?? balObj?.balance ?? balObj?.balanceEth ?? balObj ?? null;
+      setBalance(finalBal ?? null);
 
       const txs = await blockchainService.getMyWalletTransactions();
-      setWalletTransactions(Array.isArray(txs) ? txs : []);
+      const txPayload = txs?.data ?? txs ?? [];
+      setWalletTransactions(Array.isArray(txPayload) ? txPayload : txPayload?.data ?? []);
     } catch (err) {
       console.error(err);
       showError(err?.response?.data?.message || err?.message || 'Không thể tải dữ liệu ví');
@@ -63,7 +67,12 @@ export const BlockchainTransactions = () => {
           <span className="font-semibold text-white">{balance != null ? formatCurrency(Number(balance), 'ETH') : '-'}</span>
         </div>
       </div>
-      <TransactionHistory transactions={transactions} loading={loading} />
+      {/* Global blockchain transactions */}
+
+      {/* User wallet transactions (from /wallet/transactions) */}
+      <div className="mt-8">
+        <TransactionHistory transactions={walletTransactions} loading={walletLoading} />
+      </div>
     </div>
   );
 };
