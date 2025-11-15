@@ -4,7 +4,7 @@ import { STORAGE_KEYS } from "../utils/constants";
 import storage from "../utils/storage";
 
 const api = axios.create({
-  baseURL: '/api',  
+  baseURL: import.meta.env.VITE_API_BACKEND || API_CONFIG.baseURL,  
   timeout: API_CONFIG.timeout,
 });
 
