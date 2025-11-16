@@ -6,6 +6,7 @@ import storage from "../utils/storage";
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BACKEND || API_CONFIG.baseURL,  
   timeout: API_CONFIG.timeout,
+  withCredentials: true,
 });
 
 api.interceptors.response.use(
@@ -101,8 +102,7 @@ const authService = {
 
   // Đăng xuất
   logout: async () => {
-    storage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-    storage.removeItem(STORAGE_KEYS.USER_DATA);
+    await api.post("/users/logout");
   },
 };
 

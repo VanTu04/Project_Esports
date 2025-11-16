@@ -11,6 +11,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
 // Helpful developer hint when default base is used
@@ -21,69 +22,36 @@ if (API_BASE_URL === '/api') {
   );
 }
 
-// Interceptor request: đính token tự động từ sessionStorage
-api.interceptors.request.use(
-  (config) => {
-    const token = storage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
 // Interceptor response: xử lý lỗi và trả data trực tiếp
 api.interceptors.response.use(
-  (response) => {
-    const data = response.data;
-    // If backend uses a { code } wrapper, treat non-zero code as an error and reject
-    if (data && typeof data.code !== 'undefined' && data.code !== 0) {
-      return Promise.reject(data);
-    }
-    return data;
-  },
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
 
-  (error) => {
-    if (error.response) {
-      const { status, data } = error.response;
-
-      switch (status) {
-        case 401:
-          // Token hết hạn / không hợp lệ
-          storage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-          storage.removeItem(STORAGE_KEYS.USER_DATA);
-          window.location.href = '/login';
-          break;
-
-        case 403:
-          console.error('Access forbidden:', data.message || data);
-          break;
-
-        case 404:
-          console.error('Resource not found:', data.message || data);
-          break;
-
-        case 422:
-          console.error('Validation error:', data.errors || data.message || data);
-          break;
-
-        case 500:
-          console.error('Server error:', data.message || data);
-          break;
-
-        default:
-          console.error('API error:', data.message || data);
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise(function (resolve, reject) {
+          failedQueue.push({ resolve, reject });
+        }).then(() => api(originalRequest))
+          .catch(err => Promise.reject(err));
       }
 
-      return Promise.reject(data);
-    } else if (error.request) {
-      console.error('No response from server');
-      return Promise.reject({ message: 'Không thể kết nối đến server' });
-    } else {
-      console.error('Request error:', error.message);
-      return Promise.reject({ message: error.message });
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        await api.post('/users/refresh-token'); // backend tạo accessToken mới trong cookie
+        processQueue(null);
+        return api(originalRequest); // retry request gốc
+      } catch (err) {
+        processQueue(err, null);
+        return Promise.reject(err);
+      } finally {
+        isRefreshing = false;
+      }
     }
+
+    return Promise.reject(error);
   }
 );
 
