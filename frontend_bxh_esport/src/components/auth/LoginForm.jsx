@@ -69,12 +69,8 @@ export const LoginForm = () => {
       // Kiểm tra response thành công
       if (response?.code === 0 && response?.status === 200) {
         showSuccess("Đăng nhập thành công!");
-        
-        // Decode JWT token để lấy thông tin user
-        const accessToken = response?.data?.accessToken;
-        const decodedToken = decodeJWT(accessToken);
                 
-        const role = Number(decodedToken?.role || decodedToken?.user_role || 1);
+        const role = Number(response.data.user.role || 1);
         
         // Điều hướng theo role
         if (role === 4) {
