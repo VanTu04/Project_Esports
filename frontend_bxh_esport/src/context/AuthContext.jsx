@@ -1,4 +1,3 @@
-// src/context/AuthContext.js
 import React, { createContext, useState, useEffect, useContext } from "react";
 import authService from "../services/authService";
 import { apiClient } from "../services/api"; // ← THÊM DÒNG NÀY
@@ -62,6 +61,7 @@ export const AuthProvider = ({ children }) => {
         storage.setItem(STORAGE_KEYS.USER_DATA, userInfo);
         setUser(userInfo);
         setIsAuthenticated(true);
+        storage.setItem(STORAGE_KEYS.USER_DATA, userInfo);
       }
 
       return response;
@@ -74,13 +74,11 @@ export const AuthProvider = ({ children }) => {
   // ==================== LOGOUT ==================== //
   const logout = async () => {
     try {
-      await authService.logout();
+      await authService.logout(); // backend xóa cookie
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      storage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
       storage.removeItem(STORAGE_KEYS.USER_DATA);
-      storage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
       setUser(null);
       setIsAuthenticated(false);
     }
@@ -102,11 +100,7 @@ export const AuthProvider = ({ children }) => {
     updateUser,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
 };
 
 export default AuthContext;

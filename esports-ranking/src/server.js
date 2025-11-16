@@ -5,7 +5,7 @@ import passport from 'passport';
 import cors from 'cors';
 import routes from './routes/index.js';
 import { sequelize } from './models/index.js';
-import './config/passport.js'; // Import để kích hoạt cấu hình Passport
+import './config/passport.js'; // Import Ä‘á»ƒ kÃ­ch hoáº¡t cáº¥u hÃ¬nh Passport
 import { initAdminAccount } from './init/initAdmin.js';
 
 dotenv.config();
@@ -13,10 +13,11 @@ dotenv.config();
 const app = express();
 
 app.use(cors({
-  origin: [process.env.CLIENT_URL],
+  origin: true, // Cho phép tất cả origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204
 }));
 
 // --- View engine ---
@@ -60,9 +61,9 @@ app.get(
 app.get('/profile', (req, res) => {
   if (!req.user) return res.redirect('/login');
   res.send(`
-    <h1>Xin chào ${req.user.full_name || req.user.username}</h1>
+    <h1>Xin chÃ o ${req.user.full_name || req.user.username}</h1>
     <p>Email: ${req.user.email}</p>
-    <a href="/logout">Đăng xuất</a>
+    <a href="/logout">ÄÄƒng xuáº¥t</a>
   `);
 });
 
@@ -74,7 +75,7 @@ app.get('/logout', (req, res, next) => {
 });
 
 app.get('/api/auth/fail', (req, res) => {
-  res.status(401).json({ message: 'Đăng nhập Google thất bại' });
+  res.status(401).json({ message: 'ÄÄƒng nháº­p Google tháº¥t báº¡i' });
 });
 
 // --- Start server ---
