@@ -205,6 +205,12 @@ export const login = async (data) => {
   };
 };
 
+export const refreshToken = async (user) => {
+  const accessToken = jwt_token.signAccessToken(user);
+  const refreshToken = jwt_token.signRefreshToken(user);
+  return { accessToken, refreshToken };
+};
+
 export const sendOtp = async (email, otp) => {
   try {
     await MailHelper.sendOtpEmail(email, otp);

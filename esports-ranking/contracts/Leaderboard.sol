@@ -22,17 +22,59 @@ contract Leaderboard {
         owner = msg.sender;
     }
 
-    // === Ghi BXH dạng JSON ===
-    function updateLeaderboardJSON(
+    function updateLeaderboard(
         uint256 tournamentId,
         uint256 roundNumber,
-        string memory jsonData
+        address[] memory participants,
+        uint256[] memory scores
     ) public onlyOwner {
-        leaderboardJson[tournamentId][roundNumber] = jsonData;
-        emit LeaderboardUpdatedJSON(tournamentId, roundNumber, jsonData);
+        require(participants.length == scores.length, "Mismatched lengths");
+
+        // Copy participants & scores vào memory
+        ParticipantScore[] memory ps = new ParticipantScore[](participants.length);
+        for (uint i = 0; i < participants.length; i++) {
+            ps[i] = ParticipantScore(participants[i], scores[i]);
+        }
+
+        // Lưu vào storage
+        RoundLeaderboard storage newRound = tournamentRounds[tournamentId].push();
+        newRound.tournamentId = tournamentId;
+        newRound.roundNumber = roundNumber;
+        for (uint i = 0; i < ps.length; i++) {
+            newRound.participants.push(ps[i]);
+        }
+
+        emit LeaderboardUpdated(tournamentId, roundNumber, participants, scores);
     }
 
-    // === Lấy BXH dạng JSON ===
+    // === Lấy BXH vòng đấu ===
+    function getLeaderboard(uint256 tournamentId, uint256 roundNumber)
+        public
+        view
+        returns (address[] memory participants, uint256[] memory scores)
+    {
+        uint roundsCount = tournamentRounds[tournamentId].length;
+        require(roundsCount > 0, "No rounds found");
+
+        // Tìm round phù hợp
+        uint index = roundsCount; // invalid index ban đầu
+        for (uint i = 0; i < roundsCount; i++) {
+            if (tournamentRounds[tournamentId][i].roundNumber == roundNumber) {
+                index = i;
+                break;
+            }
+        }
+        require(index < roundsCount, "Round not found");
+
+        uint len = tournamentRounds[tournamentId][index].participants.length;
+        participants = new address[](len);
+        scores = new uint256[](len);
+
+        for (uint i = 0; i < len; i++) {
+            participants[i] = tournamentRounds[tournamentId][index].participants[i].participant;
+            scores[i] = tournamentRounds[tournamentId][index].participants[i].score;
+        }
+    }
     function getLeaderboardJSON(
         uint256 tournamentId,
         uint256 roundNumber

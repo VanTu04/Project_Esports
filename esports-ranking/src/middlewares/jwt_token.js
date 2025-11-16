@@ -1,224 +1,119 @@
+// src/middlewares/jwt_token.js
 import jwt from 'jsonwebtoken';
 import models from '../models/index.js';
-import { responseSuccess, responseWithError } from '../helper/MessageResponse.js';
+import { responseWithError } from '../helper/MessageResponse.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
 
-//checkAccessToken
+const ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_TOKEN_SECRET;
+const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_TOKEN_SECRET;
+const ACCESS_TOKEN_EXPIRES = process.env.JWT_ACCESS_TOKEN_EXPIRES || '15m';
+const REFRESH_TOKEN_EXPIRES = process.env.JWT_REFRESH_TOKEN_EXPIRES || '7d';
+const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true'; // true trên prod
+
+// ===================== Sign Token ===================== //
+export const signAccessToken = (user) => {
+  const payload = {
+    id: user.id,
+    full_name: user.full_name,
+    username: user.username,
+    email: user.email,
+    role: user.role
+  };
+  return jwt.sign(payload, ACCESS_TOKEN_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES });
+};
+
+export const signRefreshToken = (user) => {
+  const payload = {
+    id: user.id,
+    full_name: user.full_name,
+    username: user.username,
+    email: user.email,
+    role: user.role
+  };
+  return jwt.sign(payload, REFRESH_TOKEN_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES });
+};
+
+// ===================== Middleware ===================== //
+
+// Kiểm tra access token từ cookie
 export const checkAccessToken = async (req, res, next) => {
   try {
-    // Kiểm tra header Authorization
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = req.cookies?.accessToken || req.headers?.authorization?.split(' ')[1];
+    if (!token) {
       return res.status(401).json(
-        responseWithError(
-          ErrorCodes.ERROR_CODE_UNAUTHORIZED,
-          'Mã thông báo không hợp lệ hoặc thiếu!'
-        )
+        responseWithError(ErrorCodes.ERROR_CODE_UNAUTHORIZED, 'Access token không hợp lệ hoặc thiếu!')
       );
     }
 
-    // Lấy token ra
-    const token = authHeader.split(' ')[1];
-
-    // Giải mã token
-    let decodedToken;
-    try {
-      decodedToken = jwt.verify(token, process.env.JWT_ACCESS_TOKEN_SECRET);
-    } catch (err) {
-      return res.status(401).json(
-        responseWithError(
-          ErrorCodes.ERROR_CODE_UNAUTHORIZED,
-          'Mã thông báo đã hết hạn hoặc không hợp lệ!'
-        )
-      );
-    }
-
-    // Lấy thông tin user từ DB
+    const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET);
     const user = await models.User.findOne({
-      where: { id: decodedToken.id },
-      attributes: ['id', 'full_name', 'role', 'email', 'username'],
+      where: { id: decoded.id, deleted: 0 },
+      attributes: ['id', 'full_name', 'username', 'email', 'role']
     });
 
     if (!user) {
       return res.status(401).json(
-        responseWithError(
-          ErrorCodes.ERROR_CODE_UNAUTHORIZED,
-          'Không tìm thấy người dùng!'
-        )
+        responseWithError(ErrorCodes.ERROR_CODE_UNAUTHORIZED, 'Không tìm thấy người dùng!')
       );
     }
 
-    // Gắn user vào request để dùng ở controller khác
-    req.user = {
-      id: user.id,
-      full_name: user.full_name,
-      email: user.email,
-      username: user.username,
-      role: user.role,
-      is_user: true,
-    };
-
-    next(); // Quan trọng: gọi next() để middleware kết thúc hợp lệ
+    req.user = user;
+    next();
   } catch (err) {
     return res.status(401).json(
-      responseWithError(
-        ErrorCodes.ERROR_CODE_UNAUTHORIZED,
-        'Token không hợp lệ hoặc hết hạn!',
-        err.message
-      )
+      responseWithError(ErrorCodes.ERROR_CODE_UNAUTHORIZED, 'Access token không hợp lệ hoặc hết hạn!', err.message)
     );
   }
 };
 
-//checkAccessTokenorNot
-export const checkAccessTokenorNot = async (req, res, next) => {
+// Kiểm tra refresh token từ cookie
+export const checkRefreshToken = async (req, res, next) => {
   try {
-    if (!req.headers.authorization) {
-      return null;
-    } else {
-      const token = req.headers.authorization.split(" ")[1];
-      const decodedToken = jwt.verify(token, process.env.JWT_ACCESS_TOKEN_SECRET);
-      if (!decodedToken) {
-        return null
-      }
-      req.user = decodedToken;
-      const data = await models.users.findOne({
-        where: { id: decodedToken.id, }, attributes: ['id', 'full_name', 'email', 'phone', 'role']
-      });
-      return data;
+    const token = req.cookies?.refreshToken;
+    if (!token) {
+      return res.status(401).json({ message: "Refresh token không tồn tại!" });
     }
+
+    const decoded = jwt.verify(token, REFRESH_TOKEN_SECRET);
+    const user = await models.User.findOne({
+      where: { id: decoded.id, deleted: 0 },
+      attributes: ['id', 'full_name', 'username', 'email', 'role']
+    });
+
+    if (!user) {
+      return res.status(401).json({ message: "Người dùng không tồn tại!" });
+    }
+
+    req.user = user;
+    next();
   } catch (err) {
-    return null;
+    return res.status(401).json({ message: "Refresh token không hợp lệ hoặc hết hạn!", error: err.message });
   }
 };
 
-
-//checkRole
+// Kiểm tra quyền
 export const checkRole = (roles = []) => {
   return async (req, res, next) => {
     try {
-      // Kiểm tra có token không
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      // req.user đã được gắn bởi checkAccessToken
+      if (!req.user) {
         return res.status(401).json(
-          responseWithError(
-            ErrorCodes.ERROR_CODE_UNAUTHORIZED,
-            'Mã thông báo không hợp lệ hoặc thiếu!'
-          )
+          responseWithError(ErrorCodes.ERROR_CODE_UNAUTHORIZED, 'Token không hợp lệ!')
         );
       }
 
-      // Lấy token
-      const token = authHeader.split(' ')[1];
-
-      // Giải mã token
-      let decodedToken;
-      try {
-        decodedToken = jwt.verify(token, process.env.JWT_ACCESS_TOKEN_SECRET);
-      } catch (err) {
-        return res.status(401).json(
-          responseWithError(
-            ErrorCodes.ERROR_CODE_UNAUTHORIZED,
-            'Mã thông báo đã hết hạn hoặc không hợp lệ!'
-          )
-        );
-      }
-
-      // Tìm user tương ứng
-      const user = await models.User.findOne({
-        where: { id: decodedToken.id, deleted: 0 },
-        attributes: ['id', 'full_name', 'role', 'email', 'username', 'phone', 'status']
-      });
-
-      if (!user) {
-        return res.status(401).json(
-          responseWithError(
-            ErrorCodes.ERROR_CODE_UNAUTHORIZED,
-            'Không tìm thấy người dùng!'
-          )
-        );
-      }
-
-      req.user = {
-        id: user.id,
-        full_name: user.full_name,
-        email: user.email,
-        username: user.username,
-        phone: user.phone,
-        role: user.role,
-      };
-
-      // Nếu có truyền roles, kiểm tra quyền
-      if (roles.length > 0 && !roles.includes(user.role)) {
+      if (roles.length > 0 && !roles.includes(req.user.role)) {
         return res.status(403).json(
           responseWithError(ErrorCodes.ERROR_CODE_NOT_ALLOWED, 'Không có quyền truy cập!')
         );
       }
 
-      // Cho phép đi tiếp
       next();
     } catch (err) {
       console.error('checkRole error:', err);
       return res.status(401).json(
-        responseWithError(
-          ErrorCodes.ERROR_CODE_UNAUTHORIZED,
-          'Lỗi xác thực token!',
-          err.message
-        )
+        responseWithError(ErrorCodes.ERROR_CODE_UNAUTHORIZED, 'Lỗi xác thực!', err.message)
       );
     }
-  };
-};
-
-//checkRefreshToken
-export const checkRefreshToken = (req, res, next) => {
-  try {
-    const decodedToken = jwt.verify(req, process.env.JWT_REFRESH_TOKEN_SECRET);
-    if (decodedToken) {
-      return decodedToken;
-    } else {
-      res.status(403).json({ message: "RefreshToken không hợp lệ!" });
-    }
-  } catch (err) {
-    return res.status(401).json({
-      message: "Mã thông báo được cung cấp không hợp lệ hoặc đã hết hạn!",
-      error: err.message
-    })
-  }
-};
-
-//signAccessToken
-export const signAccessToken = (req, res, next) => {
-  try {
-    const payload = {
-      id: req.id,
-      full_name: req.full_name,
-      username: req.username,
-      email: req.email,
-      role: req.role
-    }
-    return jwt.sign(payload, process.env.JWT_ACCESS_TOKEN_SECRET, { expiresIn: process.env.JWT_ACCESS_TOKEN_EXPIRES });
-  } catch (err) {
-    return res.status(401).json({
-      error: err
-    })
-  }
-};
-
-//signRefreshToken
-export const signRefreshToken = (req, res, next) => {
-  try {
-    const payload = {
-      id: req.id,
-      full_name: req.full_name,
-      username: req.username,
-      email: req.email,
-      role: req.role,
-    }
-    return jwt.sign(payload, process.env.JWT_REFRESH_TOKEN_SECRET, { expiresIn: process.env.JWT_REFRESH_TOKEN_EXPIRES });
-  } catch (err) {
-    return res.status(401).json({
-      error: err
-    })
   };
 };

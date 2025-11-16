@@ -1,6 +1,8 @@
 import * as userService from '../services/UserService.js';
 import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
+import dotenv from "dotenv";
+dotenv.config();
 
 export const register = async (req, res, next) => {
   try {
@@ -16,12 +18,67 @@ export const register = async (req, res, next) => {
 export const login = async (req, res, next) => {
   try {
     const result = await userService.login(req.body);
-    return res.json(responseSuccess(result));
+    const accessMaxAge = Number(process.env.JWT_ACCESS_TOKEN_EXPIRES) || 1000 * 60 * 30;
+    const refreshMaxAge = Number(process.env.JWT_REFRESH_TOKEN_EXPIRES) || 1000 * 60 * 60 * 24 * 7;
+    const secure = process.env.COOKIE_SECURE === "true";
+
+    res.cookie("accessToken", result.accessToken, {
+      httpOnly: true,
+      secure: secure,
+      sameSite: process.env.COOKIE_SAMESITE || "Lax",
+      maxAge: accessMaxAge
+    });
+
+    res.cookie("refreshToken", result.refreshToken, {
+      httpOnly: true,
+      secure: secure,
+      sameSite: process.env.COOKIE_SAMESITE || "Lax",
+      maxAge: refreshMaxAge
+    });
+
+    return res.json(responseSuccess({ user: result.userInfo }));
   } catch (error) {
     console.error('login error', error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi đăng nhập', error.message));
   }
 };
+
+export const logout = (req, res) => {
+  // Xoá cookie access + refresh
+  res.clearCookie("accessToken");
+  res.clearCookie("refreshToken");
+  
+  return res.json({
+    code: 0,
+    message: "Logout thành công"
+  });
+};
+
+export const refreshToken = async (req, res) => {
+  try {
+    const user = req.user;
+    const result = await userService.refreshToken(user);
+    const accessMaxAge = Number(process.env.JWT_ACCESS_TOKEN_EXPIRES) || 1000 * 60 * 30;
+    const secure = process.env.COOKIE_SECURE === "true";
+    res.cookie("accessToken", result.accessToken, {
+      httpOnly: true,
+      secure: secure,
+      sameSite: process.env.COOKIE_SAMESITE || "Lax",
+      maxAge: accessMaxAge
+    });
+    res.cookie("refreshToken", result.refreshToken, {
+      httpOnly: true,
+      secure: secure,
+      sameSite: process.env.COOKIE_SAMESITE || "Lax",
+      maxAge: Number(process.env.JWT_REFRESH_TOKEN_EXPIRES) || 1000 * 60 * 60 * 24 * 7
+    });
+    return res.json(responseSuccess("Làm mới token thành công"));
+  } catch (error) {
+    console.error('refreshToken error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi làm mới token', error.message));
+  }
+};
+
 
 export const sendOtp = async (req, res, next) => {
   try {

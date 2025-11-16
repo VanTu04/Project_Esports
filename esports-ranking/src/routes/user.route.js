@@ -1,12 +1,14 @@
 import express from 'express';
 import * as usersController from '../controllers/UserController.js';
 import roles from '../constant/roles.js';
-import { checkAccessToken, checkRole } from '../middlewares/jwt_token.js';
+import { checkAccessToken, checkRefreshToken, checkRole } from '../middlewares/jwt_token.js';
 
 const router = express.Router();
 
 router.post("/register", usersController.register);
 router.post("/login", usersController.login);
+router.post('/logout', checkAccessToken, usersController.logout);
+router.post('/refresh-token', checkRefreshToken, usersController.refreshToken);
 
 // send mail
 router.post("/send-verification-email", usersController.sendOtp);
