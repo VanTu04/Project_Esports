@@ -7,6 +7,7 @@ import routes from './routes/index.js';
 import { sequelize } from './models/index.js';
 import './config/passport.js'; // Import Ä‘á»ƒ kÃ­ch hoáº¡t cáº¥u hÃ¬nh Passport
 import { initAdminAccount } from './init/initAdmin.js';
+import cookieParser from 'cookie-parser';
 
 dotenv.config();
 
@@ -19,6 +20,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   optionsSuccessStatus: 204
 }));
+
+app.use(cookieParser());
 
 // --- View engine ---
 app.set('view engine', 'ejs');

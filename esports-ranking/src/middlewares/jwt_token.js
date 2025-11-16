@@ -38,14 +38,16 @@ export const signRefreshToken = (user) => {
 // Kiểm tra access token từ cookie
 export const checkAccessToken = async (req, res, next) => {
   try {
+    console.log("req cookies:", req.cookies);
     const token = req.cookies?.accessToken || req.headers?.authorization?.split(' ')[1];
     if (!token) {
       return res.status(401).json(
         responseWithError(ErrorCodes.ERROR_CODE_UNAUTHORIZED, 'Access token không hợp lệ hoặc thiếu!')
       );
     }
-
+    console.log('Token found:', token);
     const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET);
+    console.log('Decoded token:', decoded);
     const user = await models.User.findOne({
       where: { id: decoded.id, deleted: 0 },
       attributes: ['id', 'full_name', 'username', 'email', 'role']
@@ -95,14 +97,30 @@ export const checkRefreshToken = async (req, res, next) => {
 export const checkRole = (roles = []) => {
   return async (req, res, next) => {
     try {
-      // req.user đã được gắn bởi checkAccessToken
-      if (!req.user) {
+      const token = req.cookies?.accessToken || req.headers?.authorization?.split(' ')[1];
+      console.log('Token found:', token);
+      if (!token) {
+        return res.status(401).json({ message: "Access token không tồn tại!" });
+      }
+      console.log('Token found1:', token);
+      const decoded = jwt.verify(token, ACCESS_TOKEN_SECRET);
+
+      console.log('Decoded token:', decoded);
+      const user = await models.User.findOne({
+        where: { id: decoded.id },
+        attributes: ['id', 'full_name', 'role', 'email', 'username'],
+      });
+
+      if (!user) {
         return res.status(401).json(
-          responseWithError(ErrorCodes.ERROR_CODE_UNAUTHORIZED, 'Token không hợp lệ!')
+          responseWithError(
+            ErrorCodes.ERROR_CODE_UNAUTHORIZED,
+            'Không tìm thấy người dùng!'
+          )
         );
       }
 
-      if (roles.length > 0 && !roles.includes(req.user.role)) {
+      if (roles.length > 0 && !roles.includes(user.role)) {
         return res.status(403).json(
           responseWithError(ErrorCodes.ERROR_CODE_NOT_ALLOWED, 'Không có quyền truy cập!')
         );
