@@ -10,7 +10,7 @@ import { Op } from 'sequelize';
 // 1. Tạo một giải đấu mới
 export const createTournamentWithRewards = async (req, res) => {
   try {
-    const { name, total_rounds, rewards, start_date, end_date } = req.body;
+    const { name, total_rounds, rewards } = req.body;
     // rewards = [{ rank: 1, reward_amount: 50 }, { rank: 2, reward_amount: 30 }, ...]
     
     if (!name || !total_rounds) {
@@ -23,31 +23,17 @@ export const createTournamentWithRewards = async (req, res) => {
     }
 
     const result = await models.sequelize.transaction(async (t) => {
-      const tournament = await tournamentService.create({ name, total_rounds, start_date, end_date }, { transaction: t });
+    const tournament = await tournamentService.create({ name, total_rounds }, { transaction: t });
 
-      if (Array.isArray(rewards) && rewards.length > 0) {
-        const rewardsData = rewards.map(r => ({
-          tournament_id: tournament.id,
-          rank: r.rank,
-          reward_amount: Number(r.reward_amount)
-        }));
-        await models.TournamentReward.bulkCreate(rewardsData, { transaction: t });
-      }
-
-      // Reload tournament including created rewards so caller gets rank & reward_amount
-      const tournamentWithRewards = await models.Tournament.findByPk(tournament.id, {
-        transaction: t,
-        include: [
-          {
-            model: models.TournamentReward,
-            as: 'rewards',
-            attributes: ['id', 'rank', 'reward_amount']
-          }
-        ]
-      });
-
-      return tournamentWithRewards;
-    });
+    if (Array.isArray(rewards) && rewards.length > 0) {
+      const rewardsData = rewards.map(r => ({
+        tournament_id: tournament.id,
+        rank: r.rank,
+        reward_amount: Number(r.reward_amount)
+      }));
+      await models.TournamentReward.bulkCreate(rewardsData, { transaction: t });
+    }
+  });
 
     return res.json(responseSuccess(result, 'Tạo giải đấu và reward thành công'));
   } catch (error) {
@@ -66,20 +52,6 @@ export const getTournamentRewards = async (req, res) => {
     return res.json(responseSuccess(rewards));
   } catch (err) {
     console.error(err);
-    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, err.message));
-  }
-};
-
-export const getTournamentDistributions = async (req, res) => {
-  try {
-    const { tournament_id } = req.params;
-    const distributions = await models.TournamentDistribution.findAll({
-      where: { tournament_id },
-      order: [['createdAt', 'DESC']]
-    });
-    return res.json(responseSuccess(distributions));
-  } catch (err) {
-    console.error('getTournamentDistributions error', err);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, err.message));
   }
 };
@@ -617,8 +589,6 @@ export const updateMatchScore = async (req, res) => {
 export const startNextRound = async (req, res) => {
   try {
     const { tournament_id } = req.params;
-    // Tạo transaction để đảm bảo các ghi vào DB là nguyên tử
-    const t = await models.sequelize.transaction();
 
     // 1️⃣ Lấy thông tin tournament
     const tournament = await models.Tournament.findByPk(tournament_id);
@@ -651,8 +621,7 @@ export const startNextRound = async (req, res) => {
       }
     });
 
-  if (incomplete > 0) {
-      await t.rollback();
+    if (incomplete > 0) {
       return res.json(
         responseWithError(
           ErrorCodes.ERROR_REQUEST_DATA_INVALID,
@@ -713,33 +682,26 @@ export const startNextRound = async (req, res) => {
         team_a_participant_id: byeTeam.id,
         team_b_participant_id: null,
         winner_participant_id: byeTeam.id,
-        status: "COMPLETED",
-        point_team_a: 2,
-        point_team_b: 0
+        status: "COMPLETED"
       });
 
-      // cộng điểm và gắn flag BYE trong cùng transaction
       await models.Participant.increment(
         { total_points: 2 },
         { where: { id: byeTeam.id } }
       );
 
-      await models.Participant.update(
-        { has_received_bye: true },
-        { where: { id: byeTeam.id }, transaction: t }
-      );
+      // Gắn flag đã nhận BYE để Swiss không lặp lại
+      await tournamentService.markParticipantBye(byeTeam.id);
     }
+    
+    // 9️⃣ Lưu vào DB
+    await tournamentService.createMatches(newMatches);
 
-    // 9️⃣ Lưu vào DB trong transaction
-    await models.Match.bulkCreate(newMatches, { transaction: t });
-
-    // 🔟 Cập nhật Tournament sang vòng mới (trong transaction)
+    // 🔟 Cập nhật Tournament sang vòng mới
     await tournament.update({
       current_round: nextRound,
       status: "ACTIVE"
-    }, { transaction: t });
-
-    await t.commit();
+    });
 
     return res.json(
       responseSuccess(
@@ -969,3 +931,4 @@ export const finishRound = async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 };
+

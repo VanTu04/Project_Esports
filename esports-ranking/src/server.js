@@ -13,7 +13,7 @@ dotenv.config();
 const app = express();
 
 app.use(cors({
-  origin: true,
+  origin: [process.env.CLIENT_URL],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -81,7 +81,7 @@ app.get('/api/auth/fail', (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 sequelize
-  .sync({ alter: true })
+  .sync({ alter: false })
   .then(async () => {
     console.log('Database synced');
 

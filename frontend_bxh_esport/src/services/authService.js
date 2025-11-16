@@ -1,109 +1,69 @@
-import axios from "axios";
-import { API_CONFIG } from "../config";
-import { STORAGE_KEYS } from "../utils/constants";
-import storage from "../utils/storage";
+  import { apiClient } from "./api";
+  import { STORAGE_KEYS } from "../utils/constants";
+  import storage from "../utils/storage";
 
-const api = axios.create({
-  baseURL: '/api',  
-  timeout: API_CONFIG.timeout,
-});
+  // ==================== AUTH SERVICE ==================== //
+  const authService = {
+    // Đăng ký
+    register: async (userData) => {
+      try {
+        const res = await apiClient.post('/users/register', userData);
 
-api.interceptors.response.use(
-  (response) => {
-    // Nếu backend trả về code khác 0 (lỗi), reject với message cụ thể
-    if (response.data && response.data.code !== undefined && response.data.code !== 0) {
-      return Promise.reject({
-        message: response.data.message || 'Có lỗi xảy ra',
-        code: response.data.code,
-        response: response
-      });
-    }
-    return response;
-  },
-  (error) => {
-    // Network error hoặc server error
-    if (error.response) {
-      // Server trả về response với status code khác 2xx
-      return Promise.reject({
-        message: error.response.data?.message || error.message,
-        status: error.response.status,
-        response: error.response
-      });
-    }
-    return Promise.reject(error);
-  }
-);
+        // Backend trả về structure { code, status, message, data }
+        if (res?.code === 0) return res;
 
-// ==================== AUTH SERVICE ==================== //
-const authService = {
-  // Đăng ký
-  register: async (userData) => {
-    try {
-      const res = await api.post("/users/register", userData);
-      
-      // Backend trả về {code: 0, status: 200, data: {user: {...}}, message: string}
-      if (res.data?.code === 0) {
-        // Không cần lưu token vì backend không trả token khi register
-        // User phải login sau khi register
-        return res.data;
+        throw new Error(res?.message || 'Đăng ký thất bại');
+      } catch (error) {
+        console.error('Register error:', error);
+        
+        // Lấy message từ các nguồn khác nhau
+        const errorMessage =
+          error.response?.data?.message ||
+          error.message ||
+          error?.error ||
+          'Đăng ký thất bại. Vui lòng thử lại.';
+        
+        throw new Error(errorMessage);
       }
-      
-      throw new Error(res.data?.message || "Đăng ký thất bại");
-    } catch (error) {
-      console.error('Register error:', error);
-      
-      // Lấy message từ các nguồn khác nhau
-      const errorMessage = 
-        error.response?.data?.message || 
-        error.message || 
-        error?.error ||
-        "Đăng ký thất bại. Vui lòng thử lại.";
-      
-      throw new Error(errorMessage);
-    }
-  },
+    },
 
-  // Đăng nhập
+    // Đăng nhập
   login: async (credentials) => {
-    const payload = {
-      account: credentials.email,  
-      password: credentials.password
-    };
-    
-    const res = await api.post("/users/login", payload);
-    
-    if (res.data?.data?.accessToken) {
-      storage.setItem(STORAGE_KEYS.AUTH_TOKEN, res.data.data.accessToken);
-      if (res.data.data.refreshToken) {
-        storage.setItem('REFRESH_TOKEN', res.data.data.refreshToken);
-      }
-    }
-    return res.data;
+    const res = await apiClient.post('/users/login', {
+      account: credentials.email,
+      password: credentials.password,
+    });
+
+    // Không lưu token trong JS
+    // Cookie httpOnly sẽ được gửi tự động trong các request tiếp theo
+    return res; 
   },
 
-  // Gửi OTP
-  sendOtp: async (email) => {
-    const res = await api.post("/users/send-verification-email", { email });
-    return res.data;
-  },
 
-  // Kiểm tra OTP
-  checkOtp: async (email, otp) => {
-    const res = await api.post("/users/check-otp", { email, otp });
-    return res.data;
-  },
+    // Gửi OTP
+    sendOtp: async (email) => {
+      const res = await apiClient.post('/users/send-verification-email', { email });
+      return res;
+    },
 
-  // Đặt lại mật khẩu
-  resetPassword: async (email, password) => {
-    const res = await api.post("/users/forgot-pass", { email, password });
-    return res.data;
-  },
+    // Kiểm tra OTP
+    checkOtp: async (email, otp) => {
+      const res = await apiClient.post('/users/check-otp', { email, otp });
+      return res;
+    },
 
-  // Đăng xuất
-  logout: async () => {
-    storage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+    // Đặt lại mật khẩu
+    resetPassword: async (email, password) => {
+      const res = await apiClient.post('/users/forgot-pass', { email, password });
+      return res;
+    },
+
+    // Đăng xuất
+    logout: async () => {
     storage.removeItem(STORAGE_KEYS.USER_DATA);
+    await apiClient.post('/users/logout'); // backend xóa cookie
   },
-};
 
-export default authService;
+  };
+
+  export default authService;

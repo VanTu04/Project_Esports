@@ -2,7 +2,7 @@
 import { DataTypes } from 'sequelize';
 
 export default (sequelize) => {
-  const Users = sequelize.define('Users', {
+  const Users = sequelize.define('users', {
     id: {
       allowNull: false,
       autoIncrement: true,
@@ -43,7 +43,7 @@ export default (sequelize) => {
     },
   }, {
     timestamps: false,
-    tableName: 'Users',
+    tableName: 'users',
   });
 
   return Users;

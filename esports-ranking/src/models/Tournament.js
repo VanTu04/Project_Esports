@@ -31,17 +31,6 @@ export default (sequelize) => {
         key: 'id'
       }
     },
-    start_date: {
-      type: DataTypes.DATE,
-      allowNull: true,
-      comment: 'Ngày bắt đầu dự kiến của giải đấu'
-    },
-
-    end_date: {
-      type: DataTypes.DATE,
-      allowNull: true,
-      comment: 'Ngày kết thúc dự kiến của giải đấu'
-    },
     start_time: {
       type: DataTypes.DATE,
       allowNull: true,

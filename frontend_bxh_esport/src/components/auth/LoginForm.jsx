@@ -7,24 +7,6 @@ import { validateForm } from '../../utils/validators';
 import Button from '../common/Button';
 import { API_BASE_URL } from '../../utils/constants';
 
-// Helper function để decode JWT token
-const decodeJWT = (token) => {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch (error) {
-    console.error('Error decoding JWT:', error);
-    return null;
-  }
-};
-
 export const LoginForm = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -47,11 +29,10 @@ export const LoginForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Reset errors trước khi validate
     setErrors({});
     
     const validationErrors = validateForm(formData, {
-      email: { required: true }, // Bỏ validation email vì có thể nhập username
+      email: { required: true },
       password: { required: true },
     });
 
@@ -66,40 +47,38 @@ export const LoginForm = () => {
     try {
       const response = await login(formData);
       
-      // Kiểm tra response thành công
-      if (response?.code === 0 && response?.status === 200) {
+      console.log('Login response:', response); // Debug
+      
+      // Lấy user info từ response
+      const userInfo = response?.data?.user || response?.data;
+      
+      if (userInfo && userInfo.role !== undefined) {
         showSuccess("Đăng nhập thành công!");
         
-        // Decode JWT token để lấy thông tin user
-        const accessToken = response?.data?.accessToken;
-        const decodedToken = decodeJWT(accessToken);
-                
-        const role = Number(decodedToken?.role || decodedToken?.user_role || 1);
+        const role = Number(userInfo.role);
         
         // Điều hướng theo role
-        if (role === 4) {
-          navigate(ROUTES.ADMIN_DASHBOARD);
-        } else if (role === 3) {
-          navigate(ROUTES.TEAM_MANAGER_DASHBOARD);
-        } else {
-          navigate(ROUTES.HOME);
+        switch(role) {
+          case 4: // Admin
+            navigate(ROUTES.ADMIN_DASHBOARD, { replace: true });
+            break;
+          case 3: // Team Manager
+            navigate(ROUTES.TEAM_MANAGER_DASHBOARD, { replace: true });
+            break;
+          default: // User thường
+            navigate(ROUTES.HOME, { replace: true });
+            break;
         }
       } else {
-        // Hiển thị lỗi từ backend
-        const errorMessage = response?.errors || response?.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại!";
-        showError(errorMessage);
+        throw new Error('Không thể lấy thông tin người dùng');
       }
     } catch (err) {
-      // Xử lý các loại lỗi khác nhau
       console.error('Login error:', err);
       
-      // Giống RegisterForm: lấy thông báo lỗi cụ thể hơn
       const message = 
+        err?.response?.data?.message ||
         err?.message || 
         err?.error || 
-        err?.response?.data?.message ||
-        err?.response?.data?.errors ||
-        err?.data?.message || 
         'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin!';
       
       showError(message);

@@ -1,108 +1,64 @@
 // src/context/AuthContext.js
 import React, { createContext, useState, useEffect, useContext } from "react";
 import authService from "../services/authService";
+import { apiClient } from "../services/api"; // ← THÊM DÒNG NÀY
 import { STORAGE_KEYS } from "../utils/constants";
 import storage from "../utils/storage";
 
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
-// Helper function để decode JWT token
-const decodeJWT = (token) => {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch (error) {
-    console.error('Error decoding JWT:', error);
-    return null;
-  }
-};
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Khi app khởi chạy → kiểm tra token trong sessionStorage
+  // Khi app khởi chạy → kiểm tra user từ cookie
   useEffect(() => {
-    const token = storage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-    const savedUser = storage.getItem(STORAGE_KEYS.USER_DATA);
-
-    if (token && savedUser) {
+    const fetchUser = async () => {
       try {
-        setUser(typeof savedUser === 'string' ? JSON.parse(savedUser) : savedUser);
-        setIsAuthenticated(true);
-      } catch (error) {
-        console.error('Error parsing saved user:', error);
-        storage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-        storage.removeItem(STORAGE_KEYS.USER_DATA);
+        const res = await apiClient.get('/users/me');
+        const userInfo = res?.data?.user || res?.data;
+        
+        if (userInfo) {
+          setUser(userInfo);
+          setIsAuthenticated(true);
+        }
+      } catch (err) {
+        console.log('Not authenticated yet');
+        setUser(null);
+        setIsAuthenticated(false);
+      } finally {
+        setLoading(false);
       }
-    } else {
-      setUser(null);
-      setIsAuthenticated(false);
-    }
+    };
 
-    setLoading(false);
+    fetchUser();
   }, []);
 
   // ==================== LOGIN ==================== //
   const login = async (credentials) => {
-    try {
-      // Sử dụng authService thay vì api trực tiếp
-      const response = await authService.login(credentials);
-      
-      console.log('Login response:', response);
-      
-      if (response?.code === 0 && response?.data?.accessToken) {
-        const { accessToken, refreshToken } = response.data;
-        
-        // Lưu token vào sessionStorage (mất khi đóng trình duyệt)
-        storage.setItem(STORAGE_KEYS.AUTH_TOKEN, accessToken);
-        if (refreshToken) {
-          storage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
-        }
-        
-        // Decode token và lấy thông tin user
-        const decodedToken = decodeJWT(accessToken);
-        
-        const userData = {
-          id: decodedToken.id,
-          username: decodedToken.username,
-          email: decodedToken.email,
-          role: decodedToken.role,
-          full_name: decodedToken.full_name,
-        };
-        
-        
-        setUser(userData);
-        setIsAuthenticated(true);
-        
-        storage.setItem(STORAGE_KEYS.USER_DATA, userData);
-      }
-      
-      return response;
-    } catch (error) {
-      console.error("Login error in AuthContext:", error);
-      throw error;
+    const res = await authService.login(credentials);
+    
+    // Lấy thông tin user từ response
+    const userInfo = res?.data?.user || res?.data;
+    
+    if (userInfo) {
+      setUser(userInfo);
+      setIsAuthenticated(true);
     }
+    
+    return res;
   };
 
   // ==================== REGISTER ==================== //
   const register = async (userData) => {
     try {
       const response = await authService.register(userData);
-      const token = response?.data?.accessToken;
-      const userInfo = response?.data?.user;
+      const payload = response?.data ?? response;
+      const userInfo = payload?.user || payload?.userInfo || payload;
 
-      if (token && userInfo) {
-        storage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+      if (userInfo) {
         storage.setItem(STORAGE_KEYS.USER_DATA, userInfo);
         setUser(userInfo);
         setIsAuthenticated(true);

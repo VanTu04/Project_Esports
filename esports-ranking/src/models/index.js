@@ -14,7 +14,6 @@ import defineRankingBoard from './RankingBoard.js';
 import defineParticipant from './Participant.js';
 import defineMatch from './Match.js';
 import defineTournamentReward from './TournamentReward.js';
-import defineTournamentDistribution from './TournamentDistribution.js';
 
 // --- Khởi tạo models ---
 const User = defineUser(sequelize, DataTypes);
@@ -29,7 +28,6 @@ const RankingBoard = defineRankingBoard(sequelize, DataTypes);
 const Participant = defineParticipant(sequelize, DataTypes);
 const Match = defineMatch(sequelize, DataTypes);
 const TournamentReward = defineTournamentReward(sequelize, DataTypes);
-const TournamentDistribution = defineTournamentDistribution(sequelize, DataTypes);
 
 // --- Gom tất cả models vào 1 object ---
 const models = {
@@ -41,7 +39,6 @@ const models = {
   Season,
   Tournament,
   TournamentReward,
-    TournamentDistribution,
   Ranking,
   RankingBoard,
   Participant,
@@ -56,7 +53,7 @@ Object.keys(models).forEach((modelName) => {
 });
 
 // --- Xuất ---
-export { sequelize, Sequelize, User, user_otp, Team, TeamMember, Game, Season, Tournament, TournamentReward, TournamentDistribution, Ranking, RankingBoard, Participant, Match };
+export { sequelize, Sequelize, User, user_otp, Team, TeamMember, Game, Season, Tournament, TournamentReward, Ranking, RankingBoard, Participant, Match };
 
 export default {
   sequelize,
@@ -69,7 +66,6 @@ export default {
   Season,
   Tournament,
   TournamentReward,
-  TournamentDistribution,
   Ranking,
   RankingBoard,
   Participant,

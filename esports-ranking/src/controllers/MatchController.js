@@ -110,31 +110,24 @@ export const reportMatchResult = async (req, res) => {
       ));
     }
 
-    // 5. Tính điểm: Thắng 2 điểm, Thua 1 điểm
-    const scoreA = Number(winner_participant_id) === teamA_id ? 2 : 1;
-    const scoreB = Number(winner_participant_id) === teamB_id ? 2 : 1;
+    // 5. Cập nhật điểm lên blockchain (gọi contract mới)
+    // Thắng 2 điểm, Thua 1 điểm
+    // Nếu trận đã cập nhật trước đó, admin vẫn có thể ghi lại -> tạo block mới
+    await updateMatchScoreOnChain(match_id, 
+      Number(match_id) === teamA_id ? 2 : 1, // scoreA
+      Number(match_id) === teamB_id ? 2 : 1  // scoreB
+    );
 
-    // 6. Cập nhật điểm lên blockchain
-    // NOTE: Contract hiện tại chỉ hỗ trợ updateRoundLeaderboard, không có updateMatchScore
-    // Blockchain sẽ được cập nhật khi kết thúc round thông qua updateRoundLeaderboard
-    // await updateMatchScoreOnChain(match_id, scoreA, scoreB);
-
-    // 7. Cập nhật CSDL (bao gồm score_a và score_b)
+    // 6. Cập nhật CSDL
     await match.update({
       winner_participant_id,
-      score_a: scoreA,
-      score_b: scoreB,
       status: 'COMPLETED'
     }, { transaction: t });
 
-    // 8. Commit
+    // 7. Commit
     await t.commit();
 
-    return res.json(responseSuccess({
-      winner_participant_id,
-      score_a: scoreA,
-      score_b: scoreB
-    }, 'Báo cáo kết quả thành công. Điểm sẽ được cập nhật lên blockchain khi kết thúc vòng đấu.'));
+    return res.json(responseSuccess(true, 'Báo cáo kết quả thành công. Điểm đã được cập nhật trên blockchain.'));
   } catch (error) {
     await t.rollback();
     console.error('reportMatchResult error:', error);

@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import models from '../models/index.js';
-import { responseSuccess, responseWithError } from '../helper/MessageResponse.js';
+import { responseSuccess, responseWithError } from '../helper/messageResponse.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
 
 //checkAccessToken
