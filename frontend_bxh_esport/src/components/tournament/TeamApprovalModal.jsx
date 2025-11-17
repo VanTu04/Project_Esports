@@ -1,39 +1,98 @@
 import { Card } from '../common/Card';
 import Button from '../common/Button';
+import { useEffect, useState } from 'react';
+import tournamentService from '../../services/tournamentService';
+import { useNotification } from '../../context/NotificationContext';
 
 /**
  * Modal duyệt đội tham gia giải đấu
+ * This component fetches pending registrations itself and calls approve/reject APIs.
  */
-export const TeamApprovalModal = ({
-  show,
-  onClose,
-  tournament,
-  pendingTeams,
-  processingTeamId,
-  onApprove,
-  onReject
-}) => {
-  if (!show) return null;
+export const TeamApprovalModal = ({ show, onClose, tournament }) => {
+  const { showSuccess, showError } = useNotification();
+  const [pendingTeams, setPendingTeams] = useState([]);
+  const [processingTeamId, setProcessingTeamId] = useState(null);
+
   const currentApproved = tournament?.teams?.current || 0;
   const minTeams = tournament?.teams?.min || 2;
   const isMinReached = currentApproved >= minTeams;
+
+  useEffect(() => {
+    if (!show) return;
+    if (!tournament?.id) return;
+
+    const load = async () => {
+      try {
+        const res = await tournamentService.getPendingRegistrations(tournament.id);
+        const participants = res?.data?.participants || [];
+        const mapped = participants.map(p => ({
+          id: p.id,
+          name: p.team_name || p.full_name || `Team ${p.user_id}`,
+          captain: p.User?.full_name || 'N/A',
+          members: p.members || 5,
+          registeredDate: p.createdAt,
+          description: `Wallet: ${p.wallet_address}`,
+          raw: p
+        }));
+        setPendingTeams(mapped);
+      } catch (err) {
+        console.error('Failed to load pending registrations:', err);
+        showError('Không thể tải danh sách chờ duyệt');
+      }
+    };
+
+    load();
+  }, [show, tournament]);
+
+  const handleApprove = async (participantId) => {
+    setProcessingTeamId(participantId);
+    try {
+      const res = await tournamentService.approveParticipant(participantId);
+      const participant = res?.data?.participant;
+      const blockchain = res?.data?.blockchain;
+
+      setPendingTeams(prev => prev.filter(t => t.id !== participantId));
+      showSuccess(res?.message || 'Duyệt thành công');
+      if (blockchain) console.log('Blockchain approval info:', blockchain);
+    } catch (err) {
+      console.error('Approve error:', err);
+      showError(err?.message || 'Duyệt thất bại');
+    } finally {
+      setProcessingTeamId(null);
+    }
+  };
+
+  const handleReject = async (participantId) => {
+    if (!window.confirm('Bạn có chắc muốn từ chối đội này?')) return;
+    setProcessingTeamId(participantId);
+    try {
+      const reason = prompt('Lý do từ chối (tùy chọn):', 'Không đáp ứng yêu cầu') || null;
+      const res = await tournamentService.rejectParticipant(participantId, reason);
+      const participant = res?.data?.participant;
+      const blockchain = res?.data?.blockchain;
+
+      setPendingTeams(prev => prev.filter(t => t.id !== participantId));
+      showSuccess(res?.message || 'Đã từ chối');
+      if (blockchain) console.log('Blockchain reject info:', blockchain);
+    } catch (err) {
+      console.error('Reject error:', err);
+      showError(err?.message || 'Từ chối thất bại');
+    } finally {
+      setProcessingTeamId(null);
+    }
+  };
+
+  if (!show) return null;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-primary-700/20 flex justify-between items-center">
           <div>
-            <h2 className="text-2xl font-bold text-white">
-              Duyệt Đội Tham Gia
-            </h2>
-            <p className="text-sm text-gray-400 mt-1">
-              Giải đấu: {tournament?.name}
-            </p>
+            <h2 className="text-2xl font-bold text-white">Duyệt Đội Tham Gia</h2>
+            <p className="text-sm text-gray-400 mt-1">Giải đấu: {tournament?.name}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-primary-700/20 rounded-lg transition-colors text-gray-400 hover:text-white"
-          >
+          <button onClick={onClose} className="p-2 hover:bg-primary-700/20 rounded-lg transition-colors text-gray-400 hover:text-white">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -46,6 +105,7 @@ export const TeamApprovalModal = ({
               Đã đủ số đội tối thiểu ({minTeams}) để bắt đầu giải. Không thể duyệt thêm đội.
             </div>
           )}
+
           {pendingTeams.length === 0 ? (
             <div className="text-center py-12">
               <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -85,29 +145,23 @@ export const TeamApprovalModal = ({
                         <p className="text-sm text-gray-300 mt-2">{team.description}</p>
                       </div>
                     </div>
-                    
+
                     <div className="flex gap-2">
                       <Button
                         variant="success"
                         size="sm"
-                        onClick={() => onApprove(team.id)}
+                        onClick={() => handleApprove(team.id)}
                         disabled={processingTeamId === team.id || isMinReached}
                         loading={processingTeamId === team.id}
                       >
-                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
                         Duyệt
                       </Button>
                       <Button
                         variant="danger"
                         size="sm"
-                        onClick={() => onReject(team.id)}
+                        onClick={() => handleReject(team.id)}
                         disabled={processingTeamId === team.id}
                       >
-                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
                         Từ chối
                       </Button>
                     </div>
@@ -119,12 +173,7 @@ export const TeamApprovalModal = ({
         </div>
 
         <div className="p-6 border-t border-primary-700/20 flex justify-end">
-          <Button
-            variant="secondary"
-            onClick={onClose}
-          >
-            Đóng
-          </Button>
+          <Button variant="secondary" onClick={onClose}>Đóng</Button>
         </div>
       </Card>
     </div>

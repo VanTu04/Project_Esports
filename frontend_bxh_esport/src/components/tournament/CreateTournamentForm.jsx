@@ -14,6 +14,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
     end_date: '',
     description: '',
     rewards: [],
+    registration_fee: '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -104,6 +105,14 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
       });
     }
 
+    // Validate registration fee
+    if (form.registration_fee !== '') {
+      const fee = Number(form.registration_fee);
+      if (isNaN(fee) || fee < 0) {
+        newErrors.registration_fee = 'Phí đăng ký phải là số ETH >= 0';
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -166,6 +175,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
         end_date: form.end_date,
         expected_teams: form.expected_teams ? parseInt(form.expected_teams) : undefined,
         description: form.description.trim() || undefined,
+        registration_fee: form.registration_fee !== '' ? Number(form.registration_fee) : 1,
         rewards: Array.isArray(form.rewards) && form.rewards.length > 0 ? form.rewards.map(r => ({ rank: Number(r.rank), reward_amount: Number(r.reward_amount) })) : undefined,
       };
 
@@ -216,6 +226,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
       end_date: '',
       description: '',
       rewards: [],
+      registration_fee: '',
     });
     setErrors({});
   };
@@ -240,6 +251,28 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
           />
           {errors.name && <p className="text-xs text-rose-400 mt-1">{errors.name}</p>}
           <p className="text-xs text-gray-400 mt-1">{form.name.length}/100 ký tự</p>
+        </div>
+
+        {/* Phí đăng ký tham gia (ETH) */}
+        <div>
+          <label className="block text-sm font-semibold text-white mb-2">
+            Phí đăng ký tham gia (ETH)
+          </label>
+          <input
+            name="registration_fee"
+            type="number"
+            min="0"
+            step="0.0001"
+            value={form.registration_fee}
+            onChange={handleChange}
+            className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${
+              errors.registration_fee ? 'border-rose-500' : 'border-primary-700/30'
+            }`}
+            placeholder="Nhập số ETH cần để đăng ký (ví dụ: 0.01)"
+          />
+          {errors.registration_fee && (
+            <p className="text-xs text-rose-400 mt-1">{errors.registration_fee}</p>
+          )}
         </div>
 
         {/* Số vòng đấu */}

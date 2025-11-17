@@ -80,27 +80,60 @@ const tournamentService = {
     try {
       // Backend trả participants qua GET /tournaments/:id trong trường participants
       const response = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}`);
-      
-      console.log('getParticipants raw response:', response);
-      
-      if (response?.code === 0 && response?.data?.participants) {
-        let participants = response.data.participants;
-        
-        console.log('All participants before filter:', participants);
-        
-        // Filter by status nếu được truyền
-        if (status) {
-          const upperStatus = status.toUpperCase();
-          participants = participants.filter(p => p.status === upperStatus);
-          console.log(`Filtered participants with status ${upperStatus}:`, participants);
-        }
-        
-        return { code: 0, data: participants };
+
+      // Axios response objects have the server payload under `response.data`.
+      // Normalize common shapes: { code, data: { participants } } or { participants: [] } or data.array
+      const payload = response?.data ?? response;
+
+      // Attempt to find participants array in several common locations
+      let participants = [];
+      if (Array.isArray(payload?.data?.participants)) {
+        participants = payload.data.participants;
+      } else if (Array.isArray(payload?.participants)) {
+        participants = payload.participants;
+      } else if (Array.isArray(payload?.data)) {
+        // Sometimes API returns { data: [ ...tournaments ] }
+        participants = payload.data;
+      } else if (Array.isArray(payload)) {
+        participants = payload;
       }
-      
-      return { code: 1, data: [], message: 'Không lấy được danh sách participants' };
+
+      // If a status filter was requested, filter case-insensitively
+      if (status && Array.isArray(participants)) {
+        const upperStatus = String(status).toUpperCase();
+        participants = participants.filter(p => String(p.status || '').toUpperCase() === upperStatus);
+      }
+
+      return { code: 0, data: participants };
     } catch (error) {
       console.error('getParticipants error:', error);
+      throw error;
+    }
+  },
+  
+  // Get pending registrations for admin review
+  getPendingRegistrations: async (tournamentId) => {
+    try {
+      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/pending-registrations`);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Approve a participant (participantId is used in the route as in backend examples)
+  approveParticipant: async (participantId) => {
+    try {
+      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${participantId}/approve`);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Reject a participant with optional reason
+  rejectParticipant: async (participantId, reason = null) => {
+    try {
+      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${participantId}/reject`, { reason });
+    } catch (error) {
       throw error;
     }
   },
@@ -127,10 +160,23 @@ const tournamentService = {
   // Team requests to join tournament
   requestJoinTournament: async (tournamentId) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/request-join`);
+      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/register`);
     } catch (error) {
       throw error;
     }
+  },
+
+  confirmBlockchainRegistration: async (participantId, tx_hash) => {
+    try {
+      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${participantId}/confirm`, { tx_hash });
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  getMyRegistrationStatus: async (tournamentId) => {
+    const res = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/my-registration`);
+    return res.data;
   },
 
   // Finish tournament

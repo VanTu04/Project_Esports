@@ -5,6 +5,8 @@ import { Loading } from '../../components/common/Loading';
 import Button from '../../components/common/Button';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../hooks/useAuth';
+import { ethers } from 'ethers';
+import LeaderboardABI from '../../contracts/Leaderboard.json';
 
 export const TournamentRegistration = () => {
   const [tournaments, setTournaments] = useState([]);
@@ -23,13 +25,43 @@ export const TournamentRegistration = () => {
   try {
     setLoading(true);
     // Lấy tất cả giải đấu, bỏ filter status
-    const response = await tournamentService.getAllTournaments(); 
-    
-    const tournamentList = response?.data || response || [];
-    setTournaments(tournamentList);
+    const response = await tournamentService.getAllTournaments();
 
-    // Load trạng thái đăng ký cho từng giải đấu
-    await loadRegistrationStatus(tournamentList);
+    // Normalize response to an array (API may return different shapes)
+    let tournamentList = [];
+    if (Array.isArray(response)) tournamentList = response;
+    else if (Array.isArray(response?.data)) tournamentList = response.data;
+    else if (Array.isArray(response?.data?.data)) tournamentList = response.data.data;
+    else if (response && typeof response === 'object') {
+      tournamentList = response.tournaments || response.data?.tournaments || [];
+    }
+
+    setTournaments(tournamentList || []);
+
+    // Load registration status for current user for each tournament using the dedicated endpoint
+    if (user?.id && tournamentList.length > 0) {
+      try {
+        const statusEntries = await Promise.all(tournamentList.map(async (t) => {
+          try {
+            const res = await tournamentService.getMyRegistrationStatus(t.id);
+            // API returns { code, status, message, data }
+            if (res?.code === 0 && res.data) {
+              return [t.id, { status: res.data.registered ? res.data.participant?.status : null, participant: res.data.participant, blockchain: res.data.blockchain }];
+            }
+            return [t.id, null];
+          } catch (e) {
+            console.warn(`Failed to fetch registration for tournament ${t.id}:`, e);
+            return [t.id, null];
+          }
+        }));
+
+        const statusMap = Object.fromEntries(statusEntries.filter(([,v]) => v));
+        setRegistrationStatus(statusMap);
+        console.log('Registration status map loaded:', statusMap);
+      } catch (e) {
+        console.warn('Error loading registration statuses in parallel:', e);
+      }
+    }
   } catch (error) {
     showError('Không thể tải danh sách giải đấu');
   } finally {
@@ -95,70 +127,140 @@ export const TournamentRegistration = () => {
 
   const handleRegister = async (tournamentId) => {
     try {
+      console.log("🔹 Bắt đầu đăng ký giải đấu:", tournamentId);
       setRegistering(tournamentId);
-      
-      const response = await tournamentService.requestJoinTournament(tournamentId);
-      
-      // Backend trả về {code: 0/1, status: 200, message: string, data: object}
-      if (response?.code === 0) {
-        showSuccess(response?.message || 'Gửi yêu cầu tham gia thành công! Chờ Admin duyệt.');
-        
-        // Lưu trạng thái PENDING vào state ngay lập tức
-        setRegistrationStatus(prev => ({
-          ...prev,
-          [tournamentId]: {
-            status: 'PENDING',
-            participantId: response?.data?.id || null
+
+      // 1️⃣ Gọi API backend
+      console.log("🔹 Gọi API requestJoinTournament...");
+      const res = await tournamentService.requestJoinTournament(tournamentId);
+      const response = res.data;
+      console.log("📦 Response backend:", response);
+
+      if (response?.code !== 0) {
+        showError(response?.message || "Không thể lấy thông tin đăng ký");
+        return;
+      }
+
+      const { signature, amountInWei: backendAmount, contractAddress, participant_id } = response.data;
+      console.log("🔹 Backend trả về:", { signature, backendAmount, contractAddress });
+
+      // 2️⃣ Kiểm tra MetaMask
+      if (!window.ethereum) {
+        showError("MetaMask chưa được cài đặt");
+        return;
+      }
+
+      // 🎯 Chain ID mục tiêu của RPC bạn (31337 → 0x7A69)
+      const TARGET_CHAIN_ID = "0x539";
+
+      // 2.1️⃣ Check current chain MetaMask
+      const currentChain = await window.ethereum.request({ method: "eth_chainId" });
+      console.log("🌐 MetaMask đang ở chain:", currentChain);
+
+      // 2.2️⃣ Nếu chưa đúng chain → yêu cầu chuyển
+      if (currentChain !== TARGET_CHAIN_ID) {
+        console.log("⚠️ MetaMask sai mạng, yêu cầu chuyển sang 31337...");
+
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: TARGET_CHAIN_ID }],
+          });
+          console.log("✅ MetaMask đã chuyển sang chain 31337");
+        } catch (switchError) {
+          if (switchError.code === 4902) {
+            console.log("🔧 Chain chưa tồn tại. Đang add mạng 183.81.33.178:8545...");
+
+            await window.ethereum.request({
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: TARGET_CHAIN_ID,
+                  chainName: "MyCustomChain",
+                  nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+                  rpcUrls: ["http://183.81.33.178:8545"],
+                },
+              ],
+            });
+
+            console.log("✅ Đã thêm mạng custom RPC");
+          } else {
+            throw switchError;
           }
-        }));
-        
-        // Reload để cập nhật trạng thái từ backend
-        await loadTournaments();
-      } else {
-        // code === 1 là lỗi từ backend
-        const errorMsg = response?.message || 'Không thể gửi yêu cầu tham gia';
-        
-        if (errorMsg.includes('đã gửi yêu cầu') || errorMsg.includes('đã tham gia')) {
-          showWarning(errorMsg);
-          // Nếu đã đăng ký rồi, cập nhật state
-          setRegistrationStatus(prev => ({
-            ...prev,
-            [tournamentId]: {
-              status: 'PENDING',
-              participantId: null
-            }
-          }));
-        } else {
-          showError(errorMsg);
         }
       }
-    } catch (error) {
-      // Xử lý các lỗi cụ thể từ interceptor
-      const errorMessage = error?.message || '';
-      
-      if (errorMessage.includes('đã gửi yêu cầu') || errorMessage.includes('đã tham gia')) {
-        showWarning('Bạn đã gửi yêu cầu tham gia giải đấu này rồi');
-        // Nếu đã đăng ký rồi, cập nhật state
-        setRegistrationStatus(prev => ({
-          ...prev,
-          [tournamentId]: {
-            status: 'PENDING',
-            participantId: null
-          }
-        }));
-      } else if (errorMessage.includes('đã bắt đầu') || errorMessage.includes('đang diễn ra')) {
-        showError('Giải đấu đã bắt đầu, không thể đăng ký');
-      } else if (errorMessage.includes('chưa có đội') || errorMessage.includes('team') || errorMessage.includes('wallet')) {
-        showError('Bạn cần cập nhật thông tin ví (wallet) trước khi đăng ký giải đấu');
-      } else if (errorMessage) {
-        showError(errorMessage);
+
+      console.log("💵 backendAmount (wei):", backendAmount);
+      console.log("💵 backendAmount (eth):", ethers.formatEther(backendAmount));
+      console.log("💵 backendAmount (number):", Number(ethers.formatEther(backendAmount)));
+
+
+      // 3️⃣ Kết nối MetaMask
+      console.log("🔹 Kết nối MetaMask...");
+      await window.ethereum.request({ method: "eth_requestAccounts" });
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
+      console.log("✅ MetaMask address:", userAddress);
+
+      // 4️⃣ Lấy balance từ RPC 183.81.33.178:8545
+      const balanceWei = await provider.getBalance(userAddress);
+      console.log("💰 Balance RPC hiện tại:", ethers.formatEther(balanceWei), "ETH");
+
+      // ➜ Nếu không đủ tiền → dừng
+      if (balanceWei <= 0n) {
+        showError("Ví không có ETH trên mạng RPC 183.81.33.178:8545");
+        return;
+      }
+
+      console.log("🔹 Số ETH gửi:", ethers.formatEther(backendAmount), "ETH");
+
+      // 5️⃣ Tạo instance contract
+      const contract = new ethers.Contract(contractAddress, LeaderboardABI.abi, signer);
+      console.log("🔹 Contract instance:", contractAddress);
+
+      // 6️⃣ Gửi transaction register
+      console.log("🔹 Gửi transaction register...");
+      const tx = await contract.register(
+        tournamentId,
+        backendAmount,
+        signature,
+        { value: backendAmount }
+      );
+
+      showSuccess("Giao dịch đã được gửi, chờ xác nhận...");
+      console.log("⏳ Transaction hash:", tx.hash);
+
+      // 7️⃣ Chờ mined
+      const receipt = await tx.wait();
+      console.log("📄 Transaction receipt:", receipt);
+
+      if (receipt.status === 1) {
+        showSuccess("Đăng ký giải đấu thành công!");
+        console.log("📌 Số tiền user thực sự gửi (tx.value wei):", tx.value?.toString());
+        console.log("📌 Số tiền user gửi (ETH):", ethers.formatEther(tx.value || 0));
+        const res = await tournamentService.confirmBlockchainRegistration(participant_id, tx.hash);
+        console.log("✅ Đã xác nhận đăng ký với backend:", res);
+        // await loadTournaments();
       } else {
-        showError('Không thể gửi yêu cầu tham gia. Vui lòng thử lại sau!');
+        showError("Giao dịch thất bại trên blockchain");
+      }
+
+    } catch (error) {
+      console.error("❌ Lỗi khi đăng ký:", error);
+      if (error.code === 4001) {
+        showWarning("Người dùng từ chối giao dịch MetaMask");
+      } else {
+        showError(error?.message || "Lỗi khi gửi giao dịch");
       }
     } finally {
       setRegistering(null);
+      console.log("🔹 Kết thúc handleRegister");
     }
   };
+
+
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -180,6 +282,8 @@ export const TournamentRegistration = () => {
 
   // Filter tournaments theo tab
   const getFilteredTournaments = () => {
+    // Defensive: ensure `tournaments` is an array
+    if (!Array.isArray(tournaments)) return [];
     if (activeTab === 'available') {
       // Giải đấu có thể đăng ký (PENDING) và chưa đăng ký hoặc đang chờ duyệt
       return tournaments.filter(t => 
