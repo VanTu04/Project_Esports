@@ -126,6 +126,7 @@ export const checkRole = (roles = []) => {
         );
       }
 
+      req.user = user;
       next();
     } catch (err) {
       console.error('checkRole error:', err);

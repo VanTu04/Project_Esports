@@ -1,7 +1,7 @@
 // File: controllers/tournament.controller.js
 import * as tournamentService from '../services/TournamentService.js';
 import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
-import {  updateLeaderboardOnChain, getLeaderboardFromChain } from '../services/BlockchainService.js';
+import {  updateLeaderboardOnChain, getLeaderboardFromChain, getRegistrationStatus, ethToWei, generateRegistrationSignature, approveRegistration, weiToEth, rejectRegistration } from '../services/BlockchainService.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
 import models from '../models/index.js';
 import { isAddress } from 'ethers';
@@ -10,11 +10,15 @@ import { Op } from 'sequelize';
 // 1. Tạo một giải đấu mới
 export const createTournamentWithRewards = async (req, res) => {
   try {
-    const { name, total_rounds, rewards, start_date, end_date } = req.body;
+    const { name, total_rounds, rewards, start_date, end_date, registration_fee } = req.body;
     // rewards = [{ rank: 1, reward_amount: 50 }, { rank: 2, reward_amount: 30 }, ...]
-    
+    console.log("Creating tournament with data:", req.body);
     if (!name || !total_rounds) {
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Tên và tổng số vòng là bắt buộc.'));
+    }
+
+    if (registration_fee && isNaN(Number(registration_fee))) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Phí đăng ký không hợp lệ.'));
     }
 
     const existing = await tournamentService.getTournamentByName(name);
@@ -23,8 +27,7 @@ export const createTournamentWithRewards = async (req, res) => {
     }
 
     const result = await models.sequelize.transaction(async (t) => {
-      const tournament = await tournamentService.create({ name, total_rounds, start_date, end_date }, { transaction: t });
-
+      const tournament = await tournamentService.create({ name, total_rounds, start_date, end_date, registration_fee }, { transaction: t });
       if (Array.isArray(rewards) && rewards.length > 0) {
         const rewardsData = rewards.map(r => ({
           tournament_id: tournament.id,
@@ -248,6 +251,11 @@ export const requestJoinTournament = async (req, res) => {
       // Điều này hiếm khi xảy ra nếu token hợp lệ
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Đội (User) không tồn tại.'));
     }
+
+    // Kiểm tra User có wallet_address chưa
+    if (!team.wallet_address) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Bạn chưa liên kết ví. Vui lòng kết nối MetaMask trước.'));
+    }
     
     // 3. Kiểm tra đã request chưa (tránh spam)
     const existingParticipant = await tournamentService.findParticipantByUser(tournament_id, user_id);
@@ -255,17 +263,47 @@ export const requestJoinTournament = async (req, res) => {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_EXIST, 'Bạn đã gửi yêu cầu tham gia giải đấu này rồi.'));
     }
 
+    try {
+      console.log('Checking blockchain registration status for', team.wallet_address, "id:", tournament_id);
+      const blockchainStatus = await getRegistrationStatus(tournament_id, team.wallet_address);
+      if (blockchainStatus.status !== 0) { // 0 = None
+        return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_EXIST, 'Địa chỉ ví này đã đăng ký trên blockchain.'));
+      }
+    } catch (error) {
+      console.log('Blockchain check passed (user not registered yet)');
+    }
+    console.log("Blockchain registration status check completed.");
+    const registrationFeeInEth = tournament.registration_fee || "0.1"; // Mặc định 0.1 ETH
+    const amountInWei = ethToWei(registrationFeeInEth);
+
+    // 5. Tạo chữ ký (Backend ký xác nhận giá tiền)
+    const signature = await generateRegistrationSignature(
+      team.wallet_address,
+      tournament_id,
+      amountInWei
+    );
+
     // 4. Tạo request
     const participantData = {
       tournament_id: tournament.id,
       user_id: team.id,
       wallet_address: team.wallet_address,
       team_name: team.full_name,
-      status: 'PENDING' // Mấu chốt
+      status: 'PENDING', // Chờ user gọi Smart Contract
+      registration_fee: registrationFeeInEth
     };
 
-    const result = await tournamentService.createParticipant(participantData);
-    return res.json(responseSuccess(result, 'Gửi yêu cầu tham gia thành công. Chờ Admin duyệt.'));
+    const participant = await tournamentService.createParticipant(participantData);
+
+    // 7. Trả về signature cho Frontend
+    return res.json(responseSuccess({
+      participant_id: participant.id,
+      signature,
+      amountInWei,
+      amountInEth: registrationFeeInEth,
+      contractAddress: process.env.LEADERBOARD_CONTRACT_ADDRESS,
+      message: 'Vui lòng xác nhận giao dịch trên MetaMask để hoàn tất đăng ký.'
+    }, 'Lấy thông tin đăng ký thành công.'));
 
   } catch (error) {
     console.error('requestJoinTournament error', error);
@@ -273,15 +311,73 @@ export const requestJoinTournament = async (req, res) => {
   }
 };
 
-// ADMIN DUYỆT / TỪ CHỐI YÊU CẦU THAM GIA
-export const reviewJoinRequest = async (req, res) => {
+// ================= USER: XÁC NHẬN ĐÃ GỌI SMART CONTRACT =================
+/**
+ * Bước 2: Sau khi User gọi Smart Contract thành công
+ * Frontend gọi API này để cập nhật trạng thái trong Database
+ */
+export const confirmBlockchainRegistration = async (req, res) => {
   try {
     const { participant_id } = req.params;
-    const { action } = req.body; // 'approve' hoặc 'reject'
+    const { tx_hash } = req.body; // Transaction hash từ blockchain
+    const { id: user_id } = req.user;
 
-    if (!action || !['APPROVE', 'REJECT'].includes(action)) {
-      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Hành động (action) không hợp lệ. Phải là "approve" hoặc "reject".'));
+    // 1. Tìm participant
+    const participant = await tournamentService.findParticipantById(participant_id);
+    if (!participant) {
+      return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Không tìm thấy yêu cầu tham gia.'));
     }
+
+    // Kiểm tra quyền sở hữu
+    if (participant.user_id !== user_id) {
+      return res.json(responseWithError(ErrorCodes.ERROR_UNAUTHORIZED, 'Bạn không có quyền cập nhật yêu cầu này.'));
+    }
+
+    // 2. Xác minh trạng thái trên Blockchain
+    const blockchainStatus = await getRegistrationStatus(
+      participant.tournament_id, 
+      participant.wallet_address
+    );
+
+    if (blockchainStatus.status !== 1) { // 1 = Pending on blockchain
+      return res.json(responseWithError(
+        ErrorCodes.ERROR_REQUEST_DATA_INVALID, 
+        'Chưa tìm thấy giao dịch trên blockchain. Vui lòng đợi vài giây và thử lại.'
+      ));
+    }
+
+    // 3. Cập nhật Database: PENDING → WAITING_APPROVAL (đã nạp tiền, chờ admin duyệt)
+    await participant.update({ 
+      status: 'WAITING_APPROVAL',
+      blockchain_tx_hash: tx_hash,
+      paid_at: new Date()
+    });
+
+    await models.TransactionHistory.create({
+      tournament_id: participant.tournament_id,
+      participant_id: participant.id,
+      user_id: participant.user_id,
+      actor: 'TEAM',
+      type: 'REGISTER',
+      tx_hash: tx_hash,
+      amount: participant.registration_fee
+    });
+
+    return res.json(responseSuccess(participant, 'Xác nhận thanh toán thành công. Chờ Admin duyệt.'));
+
+  } catch (error) {
+    console.error('confirmBlockchainRegistration error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+// ================= ADMIN: DUYỆT YÊU CẦU (RÚT TIỀN VỀ ADMIN) =================
+/**
+ * Admin duyệt -> Tiền từ Smart Contract chuyển về ví Admin
+ */
+export const approveJoinRequest = async (req, res) => {
+  try {
+    const { participant_id } = req.params;
 
     // 1. Tìm request
     const participant = await tournamentService.findParticipantById(participant_id);
@@ -289,22 +385,228 @@ export const reviewJoinRequest = async (req, res) => {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Không tìm thấy yêu cầu tham gia.'));
     }
 
-    // 2. Kiểm tra logic
-    if (participant.status !== 'PENDING') {
-      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Yêu cầu này đã được xử lý trước đó.'));
+    // 2. Kiểm tra trạng thái
+    if (participant.status !== 'WAITING_APPROVAL') {
+      return res.json(responseWithError(
+        ErrorCodes.ERROR_REQUEST_DATA_INVALID, 
+        `Không thể duyệt. Trạng thái hiện tại: ${participant.status}`
+      ));
     }
 
-    // 3. Cập nhật (Đây là logic "updateGame" của bạn)
-    const newStatus = (action === 'APPROVE') ? 'APPROVED' : 'REJECTED';
-    await participant.update({ status: newStatus }); // Dùng instance.update()
+    // 3. Xác minh lại trên Blockchain
+    const blockchainStatus = await getRegistrationStatus(
+      participant.tournament_id, 
+      participant.wallet_address
+    );
 
-    return res.json(responseSuccess(participant, `Đã ${action} yêu cầu thành công.`));
+    if (blockchainStatus.status !== 1) { // 1 = Pending
+      return res.json(responseWithError(
+        ErrorCodes.ERROR_REQUEST_DATA_INVALID, 
+        'Trạng thái blockchain không hợp lệ. Có thể đã được xử lý rồi.'
+      ));
+    }
+
+    // 4. Gọi Smart Contract: approveRegistration()
+    // Tiền sẽ chuyển từ Contract -> Admin wallet
+    const result = await approveRegistration(
+      participant.tournament_id, 
+      participant.wallet_address
+    );
+
+    // 5. Cập nhật Database: WAITING_APPROVAL -> APPROVED
+    await participant.update({ 
+      status: 'APPROVED',
+      approved_at: new Date(),
+      approval_tx_hash: result.txHash
+    });
+
+    await models.TransactionHistory.create({
+      tournament_id: participant.tournament_id,
+      participant_id: participant.id,
+      user_id: participant.user_id,
+      actor: 'ADMIN',
+      type: 'APPROVE',
+      tx_hash: result.txHash,
+      amount: participant.registration_fee
+    });
+
+    return res.json(responseSuccess({
+      participant,
+      blockchain: {
+        txHash: result.txHash,
+        blockNumber: result.blockNumber,
+        amountTransferred: weiToEth(result.amountTransferred) + ' ETH'
+      }
+    }, 'Duyệt thành công. Tiền đã chuyển về ví Admin.'));
 
   } catch (error) {
-    console.error('reviewJoinRequest error', error);
+    console.error('approveJoinRequest error', error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };
+
+// ================= ADMIN: TỪ CHỐI YÊU CẦU (HOÀN TIỀN CHO USER) =================
+/**
+ * Admin từ chối -> Tiền từ Smart Contract hoàn lại cho User
+ */
+export const rejectJoinRequest = async (req, res) => {
+  try {
+    const { participant_id } = req.params;
+    const { reason } = req.body; // Lý do từ chối (optional)
+
+    // 1. Tìm request
+    const participant = await tournamentService.findParticipantById(participant_id);
+    if (!participant) {
+      return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Không tìm thấy yêu cầu tham gia.'));
+    }
+
+    // 2. Kiểm tra trạng thái
+    if (participant.status !== 'WAITING_APPROVAL') {
+      return res.json(responseWithError(
+        ErrorCodes.ERROR_REQUEST_DATA_INVALID, 
+        `Không thể từ chối. Trạng thái hiện tại: ${participant.status}`
+      ));
+    }
+
+    // 3. Xác minh trên Blockchain
+    const blockchainStatus = await getRegistrationStatus(
+      participant.tournament_id, 
+      participant.wallet_address
+    );
+
+    if (blockchainStatus.status !== 1) { // 1 = Pending
+      return res.json(responseWithError(
+        ErrorCodes.ERROR_REQUEST_DATA_INVALID, 
+        'Trạng thái blockchain không hợp lệ.'
+      ));
+    }
+
+    // 4. Gọi Smart Contract: rejectRegistration()
+    // Tiền sẽ hoàn lại cho User
+    const result = await rejectRegistration(
+      participant.tournament_id, 
+      participant.wallet_address
+    );
+
+    // 5. Cập nhật Database: WAITING_APPROVAL -> REJECTED
+    await participant.update({ 
+      status: 'REJECTED',
+      rejected_at: new Date(),
+      rejection_reason: reason || 'Không đáp ứng yêu cầu',
+      rejection_tx_hash: result.txHash
+    });
+
+    await models.TransactionHistory.create({
+      tournament_id: participant.tournament_id,
+      participant_id: participant.id,
+      user_id: participant.user_id,
+      actor: 'ADMIN',
+      type: 'REJECT',
+      tx_hash: result.txHash,
+      amount: participant.registration_fee
+    });
+
+    return res.json(responseSuccess({
+      participant,
+      blockchain: {
+        txHash: result.txHash,
+        blockNumber: result.blockNumber,
+        amountRefunded: weiToEth(result.amountRefunded) + ' ETH'
+      }
+    }, 'Từ chối thành công. Tiền đã hoàn lại cho User.'));
+
+  } catch (error) {
+    console.error('rejectJoinRequest error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+// ================= ADMIN: XEM DANH SÁCH CHỜ DUYỆT =================
+export const getPendingRequests = async (req, res) => {
+  try {
+    const { id: tournament_id } = req.params;
+
+    console.log("Fetching pending participants for tournament_id:", tournament_id);
+    // Lấy từ Database
+    const pendingParticipants = await tournamentService.findParticipantsByStatus(
+      tournament_id,
+      'WAITING_APPROVAL'
+    );
+
+    console.log("pendingParticipants:", pendingParticipants);
+
+    // Bổ sung thông tin từ Blockchain (optional: để double-check)
+    const participantsWithBlockchainStatus = await Promise.all(
+      pendingParticipants.map(async (p) => {
+        try {
+          const blockchainStatus = await getRegistrationStatus(tournament_id, p.wallet_address);
+          return {
+            ...p.toJSON(),
+            blockchain_status: blockchainStatus.statusName,
+            blockchain_amount: weiToEth(blockchainStatus.amountDeposited) + ' ETH'
+          };
+        } catch (error) {
+          return {
+            ...p.toJSON(),
+            blockchain_status: 'Error',
+            blockchain_amount: '0 ETH'
+          };
+        }
+      })
+    );
+
+    return res.json(responseSuccess({
+      count: participantsWithBlockchainStatus.length,
+      participants: participantsWithBlockchainStatus
+    }, 'Lấy danh sách chờ duyệt thành công.'));
+
+  } catch (error) {
+    console.error('getPendingRequests error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+// ================= USER: KIỂM TRA TRẠNG THÁI ĐĂNG KÝ =================
+export const getMyRegistrationStatus = async (req, res) => {
+  try {
+    const { id: tournament_id } = req.params;
+    const { id: user_id } = req.user;
+
+    // Lấy từ Database
+    const participant = await tournamentService.findParticipantByUser(tournament_id, user_id);
+    if (!participant) {
+      return res.json(responseSuccess({
+        registered: false,
+        message: 'Bạn chưa đăng ký giải đấu này.'
+      }));
+    }
+
+    // Lấy từ Blockchain
+    let blockchainStatus = null;
+    try {
+      blockchainStatus = await getRegistrationStatus(tournament_id, participant.wallet_address);
+    } catch (error) {
+      console.log('Blockchain status check failed:', error.message);
+    }
+
+    return res.json(responseSuccess({
+      registered: true,
+      participant: participant.toJSON(),
+      blockchain: blockchainStatus ? {
+        status: blockchainStatus.statusName,
+        amountDeposited: weiToEth(blockchainStatus.amountDeposited) + ' ETH'
+      } : null
+    }));
+
+  } catch (error) {
+    console.error('getMyRegistrationStatus error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+
+
+
 
 
 // === Helper: Ghép cặp Swiss ===

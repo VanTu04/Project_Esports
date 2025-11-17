@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { leaderboardContract } from '../init/blockchain.js';
+import { leaderboardContract, adminWallet } from '../init/blockchain.js';
 
 // ================= Ghi BXH =================
 export const updateLeaderboardOnChain = async ({ tournamentId, roundNumber, participantsArr, scoresArr }) => {
@@ -41,6 +41,204 @@ export const getLeaderboardFromChain = async (tournamentId, roundNumber) => {
     score: scores[index]
   }));
 };
+
+
+// ================= TẠO CHỮ KÝ CHO ĐĂNG KÝ =================
+/**
+ * Backend tạo chữ ký xác thực giá tiền
+ * @param {string} userAddress - Địa chỉ ví user
+ * @param {number} tournamentId - ID giải đấu
+ * @param {string} amountInWei - Số tiền (wei) dạng string, ví dụ: "100000000000000000" (0.1 ETH)
+ * @returns {string} signature - Chữ ký để user gửi lên contract
+ */
+export const generateRegistrationSignature = async (userAddress, tournamentId, amountInWei) => {
+  try {
+    // Kiểm tra địa chỉ hợp lệ
+    if (!ethers.isAddress(userAddress)) {
+      throw new Error("Invalid user address");
+    }
+
+    // Tạo hash giống như trong Smart Contract
+    const hash = ethers.solidityPackedKeccak256(
+      ['address', 'uint256', 'uint256'],
+      [userAddress, tournamentId, amountInWei]
+    );
+
+    // Admin ký hash này
+    const signature = await adminWallet.signMessage(ethers.getBytes(hash));
+
+    console.log("✅ Generated signature:", signature);
+    return signature;
+  } catch (error) {
+    console.error("❌ Error generating signature:", error);
+    throw error;
+  }
+};
+
+// ================= KIỂM TRA TRẠNG THÁI ĐĂNG KÝ =================
+/**
+ * Lấy thông tin đăng ký của user
+ * @param {number} tournamentId - ID giải đấu
+ * @param {string} userAddress - Địa chỉ ví user
+ * @returns {Object} { amountDeposited: string, status: number }
+ */
+export const getRegistrationStatus = async (tournamentId, userAddress) => {
+  try {
+    const registration = await leaderboardContract.registrations(tournamentId, userAddress);
+    console.log("✅ Fetched registration status:", registration);
+    // registration trả về tuple: [amountDeposited, status]
+    const statusMap = {
+      0: 'NONE',
+      1: 'PENDING',
+      2: 'APPROVED',
+      3: 'REJECTED'
+    };
+
+    return {
+      amountDeposited: registration[0].toString(), // BigInt -> string
+      status: Number(registration[1]), // 0, 1, 2, 3
+      statusName: statusMap[Number(registration[1])]
+    };
+  } catch (error) {
+    console.error("❌ Error getting registration status:", error);
+    throw error;
+  }
+};
+
+// ================= ADMIN DUYỆT ĐĂNG KÝ =================
+/**
+ * Admin duyệt đăng ký → Tiền chuyển về ví Admin
+ * @param {number} tournamentId - ID giải đấu
+ * @param {string} userAddress - Địa chỉ ví user cần duyệt
+ * @returns {Object} { txHash, blockNumber }
+ */
+export const approveRegistration = async (tournamentId, userAddress) => {
+  try {
+    console.log(`🔄 Approving registration for user ${userAddress} in tournament ${tournamentId}...`);
+
+    // Kiểm tra trạng thái trước khi duyệt
+    const regStatus = await getRegistrationStatus(tournamentId, userAddress);
+    if (regStatus.status !== 1) { // 1 = Pending
+      throw new Error(`Cannot approve. Current status: ${regStatus.statusName}`);
+    }
+
+    const tx = await leaderboardContract.approveRegistration(tournamentId, userAddress);
+    const receipt = await tx.wait();
+
+    console.log(`✅ Approved! TxHash: ${tx.hash}`);
+
+    return {
+      txHash: tx.hash,
+      blockNumber: receipt.blockNumber,
+      amountTransferred: regStatus.amountDeposited
+    };
+  } catch (error) {
+    console.error("❌ Error approving registration:", error);
+    throw error;
+  }
+};
+
+// ================= ADMIN TỪ CHỐI ĐĂNG KÝ =================
+/**
+ * Admin từ chối đăng ký → Tiền hoàn lại cho User
+ * @param {number} tournamentId - ID giải đấu
+ * @param {string} userAddress - Địa chỉ ví user cần từ chối
+ * @returns {Object} { txHash, blockNumber, amountRefunded }
+ */
+export const rejectRegistration = async (tournamentId, userAddress) => {
+  try {
+    console.log(`🔄 Rejecting registration for user ${userAddress} in tournament ${tournamentId}...`);
+
+    // Kiểm tra trạng thái trước khi từ chối
+    const regStatus = await getRegistrationStatus(tournamentId, userAddress);
+    if (regStatus.status !== 1) { // 1 = Pending
+      throw new Error(`Cannot reject. Current status: ${regStatus.statusName}`);
+    }
+
+    const tx = await leaderboardContract.rejectRegistration(tournamentId, userAddress);
+    const receipt = await tx.wait();
+
+    console.log(`✅ Rejected and refunded! TxHash: ${tx.hash}`);
+
+    return {
+      txHash: tx.hash,
+      blockNumber: receipt.blockNumber,
+      amountRefunded: regStatus.amountDeposited
+    };
+  } catch (error) {
+    console.error("❌ Error rejecting registration:", error);
+    throw error;
+  }
+};
+
+// ================= LẤY DANH SÁCH ĐĂNG KÝ CHỜ DUYỆT =================
+/**
+ * Lấy tất cả user có trạng thái Pending cho 1 giải đấu
+ * LƯU Ý: Smart Contract không lưu danh sách user, nên bạn cần:
+ * - Option 1: Lắng nghe event "Registered" từ blockchain
+ * - Option 2: Lưu danh sách user vào Database, dùng hàm này để check status
+ * 
+ * Hàm này demo Option 2
+ */
+export const getPendingRegistrations = async (tournamentId, userAddresses) => {
+  try {
+    const pendingUsers = [];
+
+    for (const userAddress of userAddresses) {
+      const regStatus = await getRegistrationStatus(tournamentId, userAddress);
+      if (regStatus.status === 1) { // Pending
+        pendingUsers.push({
+          userAddress,
+          amountDeposited: regStatus.amountDeposited
+        });
+      }
+    }
+
+    return pendingUsers;
+  } catch (error) {
+    console.error("❌ Error getting pending registrations:", error);
+    throw error;
+  }
+};
+
+// ================= TIỆN ÍCH: CHUYỂN ĐỔI ETH <-> WEI =================
+export const ethToWei = (ethAmount) => {
+  return ethers.parseEther(ethAmount.toString()).toString();
+};
+
+export const weiToEth = (weiAmount) => {
+  return ethers.formatEther(weiAmount.toString());
+};
+
+// ================= TIỆN ÍCH: ĐỔI SIGNER WALLET =================
+/**
+ * Admin đổi địa chỉ ví Signer (nếu lộ Private Key)
+ */
+export const setSignerWallet = async (newSignerAddress) => {
+  try {
+    if (!ethers.isAddress(newSignerAddress)) {
+      throw new Error("Invalid signer address");
+    }
+
+    const tx = await leaderboardContract.setSignerWallet(newSignerAddress);
+    const receipt = await tx.wait();
+
+    console.log(`✅ Signer wallet updated to: ${newSignerAddress}`);
+    return {
+      txHash: tx.hash,
+      blockNumber: receipt.blockNumber
+    };
+  } catch (error) {
+    console.error("❌ Error setting signer wallet:", error);
+    throw error;
+  }
+};
+
+
+
+
+
+
 
 /**
  * Lấy số dư ETH của một ví

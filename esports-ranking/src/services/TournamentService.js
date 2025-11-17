@@ -14,6 +14,7 @@ export const create = async (data, options = {}) => {
     start_date: data.start_date || null,
     end_date: data.end_date || null,
     description: data.description || null,
+    registration_fee: data.registration_fee || null,
     status: 'PENDING',
     current_round: 0
   }, options);
@@ -30,6 +31,13 @@ export const getTournamentByName = async (name) => {
   return existing;
 };
 
+export const findParticipantsByStatus = async (id, status) => {
+  const res = await models.Participant.findAll({
+    where : {tournament_id: id, status: status}
+  });
+  return res;
+}
+
 /**
  * Tìm giải đấu theo ID (bao gồm các đội tham gia)
  */
@@ -42,7 +50,7 @@ export const findById = async (id) => {
     where: {
       tournament_id: id
     },
-    attributes: ['id', 'user_id', 'team_name', 'total_points', 'wallet_address', 'has_received_bye', 'status', 'createdAt', 'updatedAt']
+    attributes: ['id', 'user_id', 'team_name', 'total_points', 'wallet_address', 'has_received_bye', 'status', 'createdAt', 'updatedAt', 'approved_at', 'approval_tx_hash', 'rejection_reason', 'registration_fee']
   });
 
   const result = tournament.get({ plain: true });

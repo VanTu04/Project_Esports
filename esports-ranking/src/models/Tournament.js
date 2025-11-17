@@ -53,6 +53,11 @@ export default (sequelize) => {
       allowNull: true,
       comment: 'Thời gian kết thúc giải đấu'
     },
+    registration_fee: {
+      type: DataTypes.DECIMAL,
+      default: 1,
+      comment: 'Số tiền để đăng kí tham gia giải đấu'
+    },
     deleted: {
       type: DataTypes.INTEGER,
       defaultValue: 0

@@ -61,29 +61,69 @@ router.delete(
 );
 
 // === CÁC ROUTE NGHIỆP VỤ GIẢI ĐẤU (Đặc thù) ===
-
 /**
- * @route   POST /api/tournaments/:id/register
- * @desc    Đăng ký một đội (User) vào giải đấu
- * @access  Admin (Giả định Admin là người thực hiện)
+ * Bước 1: User lấy signature để đăng ký
+ * Response: { signature, amountInWei, amountInEth, contractAddress }
  */
 router.post(
-  '/:id/register',
-  checkRole([roles.ADMIN]),
-  tournamentController.registerTeam
-);
-
-router.post(
-  '/:id/request-join',
-  checkRole([roles.USER, roles.TEAM_MANAGER, roles.ADMIN]), // Cho phép User, Team Manager gọi
+  '/:id/register', 
+  checkAccessToken, 
   tournamentController.requestJoinTournament
 );
 
+/**
+ * Bước 2: User xác nhận đã gọi Smart Contract thành công
+ * Body: { tx_hash: "0x..." }
+ * Response: { success, participant }
+ */
 router.post(
-  '/review-request/:participant_id',
-  checkRole([roles.ADMIN]),
-  tournamentController.reviewJoinRequest
+  '/:participant_id/confirm',
+  checkAccessToken,
+  tournamentController.confirmBlockchainRegistration
 );
+
+/**
+ * Kiểm tra trạng thái đăng ký của chính mình
+ * Response: { registered, participant, blockchain }
+ */
+router.get(
+  '/:id/my-registration',
+  checkAccessToken,
+  tournamentController.getMyRegistrationStatus
+);
+
+/**
+ * Lấy danh sách chờ duyệt
+ * Response: { count, participants }
+ */
+router.get(
+  '/:id/pending-registrations',
+  checkRole([roles.ADMIN]),
+  tournamentController.getPendingRequests
+);
+
+/**
+ * Duyệt đăng ký
+ * Response: { success, participant, blockchain: { txHash, amountTransferred } }
+ */
+router.post(
+  '/:participant_id/approve',
+  checkRole([roles.ADMIN]),
+  tournamentController.approveJoinRequest
+);
+
+/**
+ * Từ chối đăng ký
+ * Body: { reason: "Lý do từ chối" } (optional)
+ * Response: { success, participant, blockchain: { txHash, amountRefunded } }
+ */
+router.post(
+  '/:participant_id/reject',
+  checkRole([roles.ADMIN]),
+  tournamentController.rejectJoinRequest
+);
+
+
 
 router.post(
   '/:id/start',
