@@ -8,9 +8,9 @@ import { useNotification } from '../../context/NotificationContext';
  * Modal duyệt đội tham gia giải đấu
  * This component fetches pending registrations itself and calls approve/reject APIs.
  */
-export const TeamApprovalModal = ({ show, onClose, tournament }) => {
+export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pendingTeamsProp, processingTeamId: processingTeamIdProp, onApprove, onReject }) => {
   const { showSuccess, showError } = useNotification();
-  const [pendingTeams, setPendingTeams] = useState([]);
+  const [pendingTeams, setPendingTeams] = useState(pendingTeamsProp || []);
   const [processingTeamId, setProcessingTeamId] = useState(null);
 
   const currentApproved = tournament?.teams?.current || 0;
@@ -21,17 +21,45 @@ export const TeamApprovalModal = ({ show, onClose, tournament }) => {
     if (!show) return;
     if (!tournament?.id) return;
 
+    // If parent provided pendingTeams, respect that and skip loading
+    if (Array.isArray(pendingTeamsProp) && pendingTeamsProp.length > 0) {
+      setPendingTeams(pendingTeamsProp);
+      return;
+    }
+
     const load = async () => {
       try {
         const res = await tournamentService.getPendingRegistrations(tournament.id);
-        const participants = res?.data?.participants || [];
+        // Debug raw response to help troubleshoot shape issues
+        console.debug('getPendingRegistrations response:', res);
+
+        // Normalize several possible response shapes:
+        // - axios response: res.data.data.participants
+        // - axios response: res.data.participants
+        // - direct payload: res.data (array) or res (array)
+        let participants = [];
+        const payload = res?.data ?? res;
+        if (Array.isArray(payload)) {
+          participants = payload;
+        } else if (Array.isArray(payload?.data)) {
+          participants = payload.data;
+        } else if (Array.isArray(payload?.data?.participants)) {
+          participants = payload.data.participants;
+        } else if (Array.isArray(payload?.participants)) {
+          participants = payload.participants;
+        } else if (Array.isArray(res?.data)) {
+          participants = res.data;
+        } else {
+          // Try common nested locations
+          participants = payload?.data?.participants || payload?.participants || payload?.data || [];
+        }
         const mapped = participants.map(p => ({
           id: p.id,
           name: p.team_name || p.full_name || `Team ${p.user_id}`,
-          captain: p.User?.full_name || 'N/A',
+          captain: (p.User && (p.User.full_name || p.User.username)) || p.full_name || p.username || 'N/A',
           members: p.members || 5,
-          registeredDate: p.createdAt,
-          description: `Wallet: ${p.wallet_address}`,
+          registeredDate: p.createdAt || p.created_at,
+          description: `Wallet: ${p.wallet_address || p.walletAddress || p.wallet}`,
           raw: p
         }));
         setPendingTeams(mapped);
@@ -45,6 +73,23 @@ export const TeamApprovalModal = ({ show, onClose, tournament }) => {
   }, [show, tournament]);
 
   const handleApprove = async (participantId) => {
+    // If parent provided onApprove, delegate the approve action to parent (so it can update table state)
+    if (typeof onApprove === 'function') {
+      try {
+        setProcessingTeamId(participantId);
+        await onApprove(participantId);
+        // Parent is expected to update pendingTeams via props or you can optimistically remove here
+        setPendingTeams(prev => prev.filter(t => t.id !== participantId));
+        showSuccess('Duyệt thành công');
+      } catch (err) {
+        console.error('Approve delegated error:', err);
+        showError(err?.message || 'Duyệt thất bại');
+      } finally {
+        setProcessingTeamId(null);
+      }
+      return;
+    }
+
     setProcessingTeamId(participantId);
     try {
       const res = await tournamentService.approveParticipant(participantId);
@@ -64,6 +109,23 @@ export const TeamApprovalModal = ({ show, onClose, tournament }) => {
 
   const handleReject = async (participantId) => {
     if (!window.confirm('Bạn có chắc muốn từ chối đội này?')) return;
+
+    if (typeof onReject === 'function') {
+      try {
+        setProcessingTeamId(participantId);
+        const reason = prompt('Lý do từ chối (tùy chọn):', 'Không đáp ứng yêu cầu') || null;
+        await onReject(participantId, reason);
+        setPendingTeams(prev => prev.filter(t => t.id !== participantId));
+        showSuccess('Đã từ chối');
+      } catch (err) {
+        console.error('Reject delegated error:', err);
+        showError(err?.message || 'Từ chối thất bại');
+      } finally {
+        setProcessingTeamId(null);
+      }
+      return;
+    }
+
     setProcessingTeamId(participantId);
     try {
       const reason = prompt('Lý do từ chối (tùy chọn):', 'Không đáp ứng yêu cầu') || null;
@@ -81,6 +143,9 @@ export const TeamApprovalModal = ({ show, onClose, tournament }) => {
       setProcessingTeamId(null);
     }
   };
+
+  // Use parent's processing ID if provided
+  const effectiveProcessingId = processingTeamIdProp ?? processingTeamId;
 
   if (!show) return null;
 
@@ -151,8 +216,8 @@ export const TeamApprovalModal = ({ show, onClose, tournament }) => {
                         variant="success"
                         size="sm"
                         onClick={() => handleApprove(team.id)}
-                        disabled={processingTeamId === team.id || isMinReached}
-                        loading={processingTeamId === team.id}
+                        disabled={effectiveProcessingId === team.id || isMinReached}
+                        loading={effectiveProcessingId === team.id}
                       >
                         Duyệt
                       </Button>
@@ -160,7 +225,7 @@ export const TeamApprovalModal = ({ show, onClose, tournament }) => {
                         variant="danger"
                         size="sm"
                         onClick={() => handleReject(team.id)}
-                        disabled={processingTeamId === team.id}
+                        disabled={effectiveProcessingId === team.id}
                       >
                         Từ chối
                       </Button>
