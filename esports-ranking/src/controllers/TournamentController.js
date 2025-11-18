@@ -91,8 +91,9 @@ export const getTournamentDistributions = async (req, res) => {
 // 2. Lấy danh sách tất cả các giải đấu
 export const getAllTournaments = async (req, res) => {
   try {
-    const { status } = req.query;
-    const result = await tournamentService.findAll(status);
+    const { status, page, limit } = req.query;
+    
+    const result = await tournamentService.findAll(status, page, limit);
     return res.json(responseSuccess(result, 'Lấy danh sách giải đấu thành công'));
   } catch (error) {
     console.error('getAllTournaments error', error);
@@ -218,6 +219,7 @@ export const deleteTournament = async (req, res) => {
 
     // 3. Gọi Service
     const result = await tournamentService.deleteTournament(id);
+    await models.TournamentReward.destroy({ where: { tournament_id: id } });
     
     return res.json(responseSuccess(result, 'Xóa vĩnh viễn giải đấu thành công.'));
 
@@ -232,7 +234,7 @@ export const deleteTournament = async (req, res) => {
 export const requestJoinTournament = async (req, res) => {
   try {
     const { id: tournament_id } = req.params;
-    const { id: user_id } = req.user; // Lấy từ token (middleware checkRole)
+    const { id: user_id } = req.user;
 
     // 1. Kiểm tra Giải đấu
     const tournament = await tournamentService.findById(tournament_id);
@@ -240,7 +242,6 @@ export const requestJoinTournament = async (req, res) => {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại.'));
     }
 
-    // YÊU CẦU: Không request được nữa khi giải đấu bắt đầu
     if (tournament.status !== 'PENDING') {
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Giải đấu đã bắt đầu hoặc kết thúc, không thể gửi yêu cầu.'));
     }
@@ -248,59 +249,63 @@ export const requestJoinTournament = async (req, res) => {
     // 2. Kiểm tra Đội (User)
     const team = await tournamentService.findUserById(user_id);
     if (!team) {
-      // Điều này hiếm khi xảy ra nếu token hợp lệ
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Đội (User) không tồn tại.'));
     }
 
-    // Kiểm tra User có wallet_address chưa
     if (!team.wallet_address) {
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Bạn chưa liên kết ví. Vui lòng kết nối MetaMask trước.'));
     }
     
-    // 3. Kiểm tra đã request chưa (tránh spam)
-    const existingParticipant = await tournamentService.findParticipantByUser(tournament_id, user_id);
-    if (existingParticipant) {
-      return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_EXIST, 'Bạn đã gửi yêu cầu tham gia giải đấu này rồi.'));
+    // 3. Kiểm tra đã request chưa
+    let participant = await tournamentService.findParticipantByUser(tournament_id, user_id);
+    if (participant) {
+      // Nếu đã tồn tại và KHÔNG phải là PENDING thì chặn
+      if (participant.status !== 'PENDING') {
+         return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_EXIST, 'Bạn đã gửi yêu cầu tham gia giải đấu này rồi.'));
+      }
+      // Nếu là PENDING thì code tự động chạy tiếp xuống dưới để retry
     }
 
     try {
       console.log('Checking blockchain registration status for', team.wallet_address, "id:", tournament_id);
       const blockchainStatus = await getRegistrationStatus(tournament_id, team.wallet_address);
-      if (blockchainStatus.status !== 0) { // 0 = None
+      if (blockchainStatus.status !== 0) { 
         return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_EXIST, 'Địa chỉ ví này đã đăng ký trên blockchain.'));
       }
     } catch (error) {
       console.log('Blockchain check passed (user not registered yet)');
     }
-    console.log("Blockchain registration status check completed.");
-    const registrationFeeInEth = tournament.registration_fee || "0.1"; // Mặc định 0.1 ETH
+    
+    const registrationFeeInEth = tournament.registration_fee || "0.1"; 
     const amountInWei = ethToWei(registrationFeeInEth);
 
-    // 5. Tạo chữ ký (Backend ký xác nhận giá tiền)
+    // 5. Tạo chữ ký 
     const signature = await generateRegistrationSignature(
       team.wallet_address,
       tournament_id,
       amountInWei
     );
 
-    // 4. Tạo request
-    const participantData = {
-      tournament_id: tournament.id,
-      user_id: team.id,
-      wallet_address: team.wallet_address,
-      team_name: team.full_name,
-      status: 'PENDING', // Chờ user gọi Smart Contract
-      registration_fee: registrationFeeInEth
-    };
+    // 4. Tạo request (Nếu chưa có)
+    if (!participant) {
+      const participantData = {
+        tournament_id: tournament.id,
+        user_id: team.id,
+        wallet_address: team.wallet_address,
+        team_name: team.full_name,
+        status: 'PENDING', 
+        registration_fee: registrationFeeInEth
+      };
+      participant = await tournamentService.createParticipant(participantData);
+    }
 
-    const participant = await tournamentService.createParticipant(participantData);
-
-    // 7. Trả về signature cho Frontend
+    // 7. Trả về signature
     return res.json(responseSuccess({
       participant_id: participant.id,
       signature,
       amountInWei,
       amountInEth: registrationFeeInEth,
+      wallet_address: team.wallet_address,
       contractAddress: process.env.LEADERBOARD_CONTRACT_ADDRESS,
       message: 'Vui lòng xác nhận giao dịch trên MetaMask để hoàn tất đăng ký.'
     }, 'Lấy thông tin đăng ký thành công.'));
@@ -357,6 +362,8 @@ export const confirmBlockchainRegistration = async (req, res) => {
       tournament_id: participant.tournament_id,
       participant_id: participant.id,
       user_id: participant.user_id,
+      from_user_id: participant.user_id,
+      to_user_id: null,
       actor: 'TEAM',
       type: 'REGISTER',
       tx_hash: tx_hash,
@@ -425,6 +432,8 @@ export const approveJoinRequest = async (req, res) => {
       tournament_id: participant.tournament_id,
       participant_id: participant.id,
       user_id: admin_id, // Admin nhận tiền
+      from_user_id: participant.user_id,
+      to_user_id: admin_id,
       actor: 'ADMIN',
       type: 'APPROVE',
       tx_hash: result.txHash,
@@ -454,6 +463,7 @@ export const rejectJoinRequest = async (req, res) => {
   try {
     const { participant_id } = req.params;
     const { reason } = req.body; // Lý do từ chối (optional)
+    const { id: admin_id } = req.user; // Lấy ID admin từ token
 
     // 1. Tìm request
     const participant = await tournamentService.findParticipantById(participant_id);
@@ -501,6 +511,8 @@ export const rejectJoinRequest = async (req, res) => {
       tournament_id: participant.tournament_id,
       participant_id: participant.id,
       user_id: participant.user_id,
+      from_user_id: admin_id,
+      to_user_id: participant.user_id,
       actor: 'ADMIN',
       type: 'RECEIVE_REFUND',
       tx_hash: result.txHash,

@@ -1,4 +1,5 @@
 'use strict';
+import { type } from 'os';
 import { DataTypes } from 'sequelize';
 
 export default (sequelize) => {
@@ -33,6 +34,16 @@ export default (sequelize) => {
         key: 'id'
       },
       comment: 'ID của user'
+    },
+    from_user_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: 'ID của user gửi tiền (nếu có)'
+    },
+    to_user_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: 'ID của user nhận tiền (nếu có)'
     },
     actor: {
       type: DataTypes.ENUM(

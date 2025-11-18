@@ -194,8 +194,13 @@ export const getUserTransactions = async (userId, page = 1, limit = 10) => {
       attributes: ["id", "name"]
     });
 
-    // 2. Lấy User
-    const user = await models.User.findByPk(tx.user_id, {
+    // 2. Lấy người gửi
+    const fromUser = await models.User.findByPk(tx.from_user_id, {
+      attributes: ["id", "full_name"]
+    });
+
+    // lấy người nhận
+    const toUser = await models.User.findByPk(tx.to_user_id, {
       attributes: ["id", "full_name"]
     });
 
@@ -211,7 +216,7 @@ export const getUserTransactions = async (userId, page = 1, limit = 10) => {
           // timestamp = lấy từ block
           const block = await provider.getBlock(receipt.blockNumber);
 
-          // ⚠️ Với approve/reject, txData.value = 0 (vì ETH được chuyển internal)
+          // Với approve/reject, txData.value = 0 (vì ETH được chuyển internal)
           // Nên lấy amount từ DB (đã lưu dưới dạng ETH)
           const amountEth = tx.amount || "0";
 
@@ -234,7 +239,8 @@ export const getUserTransactions = async (userId, page = 1, limit = 10) => {
     enriched.push({
       ...tx.dataValues,
       tournament,
-      user,
+      fromUser,
+      toUser,
       blockchain
     });
   }

@@ -62,16 +62,18 @@ export const findById = async (id) => {
 /**
  * Lấy tất cả giải đấu (có lọc theo status)
  */
-export const findAll = async (status) => {
+export const findAll = async (status, page = 1, limit = 10) => {
   const whereCondition = {};
   if (status !== undefined && status !== null && status !== '') {
     whereCondition.status = status;
   }
 
-  const tournaments = await models.Tournament.findAll({
+  const offset = (page - 1) * limit;
+
+  const { count, rows: tournaments } = await models.Tournament.findAndCountAll({
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-  attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'start_time', 'end_time'],
+  attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'start_time', 'end_time', 'registration_fee', 'createdAt', 'updatedAt'],
     include: [
       {
         model: models.TournamentReward,
@@ -79,7 +81,9 @@ export const findAll = async (status) => {
         attributes: ['id', 'rank', 'reward_amount'],
         required: false // nếu giải đấu chưa có reward vẫn trả về
       }
-    ]
+    ],
+    limit: parseInt(limit),
+    offset: parseInt(offset)
   });
 
   try {
@@ -91,7 +95,12 @@ export const findAll = async (status) => {
     console.warn('Could not log tournaments sample', e);
   }
 
-  return tournaments;
+  return {
+    tournaments,
+    totalItems: count,
+    totalPages: Math.ceil(count / limit),
+    currentPage: parseInt(page)
+  };
 };
 
 export const getUserByWallet = async (walletAddress) => {
