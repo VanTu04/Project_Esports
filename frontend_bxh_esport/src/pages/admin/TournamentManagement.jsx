@@ -132,120 +132,91 @@ export const TournamentManagement = () => {
   const loadTournaments = async () => {
     try {
       setLoading(true);
-      
-      // Build query params based on filters
+
       const params = {};
       if (filters.status) params.status = filters.status;
       if (filters.search) params.search = filters.search;
-      
-  // Call real API
-  const response = await tournamentService.getAllTournaments(params);
-  console.debug('GET /tournaments response:', response);
-  const tournamentsData = response?.data.data || [];
-  console.log('tournamentsData:', tournamentsData);
-  console.debug('tournamentsData (first 5):', tournamentsData.slice(0,5).map(t => ({ id: t.id, start_date: t.start_date, end_date: t.end_date, start_time: t.start_time, end_time: t.end_time })));
-      
-      // Load participants count for each tournament
-      const mappedTournaments = await Promise.all(tournamentsData.map(async (tournament) => {
-        // Map status: PENDING -> upcoming, ACTIVE -> live, COMPLETED -> completed
-        let mappedStatus = 'upcoming';
-        if (tournament.status === 'ACTIVE') {
-          mappedStatus = 'live';
-        } else if (tournament.status === 'COMPLETED') {
-          mappedStatus = 'completed';
-        } else if (tournament.status === 'PENDING') {
-          mappedStatus = 'upcoming';
-        }
-        
-        // Load participants to count pending/approved
-        let teamsCount = { current: 0, max: 0, pending: 0, disputes: 0 };
-        try {
-          const participantsResponse = await tournamentService.getParticipants(tournament.id);
-          if (participantsResponse?.code === 0) {
-            const participants = participantsResponse.data || [];
-            teamsCount.pending = participants.filter(p => p.status === 'PENDING').length;
-            teamsCount.current = participants.filter(p => p.status === 'APPROVED').length;
-            teamsCount.max = tournament.max_teams || 32;
+
+      const response = await tournamentService.getAllTournaments(params);
+      console.debug('GET /tournaments response:', response);
+      const tournamentsData = response?.data?.data || [];
+
+      const mappedTournaments = await Promise.all(
+        tournamentsData.map(async (t) => {
+          let mappedStatus = 'upcoming';
+          if (t.status === 'ACTIVE') mappedStatus = 'live';
+          else if (t.status === 'COMPLETED') mappedStatus = 'completed';
+          else if (t.status === 'PENDING') mappedStatus = 'upcoming';
+
+          let teamsCount = { current: 0, max: t.max_teams || 32, pending: 0, disputes: 0 };
+          try {
+            const participantsResponse = await tournamentService.getParticipants(t.id);
+            if (participantsResponse?.code === 0) {
+              const participants = participantsResponse.data || [];
+              teamsCount.pending = participants.filter(p => {
+                const s = String(p.status || '').toUpperCase();
+                return s === 'PENDING' || s === 'WAITING_APPROVAL';
+              }).length;
+              teamsCount.current = participants.filter(p => String(p.status || '').toUpperCase() === 'APPROVED').length;
+            }
+          } catch (err) {
+            console.warn(`Could not load participants for tournament ${t.id}`);
           }
-        } catch (err) {
-          console.warn(`Could not load participants for tournament ${tournament.id}`);
-        }
-        
-        // compute swiss-system bounds when possible
-        const rounds = tournament.total_rounds || tournament.totalRounds || 0;
-        const computedMax = rounds > 0 ? Math.pow(2, Number(rounds)) : (tournament.max_teams || 32);
-        const computedMin = rounds > 0 ? Math.max(2, Number(rounds) + 1) : 2;
 
-        teamsCount.max = tournament.max_teams || computedMax;
-        teamsCount.min = computedMin;
+          const rounds = t.total_rounds || t.totalRounds || 0;
+          const computedMax = rounds > 0 ? Math.pow(2, Number(rounds)) : (t.max_teams || 32);
+          const computedMin = rounds > 0 ? Math.max(2, Number(rounds) + 1) : 2;
 
-        return {
-          ...tournament,
-          tournament_name: tournament.name,
-          status: mappedStatus,
-          teams: teamsCount,
-          matches: tournament.matches || { total: 0, played: 0, remaining: 0 },
-        };
-      }));
+          teamsCount.max = t.max_teams || computedMax;
+          teamsCount.min = computedMin;
+
+          return {
+            ...t,
+            tournament_name: t.name,
+            status: mappedStatus,
+            teams: teamsCount,
+            matches: t.matches || { total: 0, played: 0, remaining: 0 },
+          };
+        })
+      );
 
       setTournaments(mappedTournaments);
-      calculateStatistics(mappedTournaments);
+
+      // compute simple statistics
+      const statsLocal = {
+        total: mappedTournaments.length,
+        active: 0,
+        upcoming: 0,
+        completed: 0,
+        totalTeams: 0,
+        totalMatches: 0,
+        totalPrizePool: 0,
+        issues: 0
+      };
+
+      mappedTournaments.forEach(tournament => {
+        if (tournament.status === 'active' || tournament.status === 'live') {
+          statsLocal.active++;
+        } else if (tournament.status === 'upcoming') {
+          statsLocal.upcoming++;
+        } else if (tournament.status === 'completed') {
+          statsLocal.completed++;
+        }
+
+        if (tournament.teams?.current) statsLocal.totalTeams += tournament.teams.current;
+        if (tournament.matches?.played) statsLocal.totalMatches += tournament.matches.played;
+        if (tournament.prizePool) statsLocal.totalPrizePool += tournament.prizePool;
+        if (tournament.teams?.disputes) statsLocal.issues += tournament.teams.disputes;
+        if (tournament.teams?.pending) statsLocal.issues += tournament.teams.pending;
+      });
+
+      setStats(statsLocal);
     } catch (error) {
       console.error('❌ Failed to load tournaments:', error);
       showError('Không thể tải danh sách giải đấu. Vui lòng thử lại!');
     } finally {
       setLoading(false);
     }
-  };
-
-  // Hàm tính toán statistics từ danh sách giải đấu
-  const calculateStatistics = (tournamentList) => {
-    const stats = {
-      total: tournamentList.length,
-      active: 0,
-      upcoming: 0,
-      completed: 0,
-      totalTeams: 0,
-      totalMatches: 0,
-      totalPrizePool: 0,
-      issues: 0
-    };
-
-    tournamentList.forEach(tournament => {
-      // Đếm theo trạng thái
-      if (tournament.status === 'active' || tournament.status === 'live') {
-        stats.active++;
-      } else if (tournament.status === 'upcoming') {
-        stats.upcoming++;
-      } else if (tournament.status === 'completed') {
-        stats.completed++;
-      }
-
-      // Tổng số đội
-      if (tournament.teams?.current) {
-        stats.totalTeams += tournament.teams.current;
-      }
-
-      // Tổng số trận
-      if (tournament.matches?.played) {
-        stats.totalMatches += tournament.matches.played;
-      }
-
-      // Tổng giải thưởng
-      if (tournament.prizePool) {
-        stats.totalPrizePool += tournament.prizePool;
-      }
-
-      // Đếm các vấn đề (tranh chấp, chờ duyệt)
-      if (tournament.teams?.disputes) {
-        stats.issues += tournament.teams.disputes;
-      }
-      if (tournament.teams?.pending) {
-        stats.issues += tournament.teams.pending;
-      }
-    });
-
-    setStats(stats);
   };
 
   const handleFilterChange = (key, value) => {
@@ -424,36 +395,35 @@ export const TournamentManagement = () => {
   // Mở modal duyệt đội
   const handleOpenTeamApproval = async (tournament) => {
     setSelectedTournamentForApproval(tournament);
-    
+
     try {
-      // Load real pending teams from API
-      const response = await tournamentService.getParticipants(tournament.id, 'PENDING');
-      
-      // Backend trả về: {code: 0, data: [], message: string}
+      const res = await tournamentService.getPendingRegistrations(tournament.id);
+      const payload = res?.data ?? res;
       let participants = [];
-      
-      if (response?.code === 0) {
-        participants = response.data || [];
-      } else if (Array.isArray(response)) {
-        participants = response;
-      } else if (response?.data && Array.isArray(response.data)) {
-        participants = response.data;
+      if (Array.isArray(payload?.data?.participants)) {
+        participants = payload.data.participants;
+      } else if (Array.isArray(payload?.participants)) {
+        participants = payload.participants;
+      } else if (Array.isArray(payload?.data)) {
+        participants = payload.data;
+      } else if (Array.isArray(payload)) {
+        participants = payload;
       }
-      
-      // Map participants to team format
+
       const teams = participants.map(p => ({
         id: p.id,
-        name: p.team_name,
-        logo: '�', // Default icon
-        captain: p.User?.full_name || 'N/A',
-        members: 5, // Default or fetch from team data
-        registeredDate: p.created_at,
-        description: `Wallet: ${p.wallet_address}`,
+        name: p.team_name || p.teamName || `Team ${p.id}`,
+        logo: '�',
+        captain: p.User?.full_name || p.captain_name || 'N/A',
+        members: p.member_count || p.members || 5,
+        registeredDate: p.created_at || p.createdAt || p.registered_at,
+        description: `Wallet: ${p.wallet_address || p.wallet || p.walletAddress || 'N/A'}`,
       }));
-      
+
       setPendingTeams(teams);
       setShowTeamApprovalModal(true);
     } catch (error) {
+      console.error('❌ Failed to load pending registrations:', error);
       showError('Không thể tải danh sách đội chờ duyệt!');
     }
   };
@@ -473,7 +443,7 @@ export const TournamentManagement = () => {
         return;
       }
       // Call real API to approve
-      await tournamentService.reviewJoinRequest(teamId, 'APPROVE');
+      await tournamentService.approveParticipant(teamId);
       
       // Remove team from pending list
       setPendingTeams(prev => prev.filter(t => t.id !== teamId));
@@ -522,7 +492,8 @@ export const TournamentManagement = () => {
     
     try {
       // Call real API to reject
-      await tournamentService.reviewJoinRequest(teamId, 'REJECT');
+      const reason = prompt('Lý do từ chối (tùy chọn):', 'Không đáp ứng yêu cầu') || null;
+      await tournamentService.rejectParticipant(teamId, reason);
       
       // Remove team from pending list
       setPendingTeams(prev => prev.filter(t => t.id !== teamId));

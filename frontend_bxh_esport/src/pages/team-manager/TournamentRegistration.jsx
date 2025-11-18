@@ -36,7 +36,26 @@ export const TournamentRegistration = () => {
       tournamentList = response.tournaments || response.data?.tournaments || [];
     }
 
-    setTournaments(tournamentList || []);
+    // Enrich tournaments with detail (to get fields like `registration_fee` which may not be returned
+    // by the list endpoint). This calls GET /tournaments/:id for each tournament and merges the result.
+    try {
+      const enriched = await Promise.all((tournamentList || []).map(async (t) => {
+        try {
+          const detailRes = await tournamentService.getTournamentById(t.id);
+          // apiClient returns wrapper { code, data, message }
+          const payload = detailRes?.data?.data ?? detailRes?.data ?? detailRes;
+          const detailed = payload?.data || payload || {};
+          return { ...t, ...detailed };
+        } catch (e) {
+          console.warn(`Failed to fetch details for tournament ${t.id}:`, e);
+          return t;
+        }
+      }));
+      setTournaments(enriched || []);
+    } catch (e) {
+      console.warn('Error enriching tournaments:', e);
+      setTournaments(tournamentList || []);
+    }
 
     // Load registration status for current user for each tournament using the dedicated endpoint
     if (user?.id && tournamentList.length > 0) {
@@ -125,52 +144,25 @@ export const TournamentRegistration = () => {
     setRegistrationStatus(statusMap);
   };
 
-  const handleRegister = async (tournamentId) => {
+  const handleRegister = async (tournament) => {
+    const tournamentId = tournament?.id;
     try {
       console.log("🔹 Bắt đầu đăng ký giải đấu:", tournamentId);
       setRegistering(tournamentId);
 
-      // 1️⃣ Gọi API backend
-      console.log("🔹 Gọi API requestJoinTournament...");
-      const res = await tournamentService.requestJoinTournament(tournamentId);
-      const response = res.data;
-      console.log("📦 Response backend:", response);
-
-      if (response?.code !== 0) {
-        showError(response?.message || "Không thể lấy thông tin đăng ký");
-        return;
-      }
-
-      const { signature, amountInWei: backendAmount, contractAddress, participant_id } = response.data;
-      console.log("🔹 Backend trả về:", { signature, backendAmount, contractAddress });
-
-      // 2️⃣ Kiểm tra MetaMask
+      // 1️⃣ Kiểm tra MetaMask sớm (trước khi gọi backend) để tránh lưu vào DB nếu không đủ số dư
       if (!window.ethereum) {
         showError("MetaMask chưa được cài đặt");
         return;
       }
 
-      // 🎯 Chain ID mục tiêu của RPC bạn (31337 → 0x7A69)
-      const TARGET_CHAIN_ID = "0x539";
-
-      // 2.1️⃣ Check current chain MetaMask
+      const TARGET_CHAIN_ID = "0x539"; // 31337
       const currentChain = await window.ethereum.request({ method: "eth_chainId" });
-      console.log("🌐 MetaMask đang ở chain:", currentChain);
-
-      // 2.2️⃣ Nếu chưa đúng chain → yêu cầu chuyển
       if (currentChain !== TARGET_CHAIN_ID) {
-        console.log("⚠️ MetaMask sai mạng, yêu cầu chuyển sang 31337...");
-
         try {
-          await window.ethereum.request({
-            method: "wallet_switchEthereumChain",
-            params: [{ chainId: TARGET_CHAIN_ID }],
-          });
-          console.log("✅ MetaMask đã chuyển sang chain 31337");
+          await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: TARGET_CHAIN_ID }] });
         } catch (switchError) {
           if (switchError.code === 4902) {
-            console.log("🔧 Chain chưa tồn tại. Đang add mạng 183.81.33.178:8545...");
-
             await window.ethereum.request({
               method: "wallet_addEthereumChain",
               params: [
@@ -182,46 +174,89 @@ export const TournamentRegistration = () => {
                 },
               ],
             });
-
-            console.log("✅ Đã thêm mạng custom RPC");
           } else {
             throw switchError;
           }
         }
       }
 
-      console.log("💵 backendAmount (wei):", backendAmount);
-      console.log("💵 backendAmount (eth):", ethers.formatEther(backendAmount));
-      console.log("💵 backendAmount (number):", Number(ethers.formatEther(backendAmount)));
-
-
-      // 3️⃣ Kết nối MetaMask
-      console.log("🔹 Kết nối MetaMask...");
+      // Kết nối MetaMask và lấy balance
       await window.ethereum.request({ method: "eth_requestAccounts" });
-
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
-      console.log("✅ MetaMask address:", userAddress);
-
-      // 4️⃣ Lấy balance từ RPC 183.81.33.178:8545
       const balanceWei = await provider.getBalance(userAddress);
+
       console.log("💰 Balance RPC hiện tại:", ethers.formatEther(balanceWei), "ETH");
 
-      // ➜ Nếu không đủ tiền → dừng
-      if (balanceWei <= 0n) {
-        showError("Ví không có ETH trên mạng RPC 183.81.33.178:8545");
+      // Xác định amount cần gửi: ưu tiên dùng `tournament.registration_fee` nếu có (từ dữ liệu tournament),
+      // để tránh phải gọi backend (vì backend có thể tạo bản ghi participant ngay khi /register được POST).
+      let amountNeeded;
+      if (tournament && tournament.registration_fee != null) {
+        try {
+          amountNeeded = ethers.parseEther(String(tournament.registration_fee));
+        } catch (e) {
+          console.warn('Không thể parse registration_fee từ tournament, sẽ fallback sang backend amount', e);
+          amountNeeded = null;
+        }
+      }
+
+      // Nếu không có registration_fee ở client, ta phải gọi backend để lấy amountInWei.
+      // LƯU Ý: backend hiện tại có thể tạo participant khi gọi /register —
+      // do yêu cầu của bạn, ta sẽ chỉ gọi backend nếu không còn cách lấy amount.
+      let preflightResponse = null;
+      if (!amountNeeded) {
+        // Gọi backend để lấy amountInWei (cần để kiểm tra số dư)
+        // WARNING: backend có thể tạo participant tại bước này. Nếu cần tránh hoàn toàn việc tạo participant,
+        // backend phải cung cấp endpoint 'preview' riêng.
+        const res = await tournamentService.requestJoinTournament(tournamentId);
+        preflightResponse = res?.data;
+        if (preflightResponse?.code !== 0) {
+          showError(preflightResponse?.message || "Không thể lấy thông tin đăng ký");
+          return;
+        }
+        const backendAmount = preflightResponse.data?.amountInWei;
+        try {
+          amountNeeded = BigInt(backendAmount?.toString?.() ?? backendAmount);
+        } catch (e) {
+          console.warn('Không thể parse amountInWei từ backend, sẽ dùng balance > 0 check');
+          amountNeeded = null;
+        }
+      }
+
+      // Kiểm tra số dư
+      if (amountNeeded) {
+        if (balanceWei < amountNeeded) {
+          showError(`Không đủ số dư: cần ${ethers.formatEther(amountNeeded)} ETH nhưng ví chỉ còn ${ethers.formatEther(balanceWei)} ETH`);
+          return;
+        }
+      } else {
+        // Fallback: nếu không xác định được amount cần gửi, chỉ đảm bảo ví không rỗng
+        if (balanceWei <= 0n) {
+          showError("Ví không có ETH trên mạng RPC 183.81.33.178:8545");
+          return;
+        }
+      }
+
+      // Nếu tới đây, số dư OK — nếu chưa gọi backend trước đó (preflightResponse), gọi now để lấy signature/participant
+      let response;
+      if (preflightResponse) {
+        response = preflightResponse;
+      } else {
+        const res = await tournamentService.requestJoinTournament(tournamentId);
+        response = res?.data;
+      }
+
+      if (response?.code !== 0) {
+        showError(response?.message || "Không thể lấy thông tin đăng ký");
         return;
       }
 
-      console.log("🔹 Số ETH gửi:", ethers.formatEther(backendAmount), "ETH");
+      const { signature, amountInWei: backendAmount, contractAddress, participant_id } = response.data;
+      console.log("🔹 Backend trả về:", { signature, backendAmount, contractAddress });
 
-      // 5️⃣ Tạo instance contract
+      // Tạo instance contract và gửi transaction
       const contract = new ethers.Contract(contractAddress, LeaderboardABI.abi, signer);
-      console.log("🔹 Contract instance:", contractAddress);
-
-      // 6️⃣ Gửi transaction register
-      console.log("🔹 Gửi transaction register...");
       const tx = await contract.register(
         tournamentId,
         backendAmount,
@@ -230,19 +265,17 @@ export const TournamentRegistration = () => {
       );
 
       showSuccess("Giao dịch đã được gửi, chờ xác nhận...");
-      console.log("⏳ Transaction hash:", tx.hash);
-
-      // 7️⃣ Chờ mined
       const receipt = await tx.wait();
-      console.log("📄 Transaction receipt:", receipt);
-
       if (receipt.status === 1) {
         showSuccess("Đăng ký giải đấu thành công!");
-        console.log("📌 Số tiền user thực sự gửi (tx.value wei):", tx.value?.toString());
-        console.log("📌 Số tiền user gửi (ETH):", ethers.formatEther(tx.value || 0));
-        const res = await tournamentService.confirmBlockchainRegistration(participant_id, tx.hash);
-        console.log("✅ Đã xác nhận đăng ký với backend:", res);
-        // await loadTournaments();
+        const confirmRes = await tournamentService.confirmBlockchainRegistration(participant_id, tx.hash);
+        setRegistrationStatus(prev => ({
+          ...prev,
+          [tournamentId]: {
+            status: confirmRes?.data?.participant?.status || 'WAITING_APPROVAL',
+            participantId: participant_id
+          }
+        }));
       } else {
         showError("Giao dịch thất bại trên blockchain");
       }
@@ -433,7 +466,11 @@ export const TournamentRegistration = () => {
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span>Giải thưởng: {formatPrizePool(tournament.prize_pool)}</span>
+                    <span>
+                      Phí đăng ký: {tournament.registration_fee != null
+                        ? `${tournament.registration_fee} ETH`
+                        : formatPrizePool(tournament.prize_pool)}
+                    </span>
                   </div>
                 </div>
 
@@ -482,7 +519,7 @@ export const TournamentRegistration = () => {
                     );
                   }
                   
-                  if (status?.status === 'PENDING') {
+                  if (status?.status === 'PENDING' || status?.status === 'WAITING_APPROVAL') {
                     return (
                       <Button disabled className="w-full bg-yellow-500/20 border-yellow-500/50 text-yellow-300 cursor-not-allowed">
                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -518,7 +555,7 @@ export const TournamentRegistration = () => {
                   // Chưa đăng ký
                   return (
                     <Button
-                      onClick={() => handleRegister(tournament.id)}
+                      onClick={() => handleRegister(tournament)}
                       className="w-full"
                       variant="primary"
                     >
