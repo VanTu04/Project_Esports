@@ -1,6 +1,18 @@
 import { format, formatDistanceToNow, isValid } from 'date-fns';
 import { vi } from 'date-fns/locale';
-// import { DATE_FORMATS } from './constants';
+
+// Default date formats used across the UI. These are compatible with date-fns
+export const DATE_FORMATS = {
+  // localized date + time, e.g. 18/11/2025 14:30 (locale-aware)
+  DATETIME: 'Pp',
+  // localized date only, e.g. 18/11/2025
+  DATE: 'P',
+  // localized time only, e.g. 14:30
+  TIME: 'p',
+  // common short patterns used in some components
+  SHORT_DATE: 'dd/MM/yyyy',
+  SHORT_TIME: 'HH:mm'
+};
 
 /**
  * Format date to string

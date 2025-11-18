@@ -1,6 +1,5 @@
-import { getWalletBalance, getWalletTransactions, distributeTournamentRewards, distributeRewardsTournament } from "../services/WalletService.js";
-import models from "../models/index.js"; // Sequelize models
-import { getLeaderboardFromChain } from "../services/BlockchainService.js";
+import * as walletService from "../services/WalletService.js";
+import models from "../models/index.js";
 
 /**
  * API: Lấy số dư ví (ETH) của user đăng nhập
@@ -17,7 +16,7 @@ export const getBalanceController = async (req, res) => {
     console.log("user db", user);
     if (!user || !user.wallet_address) throw new Error("Không tìm thấy ví của user");
 
-    const data = await getWalletBalance(user.wallet_address);
+    const data = await walletService.getWalletBalance(user.wallet_address);
 
     return res.status(200).json({
       success: true,
@@ -42,24 +41,24 @@ export const getTransactionsController = async (req, res) => {
     const { id } = req.user;
     if (!id) throw new Error("User chưa đăng nhập");
 
-    // Lấy address từ DB
-    const user = await models.User.findByPk(id);
-    if (!user || !user.wallet_address) throw new Error("Không tìm thấy ví của user");
+    let { page = 1, limit = 10 } = req.query;
 
-    const transactions = await getWalletTransactions(user.wallet_address);
+    page = parseInt(page);
+    limit = parseInt(limit);
+
+    const result = await walletService.getUserTransactions(id, page, limit);
 
     return res.status(200).json({
       success: true,
       message: "Lấy danh sách giao dịch thành công",
-      count: transactions.length,
-      data: transactions,
+      totalItems: result.totalItems,
+      totalPages: result.totalPages,
+      currentPage: result.currentPage,
+      data: result.transactions,
     });
   } catch (error) {
-    console.error("[getTransactionsController] error:", error.message);
-    return res.status(400).json({
-      success: false,
-      message: error.message,
-    });
+    console.error("GET TRANSACTION ERROR:", error);
+    return responseWithError(res, 500, "Lỗi lấy lịch sử giao dịch");
   }
 };
 
@@ -72,7 +71,7 @@ export const distributeRewardsController = async (req, res) => {
     const { idTournament } = req.body;
     if (!idTournament) return res.status(400).json({ success: false, message: "Missing idTournament" });
 
-    const results = await distributeRewardsTournament(idTournament);
+    const results = await walletService.distributeRewardsTournament(idTournament);
 
     res.json({ success: true, results });
   } catch (err) {

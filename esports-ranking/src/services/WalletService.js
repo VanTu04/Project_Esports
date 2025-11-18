@@ -175,52 +175,75 @@ export const getWalletBalance = async (address) => {
   return { address, balanceEth };
 };
 
-/**
- * Lấy danh sách giao dịch (gửi/nhận) của ví
- * @param {string} address - Địa chỉ ví Ethereum
- * @param {number} [startBlock=0] - Block bắt đầu (mặc định 0)
- * @param {number|string} [endBlock="latest"] - Block kết thúc (mặc định là block mới nhất)
- * @returns {Promise<Array>} Danh sách giao dịch
- */
-export const getWalletTransactions = async (
-  address,
-  startBlock = 0,
-  endBlock = "latest"
-) => {
-  if (!ethers.isAddress(address)) {
-    throw new Error("Địa chỉ ví không hợp lệ");
-  }
+export const getUserTransactions = async (userId, page = 1, limit = 10) => {
+  const offset = (page - 1) * limit;
 
-  const latest =
-    endBlock === "latest" ? await provider.getBlockNumber() : endBlock;
+  const { count, rows } = await models.TransactionHistory.findAndCountAll({
+    where: { user_id: userId },
+    order: [["created_at", "DESC"]],
+    limit,
+    offset
+  });
 
-  const transactions = [];
+  // ---------- Enrich dữ liệu ----------
+  const enriched = [];
 
-  console.log(`[WalletService] Quét từ block ${startBlock} → ${latest}`);
+  for (const tx of rows) {
+    // 1. Lấy Tournament
+    const tournament = await models.Tournament.findByPk(tx.tournament_id, {
+      attributes: ["id", "name"]
+    });
 
-  for (let i = startBlock; i <= latest; i++) {
-    const block = await provider.getBlock(i, true); // true => lấy full transactions
-    if (!block?.transactions) continue;
+    // 2. Lấy User
+    const user = await models.User.findByPk(tx.user_id, {
+      attributes: ["id", "full_name"]
+    });
 
-    for (const tx of block.transactions) {
-      if (
-        tx.from?.toLowerCase() === address.toLowerCase() ||
-        tx.to?.toLowerCase() === address.toLowerCase()
-      ) {
-        transactions.push({
-          hash: tx.hash,
-          from: tx.from,
-          to: tx.to,
-          value: ethers.formatEther(tx.value),
-          blockNumber: tx.blockNumber,
-        });
+    // 3. Lấy giao dịch Blockchain từ tx_hash
+    let blockchain = null;
+
+    if (tx.tx_hash) {
+      try {
+        const receipt = await provider.getTransactionReceipt(tx.tx_hash);
+        const txData = await provider.getTransaction(tx.tx_hash);
+
+        if (receipt && txData) {
+          // timestamp = lấy từ block
+          const block = await provider.getBlock(receipt.blockNumber);
+
+          blockchain = {
+            hash: tx.tx_hash,
+            from: txData.from,
+            to: txData.to,
+            valueWei: txData.value.toString(),
+            valueEth: ethers.formatEther(txData.value),
+            gasUsed: receipt.gasUsed.toString(),
+            blockNumber: receipt.blockNumber,
+            timestamp: block ? block.timestamp : null
+          };
+        }
+      } catch (err) {
+        console.log("Blockchain fetch failed for tx:", tx.tx_hash);
       }
     }
+
+    enriched.push({
+      ...tx.dataValues,
+      tournament,
+      user,
+      blockchain
+    });
   }
 
-  // Sắp xếp giảm dần theo block mới nhất
-  return transactions.reverse();
-}
+  // ---------- Return kết quả ----------
+  return {
+    currentPage: page,
+    limit,
+    totalItems: count,
+    totalPages: Math.ceil(count / limit),
+    transactions: enriched
+  };
+};
 
 /**
  * Lấy leaderboard JSON từ contract

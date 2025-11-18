@@ -3,7 +3,6 @@ import { TransactionHistory } from '../../components/blockchain/TransactionHisto
 import blockchainService from '../../services/blockchainService';
 import Button from '../../components/common/Button';
 import { useNotification } from '../../context/NotificationContext';
-import { formatCurrency } from '../../utils/helpers';
 
 export const BlockchainWallet = () => {
   const [balance, setBalance] = useState(null);
@@ -17,16 +16,19 @@ export const BlockchainWallet = () => {
 
   const loadWalletData = async () => {
     setWalletLoading(true);
-    try {
-      // Use authenticated endpoints: /wallet/balance and /wallet/transactions
-      const balResp = await blockchainService.getMyWalletBalance();
-      const balObj = balResp?.data ?? balResp;
-      const finalBal = balObj?.data ?? balObj?.balance ?? balObj?.balanceEth ?? balObj ?? null;
-      setBalance(finalBal ?? null);
 
+    try {
+      // ---- GET BALANCE ----
+      const balResp = await blockchainService.getMyWalletBalance();
+      const balanceEth = balResp?.data?.data?.balanceEth ?? null;
+      setBalance(balanceEth);
+
+      // ---- GET TRANSACTION HISTORY ----
       const txResp = await blockchainService.getMyWalletTransactions();
-      const txPayload = txResp?.data ?? txResp ?? [];
-      setWalletTransactions(Array.isArray(txPayload) ? txPayload : txPayload?.data ?? []);
+      const transactions = txResp?.data?.data ?? [];
+
+      setWalletTransactions(transactions);
+
     } catch (err) {
       console.error(err);
       showError(err?.response?.data?.message || err?.message || 'Không thể tải dữ liệu ví');
@@ -48,10 +50,11 @@ export const BlockchainWallet = () => {
             {walletLoading ? 'Đang tải...' : 'Làm mới'}
           </Button>
         </div>
+
         <div className="mt-4">
           <span className="text-sm text-gray-300 mr-2">Số dư:</span>
           <span className="font-semibold text-white">
-            {balance != null ? formatCurrency(Number(balance), 'ETH') : '-'}
+            {balance != null ? `${balance} ETH` : '-'}
           </span>
         </div>
       </div>

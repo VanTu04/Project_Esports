@@ -501,7 +501,7 @@ export const rejectJoinRequest = async (req, res) => {
       participant_id: participant.id,
       user_id: participant.user_id,
       actor: 'ADMIN',
-      type: 'REJECT',
+      type: 'RECEIVE_REFUND',
       tx_hash: result.txHash,
       amount: participant.registration_fee
     });
