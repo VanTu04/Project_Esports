@@ -16,7 +16,7 @@ export const TournamentManagement = () => {
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [games, setGames] = useState([]);
-  const [showFilters, setShowFilters] = useState(false);
+  // advanced filters removed; keep simple search + quickFilter
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTournaments, setSelectedTournaments] = useState([]);
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -91,6 +91,8 @@ export const TournamentManagement = () => {
     totalPrizePool: 0,
     issues: 0
   });
+  // Track whether we've already loaded stats to avoid changing them on filter changes
+  const [statsLoaded, setStatsLoaded] = useState(false);
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -109,15 +111,22 @@ export const TournamentManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   useEffect(() => {
-    loadTournaments();
+    // Load games once on mount
     loadGames();
   }, []);
 
   useEffect(() => {
-    setCurrentPage(1); // Reset về trang 1 khi filter thay đổi
+    // Reset to page 1 when search or quick filter changes
+    setCurrentPage(1);
   }, [filters.search, quickFilter]);
+
+  // Reload tournaments whenever current page or filters change
+  useEffect(() => {
+    loadTournaments();
+  }, [currentPage, filters.status, filters.search, quickFilter]);
 
   const loadGames = async () => {
     try {
@@ -129,17 +138,60 @@ export const TournamentManagement = () => {
     }
   };
 
-  const loadTournaments = async () => {
+  // `forceStats` when true will recompute and replace stats even if they were loaded before.
+  const loadTournaments = async (forceStats = false) => {
     try {
       setLoading(true);
 
       const params = {};
-      if (filters.status) params.status = filters.status;
+      // Apply search if present
       if (filters.search) params.search = filters.search;
+      // Map quickFilter to backend status when a quick filter is selected
+      if (quickFilter && quickFilter !== 'all') {
+        const mapQuickToStatus = {
+          live: 'ACTIVE',
+          upcoming: 'PENDING',
+          completed: 'COMPLETED',
+          cancelled: 'CANCELLED'
+        };
+        const mapped = mapQuickToStatus[quickFilter];
+        if (mapped) params.status = mapped;
+      } else if (filters.status) {
+        // fallback to explicit status filter if set (rare now)
+        params.status = filters.status;
+      }
+      // Add pagination params (server expects page starting from 1)
+      params.page = currentPage;
+      params.limit = itemsPerPage;
 
       const response = await tournamentService.getAllTournaments(params);
       console.debug('GET /tournaments response:', response);
-      const tournamentsData = response?.data?.data || [];
+
+      // Axios response wrapper -> { code, status, message, data }
+      // Normalize into `data` which should contain { tournaments, totalItems, totalPages, currentPage }
+      const wrapper = response?.data ?? response;
+      const data = wrapper?.data ?? wrapper;
+
+      // Defensive: ensure tournamentsData is always an array
+      let tournamentsData = [];
+      if (Array.isArray(data?.tournaments)) {
+        tournamentsData = data.tournaments;
+      } else if (Array.isArray(data)) {
+        // sometimes the endpoint may return a bare array under data
+        tournamentsData = data;
+      } else {
+        console.debug('Unexpected tournaments payload shape:', data);
+        tournamentsData = [];
+      }
+
+      // Pagination meta (backend returns totalItems, totalPages, currentPage)
+      const totalItemsFromServer = data?.totalItems ?? data?.meta?.totalItems ?? null;
+      const totalPagesFromServer = data?.totalPages ?? data?.meta?.totalPages ?? null;
+      const currentPageFromServer = data?.currentPage ?? data?.meta?.currentPage ?? null;
+
+      if (totalItemsFromServer != null) setTotalItems(Number(totalItemsFromServer));
+      if (totalPagesFromServer != null) setTotalPages(Number(totalPagesFromServer));
+      if (currentPageFromServer != null) setCurrentPage(Math.max(1, Number(currentPageFromServer)));
 
       const mappedTournaments = await Promise.all(
         tournamentsData.map(async (t) => {
@@ -182,9 +234,17 @@ export const TournamentManagement = () => {
 
       setTournaments(mappedTournaments);
 
-      // compute simple statistics
+      // compute statistics
+      const serverTotal = Number(data?.totalItems ?? mappedTournaments.length);
+
+      // Prefer server-provided aggregates when available (backend can add these keys)
+      const statusCounts = data?.statusCounts ?? data?.meta?.statusCounts ?? null;
+      const serverTotalTeams = data?.totalTeams ?? data?.meta?.totalTeams ?? null;
+      const serverTotalMatches = data?.totalMatches ?? data?.meta?.totalMatches ?? null;
+      const serverTotalPrizePool = data?.totalPrizePool ?? data?.meta?.totalPrizePool ?? null;
+
       const statsLocal = {
-        total: mappedTournaments.length,
+        total: serverTotal,
         active: 0,
         upcoming: 0,
         completed: 0,
@@ -194,23 +254,86 @@ export const TournamentManagement = () => {
         issues: 0
       };
 
-      mappedTournaments.forEach(tournament => {
-        if (tournament.status === 'active' || tournament.status === 'live') {
-          statsLocal.active++;
-        } else if (tournament.status === 'upcoming') {
-          statsLocal.upcoming++;
-        } else if (tournament.status === 'completed') {
-          statsLocal.completed++;
-        }
+      if (statusCounts) {
+        // If backend returned counts per status, use them
+        statsLocal.active = Number(statusCounts.ACTIVE ?? statusCounts.active ?? 0);
+        statsLocal.upcoming = Number(statusCounts.PENDING ?? statusCounts.pending ?? 0);
+        statsLocal.completed = Number(statusCounts.COMPLETED ?? statusCounts.completed ?? 0);
+      } else {
+        // Try to fetch global counts per status from backend in parallel.
+        // This uses the existing `getAllTournaments` which returns `totalItems` for the query.
+        try {
+          const statusMap = [
+            { key: 'active', status: 'ACTIVE' },
+            { key: 'upcoming', status: 'PENDING' },
+            { key: 'completed', status: 'COMPLETED' }
+          ];
 
-        if (tournament.teams?.current) statsLocal.totalTeams += tournament.teams.current;
-        if (tournament.matches?.played) statsLocal.totalMatches += tournament.matches.played;
-        if (tournament.prizePool) statsLocal.totalPrizePool += tournament.prizePool;
-        if (tournament.teams?.disputes) statsLocal.issues += tournament.teams.disputes;
-        if (tournament.teams?.pending) statsLocal.issues += tournament.teams.pending;
+          const countsPromises = statusMap.map(s =>
+            tournamentService.getAllTournaments({ status: s.status, limit: 1, page: 1 })
+          );
+
+          const countsResults = await Promise.all(countsPromises);
+
+          statsLocal.active = Number(countsResults[0]?.data?.data?.totalItems ?? countsResults[0]?.data?.totalItems ?? 0);
+          statsLocal.upcoming = Number(countsResults[1]?.data?.data?.totalItems ?? countsResults[1]?.data?.totalItems ?? 0);
+          statsLocal.completed = Number(countsResults[2]?.data?.data?.totalItems ?? countsResults[2]?.data?.totalItems ?? 0);
+        } catch (err) {
+          // If counts fetch fails, fallback to computing from page items
+          mappedTournaments.forEach(tournament => {
+            if (tournament.status === 'active' || tournament.status === 'live') statsLocal.active++;
+            else if (tournament.status === 'upcoming') statsLocal.upcoming++;
+            else if (tournament.status === 'completed') statsLocal.completed++;
+          });
+        }
+      }
+
+      // Nếu đang dùng quickFilter (không phải 'all'), fix cứng số liệu hiển thị
+      if (quickFilter && quickFilter !== 'all') {
+        // Map quickFilter id to stats key
+        const quickToKey = { live: 'active', upcoming: 'upcoming', completed: 'completed', cancelled: null };
+        const key = quickToKey[quickFilter] || null;
+        // set tổng từ server
+        statsLocal.total = serverTotal;
+        // reset all to 0 then assign selected
+        statsLocal.active = 0;
+        statsLocal.upcoming = 0;
+        statsLocal.completed = 0;
+        if (key && ['active', 'upcoming', 'completed'].includes(key)) {
+          statsLocal[key] = serverTotal;
+        }
+      }
+
+      // Teams / matches / prize pool: prefer server totals otherwise sum page items
+      if (serverTotalTeams != null) {
+        statsLocal.totalTeams = Number(serverTotalTeams);
+      } else {
+        mappedTournaments.forEach(t => { if (t.teams?.current) statsLocal.totalTeams += t.teams.current; });
+      }
+
+      if (serverTotalMatches != null) {
+        statsLocal.totalMatches = Number(serverTotalMatches);
+      } else {
+        mappedTournaments.forEach(t => { if (t.matches?.played) statsLocal.totalMatches += t.matches.played; });
+      }
+
+      if (serverTotalPrizePool != null) {
+        statsLocal.totalPrizePool = Number(serverTotalPrizePool);
+      } else {
+        mappedTournaments.forEach(t => { if (t.prizePool) statsLocal.totalPrizePool += t.prizePool; });
+      }
+
+      // Issues: sum pending registrations + disputes from page items (no reliable server aggregate yet)
+      mappedTournaments.forEach(t => {
+        if (t.teams?.disputes) statsLocal.issues += t.teams.disputes;
+        if (t.teams?.pending) statsLocal.issues += t.teams.pending;
       });
 
-      setStats(statsLocal);
+      // Only update stats the first time, or when explicitly forced.
+      if (!statsLoaded || forceStats) {
+        setStats(statsLocal);
+        setStatsLoaded(true);
+      }
     } catch (error) {
       console.error('❌ Failed to load tournaments:', error);
       showError('Không thể tải danh sách giải đấu. Vui lòng thử lại!');
@@ -536,54 +659,12 @@ export const TournamentManagement = () => {
     setConfirmingTournament(tournament);
   };
 
-  // Get filtered tournaments based on quick filter and search
-  const getFilteredTournaments = () => {
-    let filtered = tournaments;
+  // With server-side pagination & filtering enabled, `tournaments` already reflects filters/page.
+  // Return tournaments directly (client-side filters are disabled when server-side is used).
+  const getFilteredTournaments = () => tournaments || [];
 
-    // Apply search filter
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      filtered = filtered.filter(t => {
-        const name = (t.name || t.tournament_name || '').toLowerCase();
-        const description = (t.description || '').toLowerCase();
-        const id = String(t.id);
-        
-        return name.includes(searchLower) || 
-               description.includes(searchLower) || 
-               id.includes(searchLower);
-      });
-    }
-
-    // Apply quick filter
-    switch (quickFilter) {
-      case 'live':
-        filtered = filtered.filter(t => t.status === 'live' || t.status === 'active');
-        break;
-      case 'upcoming':
-        filtered = filtered.filter(t => t.status === 'upcoming');
-        break;
-      case 'completed':
-        filtered = filtered.filter(t => t.status === 'completed');
-        break;
-      case 'cancelled':
-        filtered = filtered.filter(t => t.status === 'cancelled');
-        break;
-      case 'all':
-      default:
-        // No additional filtering needed
-        break;
-    }
-
-    return filtered;
-  };
-
-  // Get paginated tournaments
-  const getPaginatedTournaments = () => {
-    const filtered = getFilteredTournaments();
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return filtered.slice(startIndex, endIndex);
-  };
+  // With server-side pagination, the server returns the correct page contents in `tournaments`.
+  const getPaginatedTournaments = () => tournaments || [];
 
   // Handle page change
   const handlePageChange = (page) => {
@@ -594,33 +675,24 @@ export const TournamentManagement = () => {
     }
   };
 
-  // Generate page numbers for pagination
+  // Generate page numbers for pagination based on server-side `totalPages`
   const getPageNumbers = () => {
-    const filtered = getFilteredTournaments();
-    const calculatedTotalPages = Math.ceil(filtered.length / itemsPerPage);
-    
+    const calculatedTotalPages = totalPages || 1;
     const pages = [];
     const maxVisiblePages = 5;
-    
+
     if (calculatedTotalPages <= maxVisiblePages) {
-      // Show all pages if total is less than max
-      for (let i = 1; i <= calculatedTotalPages; i++) {
-        pages.push(i);
-      }
+      for (let i = 1; i <= calculatedTotalPages; i++) pages.push(i);
     } else {
-      // Show smart pagination
       if (currentPage <= 3) {
-        // Near start
         for (let i = 1; i <= 4; i++) pages.push(i);
         pages.push('...');
         pages.push(calculatedTotalPages);
       } else if (currentPage >= calculatedTotalPages - 2) {
-        // Near end
         pages.push(1);
         pages.push('...');
         for (let i = calculatedTotalPages - 3; i <= calculatedTotalPages; i++) pages.push(i);
       } else {
-        // Middle
         pages.push(1);
         pages.push('...');
         for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
@@ -628,15 +700,12 @@ export const TournamentManagement = () => {
         pages.push(calculatedTotalPages);
       }
     }
-    
+
     return pages;
   };
 
-  // Get current total pages based on filtered data
-  const getCurrentTotalPages = () => {
-    const filtered = getFilteredTournaments();
-    return Math.ceil(filtered.length / itemsPerPage);
-  };
+  // Get current total pages (from server)
+  const getCurrentTotalPages = () => totalPages || 1;
 
   return (
     <div className="min-h-screen bg-dark-500 p-6">
@@ -823,55 +892,10 @@ export const TournamentManagement = () => {
                   onChange={(e) => handleFilterChange('search', e.target.value)}
                 />
               </div>
-              <Button
-                variant="secondary"
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                Bộ lọc
-              </Button>
+              {/* advanced filters removed; quick filters remain below */}
             </div>
 
-            {/* Advanced Filters */}
-            {showFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-primary-700/20">
-                <select
-                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-black focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  value={filters.game}
-                  onChange={(e) => handleFilterChange('game', e.target.value)}
-                >
-                  <option value="">Tất cả Game</option>
-                  {games.map((game) => (
-                    <option key={game.game_id} value={game.game_name}>
-                      {game.game_name}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-black focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  value={filters.status}
-                  onChange={(e) => handleFilterChange('status', e.target.value)}
-                >
-                  <option value="">Tất cả Trạng thái</option>
-                  <option value="pending">Pending</option>
-                  <option value="active">Active</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-
-                {/* <select
-                  className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-black focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  value={filters.format}
-                  onChange={(e) => handleFilterChange('format', e.target.value)}
-                >
-                  <option value="">Tất cả Format</option>
-                  <option value="single-elim">Single Elimination</option>
-                  <option value="double-elim">Double Elimination</option>
-                  <option value="round-robin">Round Robin</option>
-                  <option value="swiss">Swiss</option>
-                </select> */}
-              </div>
-            )}
+            {/* Advanced filters removed to simplify UI; quick filters below apply server-side */}
 
             {/* Quick Filters */}
             <div className="flex flex-wrap gap-2">
@@ -983,10 +1007,9 @@ export const TournamentManagement = () => {
             <div className="p-4 border-t border-primary-700/20 flex items-center justify-between">
               <div className="text-sm text-gray-400">
                 {(() => {
-                  const filtered = getFilteredTournaments();
                   const start = (currentPage - 1) * itemsPerPage + 1;
-                  const end = Math.min(currentPage * itemsPerPage, filtered.length);
-                  return `Hiển thị ${filtered.length > 0 ? start : 0}-${end} của ${filtered.length} giải đấu`;
+                  const end = Math.min(currentPage * itemsPerPage, totalItems || tournaments.length);
+                  return `Hiển thị ${totalItems > 0 ? start : 0}-${end} của ${totalItems || tournaments.length} giải đấu`;
                 })()}
               </div>
               <div className="flex gap-2">
