@@ -122,15 +122,19 @@ export const approveRegistration = async (tournamentId, userAddress) => {
       throw new Error(`Cannot approve. Current status: ${regStatus.statusName}`);
     }
 
+    // Lưu amount trước khi gọi transaction (vì sau đó contract có thể thay đổi state)
+    const amountBeforeTx = regStatus.amountDeposited;
+
     const tx = await leaderboardContract.approveRegistration(tournamentId, userAddress);
     const receipt = await tx.wait();
 
     console.log(`✅ Approved! TxHash: ${tx.hash}`);
+    console.log(`💰 Amount transferred to admin: ${amountBeforeTx} wei`);
 
     return {
       txHash: tx.hash,
       blockNumber: receipt.blockNumber,
-      amountTransferred: regStatus.amountDeposited
+      amountTransferred: amountBeforeTx // Dùng giá trị đã lưu trước transaction
     };
   } catch (error) {
     console.error("❌ Error approving registration:", error);
@@ -155,15 +159,41 @@ export const rejectRegistration = async (tournamentId, userAddress) => {
       throw new Error(`Cannot reject. Current status: ${regStatus.statusName}`);
     }
 
+    // Lưu amount trước khi gọi transaction
+    const amountBeforeTx = regStatus.amountDeposited;
+    console.log(`💰 Amount to be refunded: ${amountBeforeTx} wei`);
+
     const tx = await leaderboardContract.rejectRegistration(tournamentId, userAddress);
     const receipt = await tx.wait();
 
     console.log(`✅ Rejected and refunded! TxHash: ${tx.hash}`);
 
+    // Parse event RegistrationRejected từ receipt để lấy số tiền thực tế đã hoàn
+    let amountRefunded = amountBeforeTx; // Fallback
+
+    try {
+      // Tìm event RegistrationRejected trong receipt
+      for (const log of receipt.logs) {
+        try {
+          const parsedLog = leaderboardContract.interface.parseLog(log);
+          if (parsedLog && parsedLog.name === 'RegistrationRejected') {
+            // Event: RegistrationRejected(uint256 indexed tournamentId, address indexed user, uint256 amountRefunded)
+            amountRefunded = parsedLog.args.amountRefunded.toString();
+            console.log(`🔎 Parsed from event - Amount refunded: ${amountRefunded} wei`);
+            break;
+          }
+        } catch (e) {
+          // Bỏ qua log không thuộc contract này
+        }
+      }
+    } catch (parseError) {
+      console.warn('⚠️ Could not parse RegistrationRejected event, using pre-tx amount:', parseError.message);
+    }
+
     return {
       txHash: tx.hash,
       blockNumber: receipt.blockNumber,
-      amountRefunded: regStatus.amountDeposited
+      amountRefunded
     };
   } catch (error) {
     console.error("❌ Error rejecting registration:", error);

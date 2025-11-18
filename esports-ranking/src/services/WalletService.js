@@ -211,12 +211,16 @@ export const getUserTransactions = async (userId, page = 1, limit = 10) => {
           // timestamp = lấy từ block
           const block = await provider.getBlock(receipt.blockNumber);
 
+          // ⚠️ Với approve/reject, txData.value = 0 (vì ETH được chuyển internal)
+          // Nên lấy amount từ DB (đã lưu dưới dạng ETH)
+          const amountEth = tx.amount || "0";
+
           blockchain = {
             hash: tx.tx_hash,
             from: txData.from,
             to: txData.to,
-            valueWei: txData.value.toString(),
-            valueEth: ethers.formatEther(txData.value),
+            valueWei: ethers.parseEther(amountEth.toString()).toString(), // Chuyển ETH sang wei để hiển thị
+            valueEth: amountEth, // Đã là ETH từ DB
             gasUsed: receipt.gasUsed.toString(),
             blockNumber: receipt.blockNumber,
             timestamp: block ? block.timestamp : null

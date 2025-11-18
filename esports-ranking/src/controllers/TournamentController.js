@@ -360,7 +360,7 @@ export const confirmBlockchainRegistration = async (req, res) => {
       actor: 'TEAM',
       type: 'REGISTER',
       tx_hash: tx_hash,
-      amount: participant.registration_fee
+      amount: participant.registration_fee // Lưu dưới dạng ETH
     });
 
     return res.json(responseSuccess(participant, 'Xác nhận thanh toán thành công. Chờ Admin duyệt.'));
@@ -378,7 +378,8 @@ export const confirmBlockchainRegistration = async (req, res) => {
 export const approveJoinRequest = async (req, res) => {
   try {
     const { participant_id } = req.params;
-
+    const { id: admin_id } = req.user; // Lấy ID admin từ token
+    console.log("Admin abcd", admin_id, "approving participant", participant_id);
     // 1. Tìm request
     const participant = await tournamentService.findParticipantById(participant_id);
     if (!participant) {
@@ -423,11 +424,11 @@ export const approveJoinRequest = async (req, res) => {
     await models.TransactionHistory.create({
       tournament_id: participant.tournament_id,
       participant_id: participant.id,
-      user_id: participant.user_id,
+      user_id: admin_id, // Admin nhận tiền
       actor: 'ADMIN',
       type: 'APPROVE',
       tx_hash: result.txHash,
-      amount: participant.registration_fee
+      amount: weiToEth(result.amountTransferred) // Chuyển từ wei sang ETH
     });
 
     return res.json(responseSuccess({
@@ -503,7 +504,7 @@ export const rejectJoinRequest = async (req, res) => {
       actor: 'ADMIN',
       type: 'RECEIVE_REFUND',
       tx_hash: result.txHash,
-      amount: participant.registration_fee
+      amount: weiToEth(result.amountRefunded) // Chuyển từ wei sang ETH
     });
 
     return res.json(responseSuccess({

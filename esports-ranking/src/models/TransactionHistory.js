@@ -63,7 +63,7 @@ export default (sequelize) => {
     amount: {
       type: DataTypes.DECIMAL,
       allowNull: false,
-      comment: 'Số tiền (đơn vị wei)'
+      comment: 'Số tiền (đơn vị ETH)'
     },
     created_at: {
       type: DataTypes.DATE,
