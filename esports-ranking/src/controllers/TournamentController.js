@@ -59,6 +59,22 @@ export const createTournamentWithRewards = async (req, res) => {
   }
 };
 
+export const isReadyTrue = async (req, res) => {
+  try {
+    const { id } = req.body;
+    const tournament = await tournamentService.findById(id);
+    if (!tournament) {
+      return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại.'));
+    }
+    tournament.isReady = true;
+    await tournament.save();
+    return res.json(responseSuccess(tournament, 'Cập nhật isReady thành công'));
+  } catch (error) {
+    console.error('isReadyTrue error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
 export const getTournamentRewards = async (req, res) => {
   try {
     const { tournament_id } = req.params;

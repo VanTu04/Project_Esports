@@ -16,6 +16,12 @@ router.post(
   tournamentController.createTournamentWithRewards
 );
 
+router.post(
+  '/isReady',
+  checkRole([roles.ADMIN]),
+  tournamentController.isReadyTrue
+)
+
 /**
  * @route   GET /api/tournaments
  * @desc    Lấy danh sách tất cả giải đấu (có thể lọc theo status)
