@@ -264,10 +264,36 @@ export const MatchResultUpdate = () => {
           matchesData = matchesPayload.matches;
         }
 
-        // Sort by round and match order
-        const sortedMatches = (Array.isArray(matchesData) ? matchesData : []).sort((a, b) => {
-          const ra = Number(a.round_number || a.round || 0);
-          const rb = Number(b.round_number || b.round || 0);
+        // Normalize server match shapes to the UI's expected shape, then sort
+        const normalize = (m) => {
+          // Map team associations
+          const Team1 = m.teamA || m.Team1 || (m.team_a || null);
+          const Team2 = m.teamB || m.Team2 || (m.team_b || null);
+
+          // Build standard fields used across this page
+          return {
+            id: m.id,
+            round_number: m.round_number ?? m.round ?? 1,
+            match_order: m.match_order ?? m.id ?? 0,
+            team1_id: m.team_a_participant_id ?? m.team1_id ?? (Team1?.id || null),
+            team2_id: m.team_b_participant_id ?? m.team2_id ?? (Team2?.id || null),
+            Team1: Team1 && (Team1.team_name ? { id: Team1.id, name: Team1.team_name } : { id: Team1.id, name: Team1.name }),
+            Team2: Team2 && (Team2.team_name ? { id: Team2.id, name: Team2.team_name } : { id: Team2.id, name: Team2.name }),
+            // times: backend uses `match_time`, this page expects `scheduled_time`
+            scheduled_time: m.match_time ?? m.scheduled_time ?? m.scheduled_time,
+            // scores: backend uses score_team_a/score_team_b (or score_a/score_b), page expects score1/score2
+            score1: (m.score_team_a ?? m.score_a ?? m.score1) === null ? null : (m.score_team_a ?? m.score_a ?? m.score1),
+            score2: (m.score_team_b ?? m.score_b ?? m.score2) === null ? null : (m.score_team_b ?? m.score_b ?? m.score2),
+            // winner id and status
+            winner_id: m.winner_participant_id ?? m.winner_id ?? m.winner ?? null,
+            status: m.status ?? m.match_status ?? 'PENDING'
+          };
+        };
+
+        const normalized = (Array.isArray(matchesData) ? matchesData : []).map(normalize);
+        const sortedMatches = normalized.sort((a, b) => {
+          const ra = Number(a.round_number || 0);
+          const rb = Number(b.round_number || 0);
           if (ra !== rb) return ra - rb;
           return (a.match_order || 0) - (b.match_order || 0);
         });

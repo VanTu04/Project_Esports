@@ -53,8 +53,18 @@ const userService = {
     try {
       const response = await apiClient.get(API_ENDPOINTS.USERS, { params });
       console.log('📥 Response từ API getAllUsers:', response);
-      // Backend trả về format: { code: 0, status: 200, message: "...", data: { users: [...] } }
-      return response.data || response; // Trả về data.users hoặc toàn bộ response
+      // Normalize backend responses. Common formats:
+      // 1) Axios response with body: { code, status, message, data: { users: [...] } }
+      // 2) Axios response with body: { users: [...] }
+      // 3) Axios response with body being an array of users
+      const payload = response && response.data ? response.data : response;
+
+      if (Array.isArray(payload)) return payload;
+      if (payload && Array.isArray(payload.users)) return payload.users;
+      if (payload && payload.data && Array.isArray(payload.data.users)) return payload.data.users;
+
+      // If none of the above match, return an empty array so callers can safely use array methods
+      return [];
     } catch (error) {
       console.error('❌ Error trong getAllUsers service:', error);
       throw error;

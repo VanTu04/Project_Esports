@@ -68,7 +68,7 @@ const rewardService = {
     try {
       // Backend route: GET /api/tournaments/:tournament_id/rewards
       const response = await apiClient.get(`/tournaments/${tournamentId}/rewards`);
-      return response;
+      return response?.data ?? response;
     } catch (error) {
       throw error;
     }

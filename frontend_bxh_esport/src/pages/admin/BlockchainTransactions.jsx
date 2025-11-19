@@ -8,6 +8,7 @@ import { formatCurrency } from '../../utils/helpers';
 export const BlockchainTransactions = () => {
   const [balance, setBalance] = useState(null);
   const [walletTransactions, setWalletTransactions] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [walletLoading, setWalletLoading] = useState(true);
   const { showError } = useNotification();
 
@@ -27,8 +28,10 @@ export const BlockchainTransactions = () => {
       // ---- GET TRANSACTION HISTORY ----
       const txResp = await blockchainService.getMyWalletTransactions();
       const transactions = txResp?.data?.data ?? [];
-
       setWalletTransactions(transactions);
+      // Try to capture current user id from returned transactions (fallback)
+      const possibleId = transactions?.[0]?.user_id ?? transactions?.[0]?.user?.id ?? null;
+      setCurrentUserId(possibleId);
 
     } catch (err) {
       console.error(err);
@@ -60,7 +63,7 @@ export const BlockchainTransactions = () => {
         </div>
       </div>
 
-      <TransactionHistory transactions={walletTransactions} loading={walletLoading} />
+      <TransactionHistory transactions={walletTransactions} loading={walletLoading} view="admin" currentUserId={currentUserId} />
     </div>
   );
 };
