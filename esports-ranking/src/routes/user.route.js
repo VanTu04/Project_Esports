@@ -2,6 +2,7 @@ import express from 'express';
 import * as usersController from '../controllers/UserController.js';
 import roles from '../constant/roles.js';
 import { checkAccessToken, checkRefreshToken, checkRole } from '../middlewares/jwt_token.js';
+import { uploadAvatar } from '../middlewares/multer.config.js';
 
 const router = express.Router();
 
@@ -29,7 +30,9 @@ router.post('/check-exist-email', usersController.checkExistEmail);
 router.post('/check-exist-username', usersController.checkExistUsername);
 router.get('/profile', checkAccessToken, usersController.getProfile);
 
-//ADMIN
+router.post('/update-profile', checkAccessToken, uploadAvatar.single('avatar'), usersController.updateProfile);
+
+//ADMIN - Các route với param động (:id) phải đặt CUỐI
 router.post('/new-account', checkRole([roles.ADMIN]), usersController.createNewAccountByAdmin);
 router.get('/', checkRole([roles.ADMIN]), usersController.getAllUsers);
 router.put('/:id', checkRole([roles.ADMIN]), usersController.updateUser);

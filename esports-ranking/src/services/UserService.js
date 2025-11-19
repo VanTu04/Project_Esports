@@ -104,9 +104,10 @@ export const createAccount = async (data, adminId) => {
 export const getProfile = async (userId) => {
   let user = await models.User.findOne({
     where: { id: userId, status: 1, deleted: 0 },
-    attributes: ['id', 'username', 'full_name', 'email', 'role', 'wallet_address', 'private_key']
+    attributes: ['id', 'username', 'full_name', 'email', 'role', 'wallet_address', 'private_key', 'avatar', 'phone']
   });
 
+  const backendUrl = process.env.BACKEND_URL || 'https://api.vawndev.online';
   if (!user) {
     throw new Error('User not found');
   }
@@ -115,11 +116,15 @@ export const getProfile = async (userId) => {
     id: user.id,
     username: user.username,
     full_name: user.full_name,
+    avatar: user.avatar ? `${backendUrl}${user.avatar}` : null,
+    phone: user.phone,
     email: user.email,
     role: user.role,
     wallet_address: user.wallet_address,
     private_key: decrypt(user.private_key)
   }
+
+  console.log("user:", user);
 
   return user;
 };
@@ -369,4 +374,18 @@ export const deleteUser = async (userId, adminId) => {
     console.error('deleteUser error:', error);
     throw error;
   }
+};
+
+export const updateProfile = async (userId, { full_name, phone, avatar }) => {
+  const user = await models.User.findByPk(userId);
+
+  if (!user) throw new Error("User không tồn tại");
+  const baseUrl = process.env.BACKEND_URL || 'http://localhost:8081';
+  await user.update({
+    full_name,
+    phone,
+    avatar: avatar ? `${baseUrl}${avatar}` : user.avatar
+  });
+
+  return true;
 };

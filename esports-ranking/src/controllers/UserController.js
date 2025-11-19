@@ -250,3 +250,23 @@ export const deleteUser = async (req, res, next) => {
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi xóa người dùng', error.message));
   }
 }
+
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { full_name, phone } = req.body;
+
+    let avatarUrl = null;
+    if (req.file) avatarUrl = `/uploads/${req.file.filename}`;
+
+    const updated = await userService.updateProfile(userId, { full_name, phone, avatar: avatarUrl });
+
+    return res.json({
+      success: true,
+      message: "Cập nhật thông tin thành công",
+      data: updated,
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};

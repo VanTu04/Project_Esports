@@ -5,9 +5,10 @@ import passport from 'passport';
 import cors from 'cors';
 import routes from './routes/index.js';
 import { sequelize } from './models/index.js';
-import './config/passport.js'; // Import Ä‘á»ƒ kÃ­ch hoáº¡t cáº¥u hÃ¬nh Passport
+import './config/passport.js';
 import { initAdminAccount } from './init/initAdmin.js';
 import cookieParser from 'cookie-parser';
+import path from 'path';
 
 dotenv.config();
 
@@ -31,6 +32,8 @@ app.use(express.static('public'));
 // --- Middleware ---
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // --- Session middleware ---
 app.use(
@@ -85,7 +88,7 @@ app.get('/api/auth/fail', (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 sequelize
-  .sync({ alter: true })
+  .sync({ alter: false })
   .then(async () => {
     console.log('Database synced');
 
