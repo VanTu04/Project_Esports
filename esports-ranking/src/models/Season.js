@@ -47,7 +47,6 @@ export default (sequelize) => {
   // Associations
   Season.associate = (models) => {
     Season.belongsTo(models.Game, { foreignKey: 'game_id', as: 'game' });
-    Season.hasMany(models.Ranking, { foreignKey: 'season_id', as: 'rankings' });
   };
 
   return Season;

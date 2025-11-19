@@ -13,6 +13,11 @@ export default (sequelize) => {
       defaultValue: 'PENDING',
       allowNull: false
     },
+    isReady: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: 'Đánh dấu giải đấu đã sẵn sàng bắt đầu hay chưa'
+    },
     total_rounds: {
       type: DataTypes.INTEGER,
       allowNull: false,

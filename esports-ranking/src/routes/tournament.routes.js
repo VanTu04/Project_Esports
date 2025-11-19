@@ -26,6 +26,13 @@ router.get(
   tournamentController.getAllTournaments
 );
 
+
+router.get(
+  '/admin',
+  checkRole([roles.ADMIN]),
+  tournamentController.getAllTournamentsAdmin
+);
+
 /**
  * @route   GET /api/tournaments/:id
  * @desc    Lấy thông tin chi tiết 1 giải đấu (bao gồm các đội tham gia)

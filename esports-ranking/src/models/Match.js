@@ -50,8 +50,16 @@ export default (sequelize) => {
       type: DataTypes.INTEGER,
       defaultValue: 0
     },
+    score_team_a: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0
+    },
+    score_team_b: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0
+    },
     status: {
-      type: DataTypes.ENUM('PENDING', 'COMPLETED', 'CANCELLED'),
+      type: DataTypes.ENUM('PENDING', 'COMPLETED', 'DONE', 'CANCELLED'),
       defaultValue: 'PENDING',
     },
     match_time: {

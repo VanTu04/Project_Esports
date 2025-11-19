@@ -62,12 +62,55 @@ export const findById = async (id) => {
 /**
  * Lấy tất cả giải đấu (có lọc theo status)
  */
+export const findAllByAdmin = async (status, page = 1, limit = 10) => {
+  const whereCondition = {};
+  if (status !== undefined && status !== null && status !== '') {
+    whereCondition.status = status;
+  }
+
+  const offset = (page - 1) * limit;
+
+  const { count, rows: tournaments } = await models.Tournament.findAndCountAll({
+    where: whereCondition,
+    order: [['createdAt', 'DESC']],
+  attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'start_time', 'end_time', 'registration_fee', 'createdAt', 'updatedAt'],
+    include: [
+      {
+        model: models.TournamentReward,
+        as: 'rewards',
+        attributes: ['id', 'rank', 'reward_amount'],
+        required: false // nếu giải đấu chưa có reward vẫn trả về
+      }
+    ],
+    limit: parseInt(limit),
+    offset: parseInt(offset)
+  });
+
+  try {
+    // Log a compact sample to help debug missing date fields (removed in production later)
+    const sample = tournaments.slice(0, 5).map(t => (t && typeof t.get === 'function') ? t.get({ plain: true }) : t);
+    console.log('[TournamentService.findAll] sample tournaments (id, start_date, end_date, start_time, end_time):',
+      sample.map(s => ({ id: s.id, start_date: s.start_date, end_date: s.end_date, start_time: s.start_time, end_time: s.end_time })));
+  } catch (e) {
+    console.warn('Could not log tournaments sample', e);
+  }
+
+  return {
+    tournaments,
+    totalItems: count,
+    totalPages: Math.ceil(count / limit),
+    currentPage: parseInt(page)
+  };
+};
+
 export const findAll = async (status, page = 1, limit = 10) => {
   const whereCondition = {};
   if (status !== undefined && status !== null && status !== '') {
     whereCondition.status = status;
   }
 
+  whereCondition.isReady = 1;
+  
   const offset = (page - 1) * limit;
 
   const { count, rows: tournaments } = await models.Tournament.findAndCountAll({

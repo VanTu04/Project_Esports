@@ -9,8 +9,6 @@ import defineTeamMember from './TeamMember.js';
 import defineGame from './Game.js';
 import defineSeason from './Season.js';
 import defineTournament from './Tournament.js';
-import defineRanking from './Ranking.js';
-import defineRankingBoard from './RankingBoard.js';
 import defineParticipant from './Participant.js';
 import defineMatch from './Match.js';
 import defineTournamentReward from './TournamentReward.js';
@@ -25,8 +23,6 @@ const TeamMember = defineTeamMember(sequelize, DataTypes);
 const Game = defineGame(sequelize, DataTypes);
 const Season = defineSeason(sequelize, DataTypes);
 const Tournament = defineTournament(sequelize, DataTypes);
-const Ranking = defineRanking(sequelize, DataTypes);
-const RankingBoard = defineRankingBoard(sequelize, DataTypes);
 const Participant = defineParticipant(sequelize, DataTypes);
 const Match = defineMatch(sequelize, DataTypes);
 const TournamentReward = defineTournamentReward(sequelize, DataTypes);
@@ -43,9 +39,7 @@ const models = {
   Season,
   Tournament,
   TournamentReward,
-    TournamentDistribution,
-  Ranking,
-  RankingBoard,
+  TournamentDistribution,
   Participant,
   Match,
   TransactionHistory
@@ -59,7 +53,7 @@ Object.keys(models).forEach((modelName) => {
 });
 
 // --- Xuất ---
-export { sequelize, Sequelize, User, user_otp, Team, TeamMember, Game, Season, Tournament, TournamentReward, TournamentDistribution, Ranking, RankingBoard, Participant, Match, TransactionHistory };
+export { sequelize, Sequelize, User, user_otp, Team, TeamMember, Game, Season, Tournament, TournamentReward, TournamentDistribution, Participant, Match, TransactionHistory };
 
 export default {
   sequelize,
@@ -73,8 +67,6 @@ export default {
   Tournament,
   TournamentReward,
   TournamentDistribution,
-  Ranking,
-  RankingBoard,
   Participant,
   Match,
   TransactionHistory,

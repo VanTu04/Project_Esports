@@ -11,7 +11,7 @@ const provider = new ethers.JsonRpcProvider(rpcUrl);
  * @param {string} walletAddress - Địa chỉ ví cần nạp
  * @param {string} amountEth - Số lượng ETH (dạng chuỗi)
  */
-export const fundWalletOnAnvil = async (walletAddress, amountEth = "1000000000000") => {
+export const fundWalletOnAnvil = async (walletAddress, amountEth = "1000") => {
   try {
     console.log(`[ANVIL SYNC] Nạp ${amountEth} ETH cho ví ${walletAddress}...`);
     await provider.send("hardhat_impersonateAccount", [walletAddress]);
@@ -58,7 +58,7 @@ export const initAdminAccount = async () => {
     console.log(" Ví admin:", wallet.address);
 
     // 🔹 Nạp tiền chỉ khi admin mới được tạo
-    const adminBalance = "1000000000000000"; // 1 quadrillion ETH
+    const adminBalance = "1000"; // 1000 ETH
     await fundWalletOnAnvil(wallet.address, adminBalance);
 
     return adminUser;
