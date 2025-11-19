@@ -245,34 +245,57 @@ export const MatchResultUpdate = () => {
     try {
       setLoading(true);
       
-      // USE FAKE DATA FOR DEMO
-      setTimeout(() => {
+      // Try real API first; if it fails, fallback to demo data
+      try {
+        // Load tournament info
+        const tournamentResponse = await tournamentService.getTournamentById(tournamentId);
+        // Normalize response shapes: { code, data, message } or axios wrapper
+        const tournamentPayload = tournamentResponse?.data ?? tournamentResponse;
+        const tournamentData = tournamentPayload?.data || tournamentPayload || null;
+        setTournament(tournamentData || FAKE_TOURNAMENT);
+
+        // Load matches (server may return wrapper with .data or data.data)
+        const matchesResponse = await tournamentService.getTournamentMatches(tournamentId);
+        const matchesPayload = matchesResponse?.data ?? matchesResponse;
+        let matchesData = matchesPayload?.data || matchesPayload || [];
+
+        // If payload contains an object with matches key
+        if (matchesPayload?.matches && Array.isArray(matchesPayload.matches)) {
+          matchesData = matchesPayload.matches;
+        }
+
+        // Sort by round and match order
+        const sortedMatches = (Array.isArray(matchesData) ? matchesData : []).sort((a, b) => {
+          const ra = Number(a.round_number || a.round || 0);
+          const rb = Number(b.round_number || b.round || 0);
+          if (ra !== rb) return ra - rb;
+          return (a.match_order || 0) - (b.match_order || 0);
+        });
+
+        setMatches(sortedMatches.length ? sortedMatches : FAKE_MATCHES);
+
+        // Build schedule view from matches if server returned dates
+        try {
+          const scheduleMap = {};
+          (sortedMatches.length ? sortedMatches : FAKE_SCHEDULE).forEach(m => {
+            const dateKey = m.scheduled_time ? new Date(m.scheduled_time).toISOString().split('T')[0] : 'unscheduled';
+            if (!scheduleMap[dateKey]) scheduleMap[dateKey] = { id: dateKey, date: dateKey, day: '', matches: [] };
+            scheduleMap[dateKey].matches.push(m);
+          });
+          const scheduleArr = Object.values(scheduleMap).map(s => ({ ...s, day: new Date(s.date).toLocaleDateString('vi-VN', { weekday: 'long' }) }));
+          setSchedule(scheduleArr.length ? scheduleArr : FAKE_SCHEDULE);
+        } catch (e) {
+          setSchedule(FAKE_SCHEDULE);
+        }
+
+        setLoading(false);
+      } catch (err) {
+        console.warn('Real API failed, falling back to demo data:', err);
         setTournament(FAKE_TOURNAMENT);
         setMatches(FAKE_MATCHES);
         setSchedule(FAKE_SCHEDULE);
         setLoading(false);
-      }, 800);
-      
-      /* REAL API CODE - Comment out for demo
-      // Load tournament info
-      const tournamentResponse = await tournamentService.getTournamentById(tournamentId);
-      setTournament(tournamentResponse?.data);
-
-      // Load matches
-      const matchesResponse = await tournamentService.getTournamentMatches(tournamentId);
-      const matchesData = matchesResponse?.data || [];
-      
-      // Sort by round and match order
-      const sortedMatches = matchesData.sort((a, b) => {
-        if (a.round_number !== b.round_number) {
-          return a.round_number - b.round_number;
-        }
-        return a.match_order - b.match_order;
-      });
-      
-      setMatches(sortedMatches);
-      setLoading(false);
-      */
+      }
     } catch (error) {
       console.error('❌ Failed to load data:', error);
       showError('Không thể tải danh sách trận đấu!');
