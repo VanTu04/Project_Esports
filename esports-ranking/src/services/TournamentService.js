@@ -73,7 +73,7 @@ export const findAllByAdmin = async (status, page = 1, limit = 10) => {
   const { count, rows: tournaments } = await models.Tournament.findAndCountAll({
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-  attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'start_time', 'end_time', 'registration_fee', 'createdAt', 'updatedAt'],
+  attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'start_time', 'end_time', 'registration_fee', 'isReady', 'createdAt', 'updatedAt'],
     include: [
       {
         model: models.TournamentReward,
@@ -110,7 +110,7 @@ export const findAll = async (status, page = 1, limit = 10) => {
   }
 
   whereCondition.isReady = 1;
-  
+
   const offset = (page - 1) * limit;
 
   const { count, rows: tournaments } = await models.Tournament.findAndCountAll({
