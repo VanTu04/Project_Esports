@@ -6,7 +6,18 @@ const build = (template, id) => template.replace(':id', id);
 const tournamentService = {
   getAllTournaments: async (params = {}) => {
     try {
-      return await apiClient.get(API_ENDPOINTS.TOURNAMENTS, { params });
+      const res = await apiClient.get(API_ENDPOINTS.TOURNAMENTS, { params });
+      return res?.data ?? res;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Admin variant: calls /tournaments/admin which returns all (including isReady=false)
+  getAllTournamentsAdmin: async (params = {}) => {
+    try {
+      const res = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/admin`, { params });
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -14,7 +25,8 @@ const tournamentService = {
 
   getTournamentById: async (tournamentId) => {
     try {
-      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}`);
+      const res = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -22,7 +34,8 @@ const tournamentService = {
 
   getTournamentTeams: async (tournamentId) => {
     try {
-      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/teams`);
+      const res = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/teams`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -30,13 +43,18 @@ const tournamentService = {
 
   getTournamentMatches: async (tournamentId, params = {}) => {
     try {
-      // Gọi API từ match routes thay vì tournament routes
-      const queryParams = {
+      // Backend exposes matches via the tournaments router at POST /tournaments/rounds/matches
+      // The controller expects body fields named `tournaments` and `rounds` (legacy names),
+      // so include both `tournament_id`/`round_number` and the legacy keys to be safe.
+      const body = {
         tournament_id: tournamentId,
         round_number: params.round_number || 1,
-        ...params
+        tournaments: tournamentId,
+        rounds: params.round_number || 1
       };
-      return await apiClient.get(`${API_ENDPOINTS.MATCHES}/matches`, { params: queryParams });
+
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/rounds/matches`, body);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -44,7 +62,8 @@ const tournamentService = {
 
   createTournament: async (newTournament) => {
     try {
-      return await apiClient.post(API_ENDPOINTS.TOURNAMENTS, newTournament);
+      const res = await apiClient.post(API_ENDPOINTS.TOURNAMENTS, newTournament);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -52,7 +71,8 @@ const tournamentService = {
 
   updateTournament: async (id, updatedData) => {
     try {
-      return await apiClient.put(`${API_ENDPOINTS.TOURNAMENTS}/${id}`, updatedData);
+      const res = await apiClient.put(`${API_ENDPOINTS.TOURNAMENTS}/${id}`, updatedData);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -60,7 +80,8 @@ const tournamentService = {
 
   deleteTournament: async (id) => {
     try {
-      return await apiClient.delete(`${API_ENDPOINTS.TOURNAMENTS}/${id}`);
+      const res = await apiClient.delete(`${API_ENDPOINTS.TOURNAMENTS}/${id}`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -69,7 +90,8 @@ const tournamentService = {
   // Register team to tournament (Admin adds team directly)
   registerTeam: async (tournamentId, data) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/register`, data);
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/register`, data);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -114,7 +136,8 @@ const tournamentService = {
   // Get pending registrations for admin review
   getPendingRegistrations: async (tournamentId) => {
     try {
-      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/pending-registrations`);
+      const res = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/pending-registrations`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -123,7 +146,8 @@ const tournamentService = {
   // Approve a participant (participantId is used in the route as in backend examples)
   approveParticipant: async (participantId) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${participantId}/approve`);
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${participantId}/approve`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -132,7 +156,8 @@ const tournamentService = {
   // Reject a participant with optional reason
   rejectParticipant: async (participantId, reason = null) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${participantId}/reject`, { reason });
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${participantId}/reject`, { reason });
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -142,7 +167,8 @@ const tournamentService = {
   // Backend route: POST /tournaments/review-request/:participant_id
   reviewJoinRequest: async (participantId, action) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/review-request/${participantId}`, { action });
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/review-request/${participantId}`, { action });
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -151,7 +177,18 @@ const tournamentService = {
   // Start tournament
   startTournament: async (tournamentId) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/start`);
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/start`);
+      return res?.data ?? res;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Admin: mark tournament as ready (open registration)
+  isReadyTrue: async (tournamentId) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/isReady`, { id: tournamentId });
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -160,7 +197,8 @@ const tournamentService = {
   // Team requests to join tournament
   requestJoinTournament: async (tournamentId) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/register`);
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/register`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -168,7 +206,8 @@ const tournamentService = {
 
   confirmBlockchainRegistration: async (participantId, tx_hash) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${participantId}/confirm`, { tx_hash });
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${participantId}/confirm`, { tx_hash });
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -176,13 +215,14 @@ const tournamentService = {
 
   getMyRegistrationStatus: async (tournamentId) => {
     const res = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/my-registration`);
-    return res.data;
+    return res?.data ?? res;
   },
 
   // Finish tournament
   finishTournament: async (tournamentId) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/finish`);
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/finish`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -191,7 +231,8 @@ const tournamentService = {
   // Get tournament rounds
   getTournamentRounds: async (tournamentId) => {
     try {
-      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/rounds`);
+      const res = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/rounds`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -200,7 +241,8 @@ const tournamentService = {
   // Get tournament leaderboard
   getTournamentLeaderboard: async (tournamentId) => {
     try {
-      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/leaderboard`);
+      const res = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/leaderboard`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -210,7 +252,8 @@ const tournamentService = {
     try {
       // Gọi API tạo vòng mới (Swiss)
       // Backend router defines the route as POST /api/tournaments/:tournament_id/next-round
-      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/next-round`);
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/next-round`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -219,7 +262,8 @@ const tournamentService = {
   // POST /api/tournaments/record-ranking/:tournamentId
   recordRanking: async (tournamentId) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/record-ranking/${tournamentId}`);
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/record-ranking/${tournamentId}`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -229,7 +273,8 @@ const tournamentService = {
   // Backend exposes POST /api/tournaments/bxh/:tournamentId
   getFinalLeaderboard: async (tournamentId) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/bxh/${tournamentId}`);
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/bxh/${tournamentId}`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -238,7 +283,8 @@ const tournamentService = {
   // Get distribution history for a tournament
   getDistributions: async (tournamentId) => {
     try {
-      return await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/distributions`);
+      const res = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}/distributions`);
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -254,7 +300,8 @@ const tournamentService = {
         ...params,
         round_number: params.round_number || 1
       };
-  return await apiClient.get(`${API_ENDPOINTS.MATCHES}/matches`, { params: queryParams });
+  const res = await apiClient.get(`${API_ENDPOINTS.MATCHES}/matches`, { params: queryParams });
+  return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -264,7 +311,8 @@ const tournamentService = {
   // POST /api/matches/match/:id/report
   reportMatchResult: async (matchId, data) => {
     try {
-  return await apiClient.post(`${API_ENDPOINTS.MATCHES}/match/${matchId}/report`, data);
+  const res = await apiClient.post(`${API_ENDPOINTS.MATCHES}/match/${matchId}/report`, data);
+  return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -274,7 +322,22 @@ const tournamentService = {
   // PUT /api/matches/match/:id/schedule
   updateMatchSchedule: async (matchId, data) => {
     try {
-  return await apiClient.put(`${API_ENDPOINTS.MATCHES}/match/${matchId}/schedule`, data);
+  const res = await apiClient.put(`${API_ENDPOINTS.MATCHES}/match/${matchId}/schedule`, data);
+  return res?.data ?? res;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Update match by numeric scores (calls tournaments router)
+  // POST /api/tournaments/matches/:match_id/update-score
+  updateMatchScore: async (matchId, scoreA, scoreB) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/matches/${matchId}/update-score`, {
+        score_team_a: Number(scoreA),
+        score_team_b: Number(scoreB)
+      });
+      return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -284,7 +347,8 @@ const tournamentService = {
   // GET /api/matches/match/:matchId/score
   getMatchScore: async (matchId) => {
     try {
-  return await apiClient.get(`${API_ENDPOINTS.MATCHES}/match/${matchId}/score`);
+  const res = await apiClient.get(`${API_ENDPOINTS.MATCHES}/match/${matchId}/score`);
+  return res?.data ?? res;
     } catch (error) {
       throw error;
     }
@@ -294,7 +358,8 @@ const tournamentService = {
   // GET /api/matches/tournament/:tournamentId/matches
   getTournamentMatchesFromBlockchain: async (tournamentId) => {
     try {
-  return await apiClient.get(`${API_ENDPOINTS.MATCHES}/tournament/${tournamentId}/matches`);
+  const res = await apiClient.get(`${API_ENDPOINTS.MATCHES}/tournament/${tournamentId}/matches`);
+  return res?.data ?? res;
     } catch (error) {
       throw error;
     }

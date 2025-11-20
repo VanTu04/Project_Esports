@@ -4,7 +4,39 @@ import { formatCurrency } from '../../utils/helpers';
 import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import Table from '../common/Table';
 
-export const TransactionHistory = ({ transactions, loading }) => {
+export const TransactionHistory = ({ transactions, loading, view = 'team', currentUserId = null }) => {
+  const renderTeamName = (row) => {
+    // Show the team that SENT the money (fromUser) as requested
+    return (
+      row.fromUser?.username || row.fromUser?.full_name || row.user?.username || row.user?.full_name || row.toUser?.full_name || '-'
+    );
+  };
+
+  const renderAmount = (row) => {
+    const amt = Number(row.blockchain?.valueEth ?? row.amount ?? 0);
+
+    const senderId = row.fromUser?.id ?? row.from_user_id;
+    const receiverId = row.toUser?.id ?? row.to_user_id;
+
+    // Use `currentUserId` when provided (from the page that requested transactions).
+    // Determine whether the current user (admin or team) is the sender/receiver.
+    const isCurrentUserSender = currentUserId && senderId && Number(currentUserId) === Number(senderId);
+    const isCurrentUserReceiver = currentUserId && receiverId && Number(currentUserId) === Number(receiverId);
+
+    let sign = '+';
+    if (view === 'admin') {
+      // Admin view: show + when admin/current user is the receiver, otherwise -
+      sign = isCurrentUserReceiver ? '+' : '-';
+    } else {
+      // Team view: show - when team/current user is the sender, otherwise +
+      sign = isCurrentUserSender ? '-' : '+';
+    }
+
+    const colorClass = sign === '+' ? 'text-emerald-400' : 'text-rose-400';
+
+    return <span className={colorClass}>{sign}{formatCurrency(amt, 'ETH')}</span>;
+  };
+
   const columns = [
     {
       header: 'Giải đấu',
@@ -13,8 +45,8 @@ export const TransactionHistory = ({ transactions, loading }) => {
     },
     {
       header: 'Tên team',
-      accessor: 'user.full_name',
-      render: (_, row) => <span>{row.user?.full_name || '-'}</span>,
+      accessor: 'user.username',
+      render: (_, row) => <span>{renderTeamName(row)}</span>,
     },
     {
       header: 'Actor',
@@ -43,8 +75,7 @@ export const TransactionHistory = ({ transactions, loading }) => {
     {
       header: 'Số tiền (ETH)',
       accessor: 'blockchain.valueEth',
-      render: (_, row) =>
-        formatCurrency(Number(row.blockchain?.valueEth ?? 0), 'ETH'),
+      render: (_, row) => renderAmount(row),
     },
     {
       header: 'Thời gian',

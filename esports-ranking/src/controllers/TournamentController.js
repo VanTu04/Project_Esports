@@ -62,13 +62,18 @@ export const createTournamentWithRewards = async (req, res) => {
 export const isReadyTrue = async (req, res) => {
   try {
     const { id } = req.body;
-    const tournament = await tournamentService.findById(id);
+    // Use the Sequelize model instance directly so we can persist changes.
+    const tournament = await models.Tournament.findByPk(id);
     if (!tournament) {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại.'));
     }
-    tournament.isReady = true;
-    await tournament.save();
-    return res.json(responseSuccess(tournament, 'Cập nhật isReady thành công'));
+
+    // Persist as numeric flag (some code checks === 1)
+    await tournament.update({ isReady: 1 });
+
+    // Return the updated plain object
+    const updated = await models.Tournament.findByPk(id);
+    return res.json(responseSuccess(updated.get ? updated.get({ plain: true }) : updated, 'Cập nhật isReady thành công'));
   } catch (error) {
     console.error('isReadyTrue error', error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
@@ -198,7 +203,8 @@ export const registerTeam = async (req, res) => {
 
 export const updateTournamentRewards = async (req, res) => {
   try {
-    const { tournament_id } = req.params;
+    // Support both `:tournament_id` and `:id` route parameter names (frontend uses /:id)
+    const tournamentId = req.params.tournament_id ?? req.params.id;
     const { rewards } = req.body; // [{ rank, reward_amount }]
 
     if (!Array.isArray(rewards)) {
@@ -206,12 +212,12 @@ export const updateTournamentRewards = async (req, res) => {
     }
 
     // Xóa reward cũ
-    await models.TournamentReward.destroy({ where: { tournament_id } });
+    await models.TournamentReward.destroy({ where: { tournament_id: tournamentId } });
 
     // Tạo reward mới
     for (const r of rewards) {
       await models.TournamentReward.create({
-        tournament_id,
+        tournament_id: tournamentId,
         rank: r.rank,
         reward_amount: r.reward_amount
       });
@@ -223,6 +229,8 @@ export const updateTournamentRewards = async (req, res) => {
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, err.message));
   }
 };
+;
+;
 
 
 // 5. Xóa (hủy) một giải đấu

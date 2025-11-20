@@ -89,17 +89,21 @@ export const LeaderboardModal = ({
 
         // normalize to array of {id,name,logo,wins,losses,points}
         const normalized = (dataArr || []).map((item, idx) => ({
-          // prefer wallet or userId as stable id
-          id: item.wallet ?? item.id ?? item.team_id ?? item.userId ?? `t${idx}`,
-          // prefer username, then team name
-          name: item.username ?? item.fullname ?? item.name ?? item.team_name ?? `Team ${idx+1}`,
+          // prefer userId as stable id, fallback to wallet or other ids
+          id: item.userId ?? item.wallet ?? item.id ?? item.team_id ?? `t${idx}`,
+          // visible name: username (from chain) or fallback to other fields
+          name: item.username ?? item.fullname ?? item.name ?? item.team_name ?? `Team ${idx + 1}`,
+          // preserve wallet and userId for rendering
+          wallet: item.wallet ?? null,
+          userId: item.userId ?? null,
           // avatar if available
           logo: item.avatar ?? item.logo ?? '/default-team.png',
-          // backend provides score (points). wins/losses not available from chain so keep editable fields defaulted to 0
+          // editable fields
           wins: item.wins ?? item.wins_count ?? 0,
           losses: item.losses ?? 0,
-          points: item.points ?? item.score ?? 0,
-          reward: null, // will be filled below
+          // ensure numeric points from chain 'score' field
+          points: Number(item.score ?? item.points ?? 0),
+          reward: null,
         }));
 
         // Attach reward amount from fetched rewardsMap (if available)
@@ -150,15 +154,13 @@ export const LeaderboardModal = ({
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-400">Đội</th>
                   <th className="px-4 py-3 text-center text-sm font-semibold text-gray-400">Phần thưởng</th>
                   <th className="px-4 py-3 text-center text-sm font-semibold text-gray-400">Giao dịch</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-400">Thắng</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-400">Thua</th>
                   <th className="px-4 py-3 text-center text-sm font-semibold text-gray-400">Điểm</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-primary-700/20">
                       {(!loading && localLeaderboard.length === 0) && (
                         <tr>
-                          <td colSpan="7" className="text-center py-6 text-gray-400">
+                          <td colSpan="5" className="text-center py-6 text-gray-400">
                             Không có dữ liệu bảng xếp hạng
                           </td>
                         </tr>
@@ -172,11 +174,30 @@ export const LeaderboardModal = ({
                         className="w-8 h-8 rounded-full object-cover"
                         alt={team.name || team.team || 'team'}
                       />
-                      <span className="text-white font-medium">
-                        {team.name || team.team || 'Không rõ tên'}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="text-white font-medium">
+                          {team.name || team.team || 'Không rõ tên'}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {team.wallet
+                            ? `${team.wallet.slice(0, 8)}...${team.wallet.slice(-6)}`
+                            : `id:${team.userId ?? '-'}`}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-center text-gray-300">{team.reward ?? '-'}</td>
+                    <td className="px-4 py-3 text-center text-gray-300">
+                      {(() => {
+                        // Prefer reward already attached to team (from normalization),
+                        // fallback to rewardsMap (DB) by rank (index+1), otherwise '-'
+                        const rFromTeam = team.reward;
+                        const rFromDb = (rewardsMap && rewardsMap[index + 1] != null) ? rewardsMap[index + 1] : null;
+                        const value = (rFromTeam != null && rFromTeam !== '') ? rFromTeam : rFromDb;
+                        if (value == null || value === '') return '-';
+                        const n = Number(value);
+                        if (!isNaN(n)) return new Intl.NumberFormat().format(n);
+                        return value;
+                      })()}
+                    </td>
                     <td className="px-4 py-3 text-center text-sm text-gray-300">
                       {(() => {
                         const d = distributionsMap[index + 1];
@@ -194,42 +215,8 @@ export const LeaderboardModal = ({
                         );
                       })()}
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <input
-                        type="number"
-                        value={team.wins ?? 0}
-                        onChange={(e) => {
-                          // update local state and propagate
-                          const val = parseInt(e.target.value) || 0;
-                          setLocalLeaderboard(prev => prev.map(x => x.id === team.id ? { ...x, wins: val } : x));
-                          onFieldChange?.(team.id, 'wins', val);
-                        }}
-                        className="w-16 text-center border border-primary-700/30 rounded bg-dark-300 text-white"
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <input
-                        type="number"
-                        value={team.losses || 0}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          setLocalLeaderboard(prev => prev.map(x => x.id === team.id ? { ...x, losses: val } : x));
-                          onFieldChange?.(team.id, 'losses', val);
-                        }}
-                        className="w-16 text-center border border-primary-700/30 rounded bg-dark-300 text-white"
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <input
-                        type="number"
-                        value={team.points || 0}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          setLocalLeaderboard(prev => prev.map(x => x.id === team.id ? { ...x, points: val } : x));
-                          onFieldChange?.(team.id, 'points', val);
-                        }}
-                        className="w-20 text-center border border-primary-700/30 rounded bg-dark-300 text-white"
-                      />
+                    <td className="px-4 py-3 text-center text-white">
+                      <div className="w-20 text-center">{team.points ?? 0}</div>
                     </td>
                   </tr>
                 ))}

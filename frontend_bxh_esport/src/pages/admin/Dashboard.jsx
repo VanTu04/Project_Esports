@@ -14,21 +14,47 @@ export const AdminDashboard = () => {
 
   useEffect(() => {
     const fetchStats = async () => {
-      // Try external API (use apiClient so Authorization token is attached); fallback to fake data
-      const external = `${API_BACKEND.replace(/\/$/, '')}/admin/stats`;
+      // Prefer internal endpoints that already exist to compute counts and avoid calling a non-existent /admin/stats
       try {
-        const resp = await apiClient.get(external);
-        // apiClient interceptor unwraps wrapper objects; resp may be data or { data }
-        const payload = resp?.data ?? resp;
+        const [usersRes, teamsRes, tournamentsRes] = await Promise.all([
+          apiClient.get('/users', { params: { limit: 1, page: 1 } }),
+          apiClient.get('/teams', { params: { limit: 1, page: 1 } }),
+          apiClient.get('/tournaments/admin', { params: { limit: 1, page: 1 } }),
+        ]);
+
+        const safeTotal = (resp) => {
+          const p = resp?.data ?? resp;
+          return Number(p?.data?.totalItems ?? p?.totalItems ?? p?.meta?.totalItems ?? p?.total ?? 0);
+        };
+
         setStats({
-          totalUsers: payload.totalUsers ?? 0,
-          totalTeams: payload.totalTeams ?? 0,
-          totalTournaments: payload.totalTournaments ?? 0,
-          totalRewards: payload.totalRewards ?? 0,
+          totalUsers: safeTotal(usersRes),
+          totalTeams: safeTotal(teamsRes),
+          totalTournaments: safeTotal(tournamentsRes),
+          totalRewards: 0,
         });
+
         return;
       } catch (err) {
-        console.debug('External stats fetch failed, using fake data:', err?.message || err);
+        // If internal endpoints are unavailable, try the optional external stats endpoint (configured via API_BACKEND)
+        try {
+          if (API_BACKEND) {
+            const external = `${API_BACKEND.replace(/\/$/, '')}/admin/stats`;
+            const resp = await apiClient.get(external);
+            const payload = resp?.data ?? resp;
+            setStats({
+              totalUsers: payload.totalUsers ?? 0,
+              totalTeams: payload.totalTeams ?? 0,
+              totalTournaments: payload.totalTournaments ?? 0,
+              totalRewards: payload.totalRewards ?? 0,
+            });
+            return;
+          }
+        } catch (err2) {
+          console.debug('External stats fetch failed:', err2?.message || err2);
+        }
+
+        console.debug('Internal stats fetch failed, using fake data:', err?.message || err);
       }
 
       // Fake data fallback

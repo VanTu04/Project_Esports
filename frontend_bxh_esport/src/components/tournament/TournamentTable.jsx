@@ -9,6 +9,8 @@ export const TournamentTable = ({
   onDelete,
   onOpenTeamApproval,
   onStartTournament,
+  onOpenRegistration,
+  onEdit,
   getStatusBadge 
 }) => {
   const navigate = useNavigate();
@@ -123,7 +125,7 @@ export const TournamentTable = ({
 
               {/* Trạng thái */}
               <td className="px-6 py-4 whitespace-nowrap">
-                {getStatusBadge(tournament.status || 'draft')}
+                {getStatusBadge?.(tournament)}
               </td>
 
               {/* Thao tác */}
@@ -133,6 +135,8 @@ export const TournamentTable = ({
                   onViewRanking={onViewRanking}
                   onDelete={onDelete}
                   onStartTournament={onStartTournament}
+                  onOpenRegistration={onOpenRegistration}
+                  onEdit={onEdit}
                   isLastRow={index === tournaments.length - 1}
                 />
               </td>

@@ -7,6 +7,7 @@ import { useNotification } from '../../context/NotificationContext';
 export const BlockchainWallet = () => {
   const [balance, setBalance] = useState(null);
   const [walletTransactions, setWalletTransactions] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [walletLoading, setWalletLoading] = useState(true);
   const { showError } = useNotification();
 
@@ -28,6 +29,8 @@ export const BlockchainWallet = () => {
       const transactions = txResp?.data?.data ?? [];
 
       setWalletTransactions(transactions);
+      const possibleId = transactions?.[0]?.user_id ?? transactions?.[0]?.user?.id ?? null;
+      setCurrentUserId(possibleId);
 
     } catch (err) {
       console.error(err);
@@ -59,7 +62,7 @@ export const BlockchainWallet = () => {
         </div>
       </div>
 
-      <TransactionHistory transactions={walletTransactions} loading={walletLoading} />
+      <TransactionHistory transactions={walletTransactions} loading={walletLoading} currentUserId={currentUserId} />
     </div>
   );
 };

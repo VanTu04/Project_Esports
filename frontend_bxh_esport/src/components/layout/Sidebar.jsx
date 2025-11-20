@@ -26,7 +26,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           { icon: HomeIcon, label: 'Dashboard', path: ROUTES.ADMIN_DASHBOARD },
           { icon: UsersIcon, label: 'Người dùng', path: ROUTES.ADMIN_USERS },
           { icon: TrophyIcon, label: 'Giải đấu', path: ROUTES.ADMIN_TOURNAMENTS },
-          { icon: ChartBarIcon, label: 'Trò chơi', path: ROUTES.ADMIN_GAMES },
+          // { icon: ChartBarIcon, label: 'Trò chơi', path: ROUTES.ADMIN_GAMES },
           { icon: ChartBarIcon, label: 'Blockchain', path: ROUTES.ADMIN_BLOCKCHAIN },
           // { icon: ChartBarIcon, label: 'Thống kê', path: ROUTES.ADMIN_STATISTICS },
         ];
@@ -35,11 +35,9 @@ const Sidebar = ({ isOpen, onClose }) => {
         return [
           { icon: HomeIcon, label: 'Dashboard', path: ROUTES.TEAM_MANAGER_DASHBOARD },
           { icon: UserGroupIcon, label: 'Thông tin đội', path: ROUTES.TEAM_MANAGER_INFO },
-          { icon: UsersIcon, label: 'Thành viên', path: ROUTES.TEAM_MANAGER_PLAYERS },
           { icon: TrophyIcon, label: 'Giải đấu', path: ROUTES.TEAM_MANAGER_TOURNAMENTS },
           { icon: FlagIcon, label: 'Lịch thi đấu', path: ROUTES.TEAM_MANAGER_MATCHES },
           { icon: WalletIcon, label: 'Ví blockchain', path: ROUTES.TEAM_MANAGER_WALLET },
-          { icon: CogIcon, label: 'Báo cáo', path: ROUTES.TEAM_MANAGER_REPORTS },
         ];
 
       case USER_ROLES.PLAYER:

@@ -14,6 +14,18 @@ const api = axios.create({
   withCredentials: true,
 });
 
+// Refresh control / queue for concurrent 401 handling
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, result = null) => {
+  failedQueue.forEach(prom => {
+    if (error) prom.reject(error);
+    else prom.resolve(result);
+  });
+  failedQueue = [];
+};
+
 // Helpful developer hint when default base is used
 if (API_BASE_URL === '/api') {
   // eslint-disable-next-line no-console

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import tournamentService from '../../services/tournamentService';
 import { getAllGames } from '../../services/gameService';
 import CreateTournamentForm from '../../components/tournament/CreateTournamentForm';
+import EditTournamentForm from '../../components/tournament/EditTournamentForm';
+import rewardService from '../../services/rewardService';
 import { TournamentTable } from '../../components/tournament/TournamentTable';
 import { CreateRankingModal } from '../../components/tournament/CreateRankingModal';
 import { TeamApprovalModal } from '../../components/tournament/TeamApprovalModal';
@@ -38,10 +40,13 @@ export const TournamentManagement = () => {
   const [pendingTeams, setPendingTeams] = useState([]);
   const [selectedTournamentForApproval, setSelectedTournamentForApproval] = useState(null);
   const [processingTeamId, setProcessingTeamId] = useState(null);
+  const [processingOpenId, setProcessingOpenId] = useState(null);
 
   // Confirm start modal state
   const [confirmingTournament, setConfirmingTournament] = useState(null);
   const [startingTournament, setStartingTournament] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingTournament, setEditingTournament] = useState(null);
 
   const confirmStartTournament = async () => {
     if (!confirmingTournament) return;
@@ -164,7 +169,8 @@ export const TournamentManagement = () => {
       params.page = currentPage;
       params.limit = itemsPerPage;
 
-      const response = await tournamentService.getAllTournaments(params);
+      // Admin page: use admin endpoint to retrieve all tournaments (including non-ready)
+      const response = await tournamentService.getAllTournamentsAdmin(params);
       console.debug('GET /tournaments response:', response);
 
       // Axios response wrapper -> { code, status, message, data }
@@ -228,6 +234,8 @@ export const TournamentManagement = () => {
             status: mappedStatus,
             teams: teamsCount,
             matches: t.matches || { total: 0, played: 0, remaining: 0 },
+            // passthrough UI-only flag used to show processing state per-row
+            __processingOpen: processingOpenId === t.id
           };
         })
       );
@@ -270,7 +278,7 @@ export const TournamentManagement = () => {
           ];
 
           const countsPromises = statusMap.map(s =>
-            tournamentService.getAllTournaments({ status: s.status, limit: 1, page: 1 })
+            tournamentService.getAllTournamentsAdmin({ status: s.status, limit: 1, page: 1 })
           );
 
           const countsResults = await Promise.all(countsPromises);
@@ -365,19 +373,43 @@ export const TournamentManagement = () => {
     }
   };
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (itemOrStatus) => {
+    // Accept either a status string or a tournament object.
+    let status = '';
+    let isReady = null;
+
+    if (itemOrStatus && typeof itemOrStatus === 'object') {
+      status = itemOrStatus.status || '';
+      // Support multiple naming conventions from backend
+      isReady = itemOrStatus.isReady ?? itemOrStatus.is_ready ?? itemOrStatus.is_ready_flag ?? null;
+    } else {
+      status = String(itemOrStatus || '');
+    }
+
+    // If tournament is not ready (explicit 0 / '0' / false) show 'Chưa mở đăng ký'
+    const notReady = isReady === 0 || isReady === '0' || isReady === false;
+    if (notReady) {
+      return (
+        <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-500/20 text-gray-300 border-2 border-gray-400/30`}>
+          Chưa mở đăng ký
+        </span>
+      );
+    }
+
+    const key = String(status || '').toLowerCase();
     const badges = {
       live: { text: 'Đang diễn ra', color: 'bg-green-500/30 text-green-300 border-2 border-green-400/50' },
       upcoming: { text: 'Sắp diễn ra', color: 'bg-amber-500/30 text-amber-200 border-2 border-amber-400/50' },
       completed: { text: 'Hoàn thành', color: 'bg-blue-500/30 text-blue-200 border-2 border-blue-400/50' },
       active: { text: 'Đang diễn ra', color: 'bg-green-500/30 text-green-300 border-2 border-green-400/50' },
-      cancelled: { text: 'Đã hủy', color: 'bg-rose-500/30 text-rose-300 border-2 border-rose-400/50' }
+      cancelled: { text: 'Đã hủy', color: 'bg-rose-500/30 text-rose-300 border-2 border-rose-400/50' },
+      draft: { text: 'Chưa kích hoạt', color: 'bg-gray-500/20 text-gray-300 border-2 border-gray-400/30' }
     };
-    
-    const badge = badges[status] || badges.draft;
+
+    const badge = badges[key] || badges.draft;
     return (
-      <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold ${badge.color}`}>
-        {badge.text}
+      <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold ${badge?.color || 'bg-gray-500/20 text-gray-300'}`}>
+        {badge?.text || 'Unknown'}
       </span>
     );
   };
@@ -551,6 +583,52 @@ export const TournamentManagement = () => {
     }
   };
 
+  // Open edit modal (only for isReady === 0)
+  const handleOpenEdit = (tournament) => {
+    setEditingTournament(tournament);
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async (payload) => {
+    if (!editingTournament) return;
+    setSaving(true);
+    try {
+      const resp = await tournamentService.updateTournament(editingTournament.id, payload);
+
+      // Verify persistence by fetching rewards for this tournament
+      let persisted = false;
+      try {
+        const rResp = await rewardService.getTournamentRewards(editingTournament.id);
+        const payloadR = rResp?.data ?? rResp;
+        const rewardsArray = Array.isArray(payloadR) ? payloadR : (Array.isArray(payloadR?.data) ? payloadR.data : []);
+        // Compare lengths as a quick check
+        const sentRewards = Array.isArray(payload.rewards) ? payload.rewards : [];
+        if (Array.isArray(rewardsArray) && rewardsArray.length === sentRewards.length) {
+          persisted = true;
+        }
+      } catch (e) {
+        console.warn('Could not verify rewards after update:', e?.message || e);
+      }
+
+      if (resp) {
+        if (persisted) {
+          showSuccess('Đã lưu phần thưởng vào database.');
+        } else {
+          showWarning('Yêu cầu gửi thành công nhưng không chắc đã lưu vào DB. Vui lòng kiểm tra server.');
+        }
+      }
+
+      setShowEditModal(false);
+      setEditingTournament(null);
+      await loadTournaments(true);
+    } catch (err) {
+      console.error('Failed to save tournament edit:', err);
+      showError(err?.message || 'Lưu thay đổi thất bại');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Duyệt đội
   const handleApproveTeam = async (teamId) => {
     setProcessingTeamId(teamId);
@@ -657,6 +735,47 @@ export const TournamentManagement = () => {
 
     // Open confirmation modal instead of window.confirm
     setConfirmingTournament(tournament);
+  };
+
+  // Mở đăng ký (Admin) -> gọi backend isReadyTrue
+  const handleOpenRegistration = async (tournamentId) => {
+    try {
+      setProcessingOpenId(tournamentId);
+      const res = await tournamentService.isReadyTrue(tournamentId);
+
+      // Optimistic UI update: mark tournament as ready locally so user sees immediate effect
+      setTournaments(prev => prev.map(t => t.id === tournamentId ? { ...t, isReady: 1 } : t));
+
+      // Verify persistence: fetch the tournament from backend to confirm DB updated
+      try {
+        const detailResp = await tournamentService.getTournamentById(tournamentId);
+        const payload = detailResp?.data ?? detailResp;
+        const tournamentDetail = payload?.data ?? payload;
+
+        const persistedIsReady = tournamentDetail?.isReady ?? tournamentDetail?.is_ready ?? tournamentDetail?.is_ready_flag ?? tournamentDetail?.isReadyFlag ?? null;
+        if (persistedIsReady === 1 || persistedIsReady === '1' || persistedIsReady === true) {
+          showSuccess('Đã mở đăng ký cho giải đấu.');
+        } else {
+          // Revert optimistic update if not actually persisted
+          setTournaments(prev => prev.map(t => t.id === tournamentId ? { ...t, isReady: 0 } : t));
+          showError('Yêu cầu gửi thành công nhưng server chưa lưu vào database. Vui lòng kiểm tra server logs.');
+          console.warn('Open registration response OK but persisted isReady is not set:', { detail: tournamentDetail, postResp: res });
+        }
+      } catch (verifyErr) {
+        // Couldn't verify; revert optimistic update and notify
+        setTournaments(prev => prev.map(t => t.id === tournamentId ? { ...t, isReady: 0 } : t));
+        console.error('Failed to verify persistence after opening registration:', verifyErr);
+        showError('Không thể xác minh trạng thái trên server. Vui lòng thử lại hoặc kiểm tra logs.');
+      }
+
+      // Refresh the list to ensure UI is in sync with server
+      await loadTournaments(true);
+    } catch (err) {
+      console.error('❌ Failed to open registration:', err);
+      showError(err?.message || 'Không thể mở đăng ký. Vui lòng thử lại!');
+    } finally {
+      setProcessingOpenId(null);
+    }
   };
 
   // With server-side pagination & filtering enabled, `tournaments` already reflects filters/page.
@@ -966,6 +1085,8 @@ export const TournamentManagement = () => {
               onDelete={handleDeleteTournament}
               onOpenTeamApproval={handleOpenTeamApproval}
               onStartTournament={handleStartTournament}
+              onOpenRegistration={handleOpenRegistration}
+              onEdit={handleOpenEdit}
               getStatusBadge={getStatusBadge}
             />
           )}
@@ -1112,6 +1233,26 @@ export const TournamentManagement = () => {
                   Bắt đầu giải đấu
                 </Button>
               </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Edit Tournament Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-primary-700/20 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-white">Sửa Giải đấu</h2>
+              <button onClick={() => { setShowEditModal(false); setEditingTournament(null); }} className="text-gray-400 hover:text-white text-2xl transition-colors">×</button>
+            </div>
+            <div className="p-6">
+              <EditTournamentForm
+                initialData={editingTournament}
+                onSave={handleSaveEdit}
+                onCancel={() => { setShowEditModal(false); setEditingTournament(null); }}
+                saving={saving}
+              />
             </div>
           </Card>
         </div>

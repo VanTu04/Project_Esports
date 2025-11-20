@@ -28,12 +28,21 @@ export const TournamentRegistration = () => {
     const response = await tournamentService.getAllTournaments();
 
     // Normalize response to an array (API may return different shapes)
+    // Backend returns wrapper { code, status, message, data }
+    const wrapper = response?.data ?? response;
+    const data = wrapper?.data ?? wrapper; // now `data` should be either an object with `tournaments` or an array
+
     let tournamentList = [];
-    if (Array.isArray(response)) tournamentList = response;
-    else if (Array.isArray(response?.data)) tournamentList = response.data;
-    else if (Array.isArray(response?.data?.data)) tournamentList = response.data.data;
-    else if (response && typeof response === 'object') {
-      tournamentList = response.tournaments || response.data?.tournaments || [];
+    if (Array.isArray(data)) {
+      tournamentList = data;
+    } else if (data && Array.isArray(data.tournaments)) {
+      tournamentList = data.tournaments;
+    } else if (data && Array.isArray(data.items)) {
+      // fallback if backend uses `items` key
+      tournamentList = data.items;
+    } else {
+      // sometimes backend returns the list directly under wrapper.data (single object)
+      tournamentList = [];
     }
 
     // Enrich tournaments with detail (to get fields like `registration_fee` which may not be returned
@@ -51,36 +60,40 @@ export const TournamentRegistration = () => {
           return t;
         }
       }));
-      setTournaments(enriched || []);
+      // Only show tournaments that are marked as ready (isReady === 1)
+      const readyTournaments = (enriched || []).filter(t => t?.isReady === 1 || t?.isReady === '1' || t?.isReady === true);
+      setTournaments(readyTournaments);
     } catch (e) {
       console.warn('Error enriching tournaments:', e);
       setTournaments(tournamentList || []);
     }
 
-    // Load registration status for current user for each tournament using the dedicated endpoint
-    if (user?.id && tournamentList.length > 0) {
-      try {
-        const statusEntries = await Promise.all(tournamentList.map(async (t) => {
-          try {
-            const res = await tournamentService.getMyRegistrationStatus(t.id);
-            // API returns { code, status, message, data }
-            if (res?.code === 0 && res.data) {
-              return [t.id, { status: res.data.registered ? res.data.participant?.status : null, participant: res.data.participant, blockchain: res.data.blockchain }];
+      // Load registration status for current user for each ready tournament using the dedicated endpoint
+      if (user?.id && Array.isArray(readyTournaments) && readyTournaments.length > 0) {
+        try {
+          const statusEntries = await Promise.all(readyTournaments.map(async (t) => {
+            try {
+              const res = await tournamentService.getMyRegistrationStatus(t.id);
+              if (res?.data) {
+                const payload = res.data?.data ?? res.data ?? res;
+                const registered = payload?.data?.registered ?? payload?.registered ?? (payload?.code === 0 && payload?.data?.participant);
+                const participant = payload?.data?.participant ?? payload?.participant ?? (registered ? payload.data.participant : null);
+                return [t.id, { status: participant?.status || (registered ? 'PENDING' : null), participant, blockchain: payload?.data?.blockchain ?? payload?.blockchain ?? null }];
+              }
+              return [t.id, null];
+            } catch (e) {
+              console.warn(`Failed to fetch registration for tournament ${t.id}:`, e);
+              return [t.id, null];
             }
-            return [t.id, null];
-          } catch (e) {
-            console.warn(`Failed to fetch registration for tournament ${t.id}:`, e);
-            return [t.id, null];
-          }
-        }));
+          }));
 
-        const statusMap = Object.fromEntries(statusEntries.filter(([,v]) => v));
-        setRegistrationStatus(statusMap);
-        console.log('Registration status map loaded:', statusMap);
-      } catch (e) {
-        console.warn('Error loading registration statuses in parallel:', e);
+          const statusMap = Object.fromEntries(statusEntries.filter(([,v]) => v));
+          setRegistrationStatus(statusMap);
+          console.log('Registration status map loaded (ready tournaments):', statusMap);
+        } catch (e) {
+          console.warn('Error loading registration statuses in parallel:', e);
+        }
       }
-    }
   } catch (error) {
     showError('Không thể tải danh sách giải đấu');
   } finally {
