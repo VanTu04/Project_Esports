@@ -215,18 +215,32 @@ export const TournamentRegistration = () => {
       const signer = await provider.getSigner(currentWalletAddress);
 
       // 1️⃣ Lấy data từ backend
-      let preflightResponse = await tournamentService.requestJoinTournament(tournamentId);
-      preflightResponse = preflightResponse?.data;
-
-      if (!preflightResponse || preflightResponse.code !== 0) {
-        showError(preflightResponse?.message || "Không thể lấy thông tin đăng ký");
+      console.log("🔹 Đang gọi API requestJoinTournament...");
+      let apiResponse = await tournamentService.requestJoinTournament(tournamentId);
+      console.log("🔹 Backend response:", apiResponse);
+      
+      // Check wrapper response
+      if (!apiResponse || apiResponse.code !== 0) {
+        console.error("❌ API call failed:", apiResponse);
+        showError(apiResponse?.message || "Không thể lấy thông tin đăng ký");
         return;
       }
 
-      const { contractAddress, wallet_address, amountInWei: backendAmount, signature, participant_id } = preflightResponse.data;
+      const responseData = apiResponse.data;
+      console.log("🔹 Response data:", responseData);
 
-      // 2️⃣ So sánh ví MetaMask với contractAddress backend trả về
+      if (!responseData) {
+        console.error("❌ Response data is empty");
+        showError("Không nhận được dữ liệu từ backend");
+        return;
+      }
+
+      const { contractAddress, wallet_address, amountInWei: backendAmount, signature, participant_id } = responseData;
+      console.log("🔹 Data từ backend:", { contractAddress, wallet_address, backendAmount, signature, participant_id });
+
+      // 2️⃣ So sánh ví MetaMask với wallet_address backend trả về
       if (wallet_address.toLowerCase() !== currentWalletAddress.toLowerCase()) {
+        console.error("❌ Ví không khớp:", { backend: wallet_address, current: currentWalletAddress });
         showError(
           `Vui lòng dùng đúng ví để đăng ký!\n` +
           `Ví backend trả về: ${wallet_address}\n` +
@@ -237,14 +251,17 @@ export const TournamentRegistration = () => {
 
       // 3️⃣ Kiểm tra balance
       const balanceWei = await provider.getBalance(currentWalletAddress);
+      console.log("🔹 Balance:", ethers.formatEther(balanceWei), "ETH | Cần:", ethers.formatEther(backendAmount), "ETH");
       if (balanceWei < backendAmount) {
         showError(`Không đủ số dư: cần ${ethers.formatEther(backendAmount)} ETH`);
         return;
       }
 
       // 4️⃣ Gửi giao dịch lên blockchain
+      console.log("🔹 Đang gửi transaction lên blockchain...");
       const contract = new ethers.Contract(contractAddress, LeaderboardABI.abi, signer);
       const tx = await contract.register(tournamentId, backendAmount, signature, { value: backendAmount });
+      console.log("✅ Transaction sent:", tx.hash);
 
       showSuccess("Giao dịch đã gửi, chờ xác nhận...");
       const receipt = await tx.wait();
