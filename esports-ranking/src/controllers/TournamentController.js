@@ -1159,11 +1159,20 @@ export const writeLeaderboardToBlockchain = async (req, res) => {
       scoresArr
     });
 
-    // 7️⃣ Trả về kết quả
+    // 7️⃣ Nếu ghi blockchain thành công, đánh dấu leaderboard_saved = 1
+    try {
+      await tournament.update({ leaderboard_saved: 1 });
+    } catch (updErr) {
+      console.warn('Could not set leaderboard_saved on tournament', tournament.id, updErr && updErr.message);
+    }
+
+    // 8️⃣ Trả về kết quả bao gồm thông tin onChain và trạng thái tournament
+    const refreshed = await models.Tournament.findByPk(tournament.id);
     return res.json(responseSuccess({
       tournamentId: tournament.id,
       totalParticipants: validParticipants.length,
-      onChain: chainResult
+      onChain: chainResult,
+      tournament: refreshed && (refreshed.get ? refreshed.get({ plain: true }) : refreshed)
     }, 'BXH cuối giải đã được ghi lên blockchain'));
 
   } catch (error) {

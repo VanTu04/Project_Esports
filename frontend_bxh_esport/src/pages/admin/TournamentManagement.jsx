@@ -5,6 +5,7 @@ import CreateTournamentForm from '../../components/tournament/CreateTournamentFo
 import EditTournamentForm from '../../components/tournament/EditTournamentForm';
 import rewardService from '../../services/rewardService';
 import { TournamentTable } from '../../components/tournament/TournamentTable';
+import { resolveTeamLogo } from '../../utils/imageHelpers';
 import { CreateRankingModal } from '../../components/tournament/CreateRankingModal';
 import { TeamApprovalModal } from '../../components/tournament/TeamApprovalModal';
 import { LeaderboardModal } from '../../components/tournament/LeaderboardModal';
@@ -555,6 +556,8 @@ export const TournamentManagement = () => {
       const res = await tournamentService.getPendingRegistrations(tournament.id);
       const payload = res?.data ?? res;
       let participants = [];
+
+      // Robustly extract participants from multiple response shapes
       if (Array.isArray(payload?.data?.participants)) {
         participants = payload.data.participants;
       } else if (Array.isArray(payload?.participants)) {
@@ -563,16 +566,29 @@ export const TournamentManagement = () => {
         participants = payload.data;
       } else if (Array.isArray(payload)) {
         participants = payload;
+      } else if (Array.isArray(res?.data)) {
+        participants = res.data;
+      } else {
+        participants = payload?.data?.participants || payload?.participants || payload?.data || [];
       }
+
+      // Filter to only WAITING_APPROVAL explicitly
+      participants = (participants || []).filter(p => {
+        const s = String(p?.status || p?.state || p?.raw?.status || p?.team?.status || '').toUpperCase();
+        return s === 'WAITING_APPROVAL';
+      });
 
       const teams = participants.map(p => ({
         id: p.id,
-        name: p.team_name || p.teamName || `Team ${p.id}`,
-        logo: '�',
-        captain: p.User?.full_name || p.captain_name || 'N/A',
+        name: p.team_name || p.teamName || p.team?.name || `Team ${p.id}`,
+        // Resolve logo/avatar from participant or nested user where possible
+        logo: resolveTeamLogo(p) || resolveTeamLogo(p?.team) || p?.logo_url || p?.avatar || p?.User?.avatar || p?.avatar || null,
+        captain: p.User?.full_name || p.captain_name || p.team?.full_name || 'N/A',
         members: p.member_count || p.members || 5,
         registeredDate: p.created_at || p.createdAt || p.registered_at,
         description: `Wallet: ${p.wallet_address || p.wallet || p.walletAddress || 'N/A'}`,
+        raw: p,
+        status: (p.status ?? p.state ?? '').toString().toUpperCase()
       }));
 
       setPendingTeams(teams);
@@ -1023,7 +1039,6 @@ export const TournamentManagement = () => {
                 { id: 'live', label: 'Đang diễn ra', variant: 'success' },
                 { id: 'upcoming', label: 'Sắp diễn ra', variant: 'secondary' },
                 { id: 'completed', label: 'Hoàn thành', variant: 'secondary' },
-                { id: 'cancelled', label: 'Đã hủy', variant: 'danger' },
               ].map(filter => (
                 <Button
                   key={filter.id}

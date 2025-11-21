@@ -15,6 +15,8 @@ import { userRoutes } from './userRoutes';
 const AppRoutes = () => {
   return (
     <Routes>
+      {/* Redirect legacy /profile to new /users/profile */}
+      <Route path="/profile" element={<Navigate to="/users/profile" replace />} />
       {/* Auth Routes */}
   <Route path="/login" element={<Login />} />
   <Route path="/register" element={<Register />} />
@@ -73,13 +75,13 @@ const AppRoutes = () => {
                   />
                 ))}
 
-                {/* User Routes */}
+                {/* User Routes - allow any authenticated user (no specific role restriction) */}
                 {userRoutes.map((route, index) => (
                   <Route
                     key={index}
                     path={route.path}
                     element={
-                      <ProtectedRoute allowedRoles={[USER_ROLES.USER]}>
+                      <ProtectedRoute>
                         {route.element}
                       </ProtectedRoute>
                     }

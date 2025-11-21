@@ -42,11 +42,16 @@ export const TeamInfo = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-1">
           <div className="text-center">
-            <img
-              src={team.logo || '/default-team.png'}
-              alt={team.name}
-              className="w-32 h-32 rounded-lg object-cover mx-auto mb-4"
-            />
+            {team?.logo ? (
+              <img
+                src={team.logo}
+                alt={team.name}
+                className="w-32 h-32 rounded-lg object-cover mx-auto mb-4"
+                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = 'none'; }}
+              />
+            ) : (
+              <div className="w-32 h-32 rounded-lg bg-primary-700/20 mx-auto mb-4" />
+            )}
             <h2 className="text-2xl font-bold text-white">{team.name}</h2>
             <p className="text-gray-400">{team.region}</p>
           </div>

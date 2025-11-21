@@ -5,6 +5,8 @@ import tournamentService from '../../services/tournamentService';
 import rewardService from '../../services/rewardService';
 import { apiClient } from '../../services/api';
 import { useNotification } from '../../context/NotificationContext';
+import { TrophyIcon } from '@heroicons/react/24/solid';
+import { resolveTeamLogo } from '../../utils/imageHelpers';
 
 /**
  * Modal xem và chỉnh sửa bảng xếp hạng
@@ -96,8 +98,8 @@ export const LeaderboardModal = ({
           // preserve wallet and userId for rendering
           wallet: item.wallet ?? null,
           userId: item.userId ?? null,
-          // avatar if available
-          logo: item.avatar ?? item.logo ?? '/default-team.png',
+          // avatar if available: resolve and normalize various possible keys
+          logo: resolveTeamLogo(item) || null,
           // editable fields
           wins: item.wins ?? item.wins_count ?? 0,
           losses: item.losses ?? 0,
@@ -167,13 +169,27 @@ export const LeaderboardModal = ({
                       )}
                       {(localLeaderboard || leaderboard || []).map((team, index) => (
                   <tr key={team.id} className="hover:bg-dark-300/50 transition-colors">
-                    <td className="px-4 py-3 text-gray-300">{index + 1}</td>
+                    <td className="px-4 py-3 text-gray-300">
+                      {index + 1 <= 3 ? (
+                        <div className="flex items-center">
+                          <TrophyIcon className={`w-5 h-5 mr-2 ${index + 1 === 1 ? 'text-yellow-400' : index + 1 === 2 ? 'text-slate-400' : 'text-amber-700'}`} />
+                          <span>{index + 1}</span>
+                        </div>
+                      ) : (
+                        <div>{index + 1}</div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 flex items-center gap-3">
-                      <img
-                        src={team.logo || '/default-team.png'}
-                        className="w-8 h-8 rounded-full object-cover"
-                        alt={team.name || team.team || 'team'}
-                      />
+                      {team.logo ? (
+                        <img
+                          src={team.logo}
+                          className="w-8 h-8 rounded-full object-cover"
+                          alt={team.name || team.team || 'team'}
+                          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-primary-700/20" />
+                      )}
                       <div className="flex flex-col">
                         <span className="text-white font-medium">
                           {team.name || team.team || 'Không rõ tên'}

@@ -112,7 +112,7 @@ const Header = ({ onMenuClick }) => {
                     <Menu.Item>
                       {({ active }) => (
                         <Link
-                          to="/profile"
+                          to="/users/profile"
                           className={`${active ? "bg-neutral-800" : ""} block px-4 py-2 text-base text-gray-300 hover:text-white`}
                         >
                           Hồ sơ

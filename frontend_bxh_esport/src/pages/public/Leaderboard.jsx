@@ -231,17 +231,18 @@ export const Leaderboard = ({ tournamentId: initialTournamentId }) => {
                   standings.forEach((s, i) => s.rank = i + 1);
                 }
 
-                return (
-                  <div key={round}>
-                    <h3 className="text-2xl font-semibold text-white mb-3">Vòng {round}</h3>
-                    <Card className="mb-4">
-                      <MatchSchedule matches={matches} loading={loading} />
-                    </Card>
-                    <Card>
-                      <LeaderboardTable data={standings} loading={loading} showTime />
-                    </Card>
-                  </div>
-                );
+                // Debug: log computed or API-provided standings for this round to inspect logo fields
+                (console.debug && console.debug('Leaderboard: round', round, { apiForRound, standings })),
+
+                <div key={round}>
+                  <h3 className="text-2xl font-semibold text-white mb-3">Vòng {round}</h3>
+                  <Card className="mb-4">
+                    <MatchSchedule matches={matches} loading={loading} />
+                  </Card>
+                  <Card>
+                    <LeaderboardTable data={standings} loading={loading} showTime />
+                  </Card>
+                </div>
               })}
             </div>
           )}

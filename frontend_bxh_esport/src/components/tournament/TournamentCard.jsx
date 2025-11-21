@@ -4,7 +4,7 @@ import { formatDate, formatCurrency } from '../../utils/helpers';
 import { getStatusColor, getStatusText } from '../../utils/helpers';
 import Card from '../common/Card';
 
-export const TournamentCard = ({ tournament }) => {
+export const TournamentCard = ({ tournament, onQuickView }) => {
   return (
     <Card hover className="overflow-hidden">
       {/* Banner */}
@@ -17,13 +17,19 @@ export const TournamentCard = ({ tournament }) => {
           />
         )}
         <div className="absolute top-2 right-2">
-          <span
-            className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
-              tournament.status
-            )} text-white`}
-          >
-            {getStatusText(tournament.status)}
-          </span>
+            <div className="flex flex-col items-end gap-2">
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                  tournament.status
+                )} text-white`}
+              >
+                {getStatusText(tournament.status)}
+              </span>
+
+              {tournament.registration && (
+                <span className="px-2 py-1 rounded-full text-xs bg-dark-600 text-gray-200">{tournament.registration.label}</span>
+              )}
+            </div>
         </div>
       </div>
 
@@ -48,12 +54,21 @@ export const TournamentCard = ({ tournament }) => {
           </div>
         </div>
 
-        <Link
-          to={`/tournaments/${tournament.id}`}
-          className="block w-full py-2 text-center bg-primary-500 hover:bg-primary-600 text-white rounded-md transition-colors"
-        >
-          Xem chi tiết
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            to={`/tournaments/${tournament.id}`}
+            className="flex-1 py-2 text-center bg-primary-500 hover:bg-primary-600 text-white rounded-md transition-colors"
+          >
+            Xem chi tiết
+          </Link>
+          <button
+            type="button"
+            onClick={() => onQuickView?.(tournament)}
+            className="px-3 py-2 bg-dark-400 text-white rounded-md hover:bg-dark-300 transition-colors"
+          >
+            Xem nhanh
+          </button>
+        </div>
       </div>
     </Card>
   );

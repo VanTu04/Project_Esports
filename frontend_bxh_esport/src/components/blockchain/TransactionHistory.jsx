@@ -12,6 +12,19 @@ export const TransactionHistory = ({ transactions, loading, view = 'team', curre
     );
   };
 
+  const translateType = (type) => {
+    if (!type) return '-';
+    const t = String(type).toUpperCase();
+    switch (t) {
+      case 'REGISTER': return 'Đăng ký';
+      case 'REWARD': return 'Phần thưởng';
+      case 'TRANSFER': return 'Chuyển tiền';
+      case 'PAYOUT': return 'Thanh toán';
+      case 'RECEIVE_REFUND': return 'Hoàn tiền';
+      default: return type;
+    }
+  };
+
   const renderAmount = (row) => {
     const amt = Number(row.blockchain?.valueEth ?? row.amount ?? 0);
 
@@ -44,33 +57,23 @@ export const TransactionHistory = ({ transactions, loading, view = 'team', curre
       render: (_, row) => <span>{row.tournament?.name || '-'}</span>,
     },
     {
-      header: 'Tên team',
-      accessor: 'user.username',
-      render: (_, row) => <span>{renderTeamName(row)}</span>,
+      header: 'Từ',
+      accessor: 'blockchain.from',
+      render: (_, row) => (
+        <span>{row.fromUser?.username || row.fromUser?.full_name || formatWalletAddress(row.blockchain?.from) || '-'}</span>
+      ),
     },
     {
-      header: 'Actor',
-      accessor: 'actor',
-      render: (value) => <span>{value}</span>,
+      header: 'Đến',
+      accessor: 'blockchain.to',
+      render: (_, row) => (
+        <span>{row.toUser?.username || row.toUser?.full_name || formatWalletAddress(row.blockchain?.to) || '-'}</span>
+      ),
     },
     {
       header: 'Loại',
       accessor: 'type',
-      render: (value) => <span>{value}</span>,
-    },
-    {
-      header: 'From',
-      accessor: 'blockchain.from',
-      render: (_, row) => (
-        <span>{formatWalletAddress(row.blockchain?.from)}</span>
-      ),
-    },
-    {
-      header: 'To',
-      accessor: 'blockchain.to',
-      render: (_, row) => (
-        <span>{formatWalletAddress(row.blockchain?.to)}</span>
-      ),
+      render: (value, row) => <span>{translateType(value ?? row.type)}</span>,
     },
     {
       header: 'Số tiền (ETH)',

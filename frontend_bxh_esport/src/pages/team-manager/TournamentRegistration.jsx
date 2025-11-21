@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import tournamentService from '../../services/tournamentService';
+import { USER_ROLES, ROUTES } from '../../utils/constants';
 import { Card } from '../../components/common/Card';
 import { Loading } from '../../components/common/Loading';
 import Button from '../../components/common/Button';
@@ -16,12 +18,16 @@ export const TournamentRegistration = () => {
   const [activeTab, setActiveTab] = useState('available'); // available, participating, completed
   const { showSuccess, showError, showWarning } = useNotification();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadTournaments();
   }, []);
 
   const loadTournaments = async () => {
+  // keep readyTournaments in outer scope so it's available for registration status loading
+  let readyTournaments = [];
+
   try {
     setLoading(true);
     // Lấy tất cả giải đấu, bỏ filter status
@@ -61,7 +67,7 @@ export const TournamentRegistration = () => {
         }
       }));
       // Only show tournaments that are marked as ready (isReady === 1)
-      const readyTournaments = (enriched || []).filter(t => t?.isReady === 1 || t?.isReady === '1' || t?.isReady === true);
+      readyTournaments = (enriched || []).filter(t => t?.isReady === 1 || t?.isReady === '1' || t?.isReady === true);
       setTournaments(readyTournaments);
     } catch (e) {
       console.warn('Error enriching tournaments:', e);
@@ -497,6 +503,14 @@ export const TournamentRegistration = () => {
                 </div>
 
                 {/* Register Button */}
+                {/* View Details button */}
+                <Button onClick={() => {
+                    if (user && Number(user.role) === USER_ROLES.TEAM_MANAGER) return navigate(`/team-managers/tournaments/${tournament.id}`);
+                    if (user && Number(user.role) === USER_ROLES.ADMIN) return navigate(`/admin/tournaments/${tournament.id}`);
+                    return navigate(`/tournaments/${tournament.id}`);
+                  }} className="w-full mb-3" variant="secondary">
+                  Xem chi tiết
+                </Button>
                 {(() => {
                   const status = registrationStatus[tournament.id];
                   

@@ -22,10 +22,19 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
     if (!tournament?.id) return;
 
     // If parent provided pendingTeams, respect that and skip loading
-    if (Array.isArray(pendingTeamsProp) && pendingTeamsProp.length > 0) {
-      setPendingTeams(pendingTeamsProp);
-      return;
-    }
+      if (Array.isArray(pendingTeamsProp) && pendingTeamsProp.length > 0) {
+        // Strictly filter the incoming list to only WAITING_APPROVAL items. If none match,
+        // fall back to loading from the API to ensure we don't hide real pending registrations.
+        try {
+          const filtered = pendingTeamsProp.filter(isWaitingApproval);
+          if (filtered.length > 0) {
+            setPendingTeams(filtered);
+            return;
+          }
+        } catch (e) {
+          // ignore and fall through to API load
+        }
+      }
 
     const load = async () => {
       try {

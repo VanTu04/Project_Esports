@@ -176,9 +176,7 @@ const Home = () => {
             <div className="text-center py-8 text-gray-400">Chưa có giải đấu</div>
           ) : (
                   <div className="space-y-3">
-        {tournaments
-          .filter(t => t.status === 'COMPLETED') // chỉ lấy giải đã kết thúc
-          .map((t) => {
+        {tournaments.map((t) => {
             const isSelected = selectedTournamentId === t.id;
             const tournamentNameClass = 'text-gray-200';
 
@@ -191,6 +189,11 @@ const Home = () => {
                 <div className={`text-md font-semibold truncate ${tournamentNameClass}`}>
                   {t.name}
                 </div>
+                {t.registration && (
+                  <div className="mt-1">
+                    <span className="text-xs px-2 py-0.5 rounded bg-dark-600 text-gray-200">{t.registration.label}</span>
+                  </div>
+                )}
                 <div className="text-sm text-gray-300">
                   {t.startDate ? new Date(t.startDate).toLocaleDateString('vi-VN') : 'Chưa có lịch'} 
                   {t.endDate && ` - ${new Date(t.endDate).toLocaleDateString('vi-VN')}`}
