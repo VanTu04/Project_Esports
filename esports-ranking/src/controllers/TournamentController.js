@@ -766,7 +766,7 @@ export const startTournamentSwiss = async (req, res) => {
 
     // 🟡 7. Xử lý BYE
     if (byeTeam) {
-      const BYE_POINTS = 1; // set theo luật bạn muốn
+      const BYE_POINTS = 2; // đồng bộ với quy tắc: thắng = 2 điểm, hòa = 1 điểm
 
       matchesData.push({
         tournament_id,
@@ -830,7 +830,10 @@ export const startTournamentSwiss = async (req, res) => {
  */
 export const getMatchesByRound = async (req, res) => {
   try {
-    const { tournaments: tournament_id, rounds: round_number } = req.body;
+    // Ưu tiên đọc từ params theo REST: /tournaments/:tournament_id/rounds/:round_number/matches
+    // Giữ tương thích ngược với body nếu phía client đang gửi dạng cũ
+    const tournament_id = req.params.tournament_id ?? req.body?.tournaments ?? req.body?.tournament_id;
+    const round_number = req.params.round_number ?? req.body?.rounds ?? req.body?.round_number;
 
     // 1️⃣ Kiểm tra giải đấu tồn tại
     const tournament = await models.Tournament.findByPk(tournament_id);
@@ -902,6 +905,17 @@ export const updateMatchScore = async (req, res) => {
       );
     }
 
+    const a = Number(score_team_a);
+    const b = Number(score_team_b);
+    if (Number.isNaN(a) || Number.isNaN(b)) {
+      return res.json(
+        responseWithError(
+          ErrorCodes.ERROR_REQUEST_DATA_INVALID,
+          'Điểm phải là số hợp lệ'
+        )
+      );
+    }
+
     // 1. Tìm match
     const match = await models.Match.findByPk(match_id, { transaction: t });
     if (!match) {
@@ -945,11 +959,11 @@ export const updateMatchScore = async (req, res) => {
     let point_team_a, point_team_b;
     let winner_participant_id = null;
 
-    if (score_team_a > score_team_b) {
+    if (a > b) {
       point_team_a = 2;
       point_team_b = 0;
       winner_participant_id = match.team_a_participant_id;
-    } else if (score_team_b > score_team_a) {
+    } else if (b > a) {
       point_team_a = 0;
       point_team_b = 2;
       winner_participant_id = match.team_b_participant_id;
@@ -962,8 +976,8 @@ export const updateMatchScore = async (req, res) => {
     // 5. Cập nhật match
     await match.update(
       {
-        score_team_a,
-        score_team_b,
+        score_team_a: a,
+        score_team_b: b,
         point_team_a,
         point_team_b,
         winner_participant_id,
