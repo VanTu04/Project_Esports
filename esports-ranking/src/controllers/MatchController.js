@@ -6,6 +6,8 @@ import { ErrorCodes } from '../constant/ErrorCodes.js';
 import models from '../models/index.js';
 import * as userService from '../services/UserService.js';
 
+const backendUrl = process.env.BACKEND_URL || 'https://api.vawndev.online';
+
 // === YÊU CẦU 1: LẤY LỊCH THI ĐẤU (VỚI TÊN) ===
 export const getAllMatches = async (req, res) => {
   try {
@@ -37,6 +39,7 @@ export const getAllMatches = async (req, res) => {
       Array.from(participantIds)
     );
 
+    console.log("get participants:", participants);
     // 4. Lấy danh sách user_id từ participant
     const userIds = participants.map(p => p.user_id);
 
@@ -45,8 +48,9 @@ export const getAllMatches = async (req, res) => {
 
     // 6. Map userId -> avatar
     const userMap = new Map();
-    users.forEach(u => userMap.set(u.id, u.avatar));
+    users.forEach(u => userMap.set(u.id, u.avatar ? `${backendUrl}${u.avatar}` : null));
 
+    console.log("userMap:", userMap);
     // 7. Map participantId → team_name + avatar
     const participantMap = new Map();
     participants.forEach(p => {

@@ -6,6 +6,9 @@ import { ErrorCodes } from '../constant/ErrorCodes.js';
 import models from '../models/index.js';
 import { isAddress } from 'ethers';
 import { Op } from 'sequelize';
+import * as userService from '../services/UserService.js';
+
+const backendUrl = process.env.BACKEND_URL || 'https://api.vawndev.online';
 
 // 1. Tạo một giải đấu mới
 export const createTournamentWithRewards = async (req, res) => {
@@ -839,14 +842,43 @@ export const getMatchesByRound = async (req, res) => {
     const matches = await models.Match.findAll({
       where: { tournament_id, round_number },
       include: [
-        { model: models.Participant, as: 'teamA', attributes: ['id', 'team_name', 'wallet_address'] },
-        { model: models.Participant, as: 'teamB', attributes: ['id', 'team_name', 'wallet_address'] },
+        { model: models.Participant, as: 'teamA', attributes: ['id', 'team_name', 'wallet_address', 'user_id'] },
+        { model: models.Participant, as: 'teamB', attributes: ['id', 'team_name', 'wallet_address', 'user_id'] },
         { model: models.Participant, as: 'winner', attributes: ['id', 'team_name'] }
       ],
       order: [['id', 'ASC']]
     });
 
-    return res.json(responseSuccess({ matches }));
+    // 3️⃣ Thu thập user_id từ teamA và teamB
+    const userIds = new Set();
+    matches.forEach(m => {
+      if (m.teamA?.user_id) userIds.add(m.teamA.user_id);
+      if (m.teamB?.user_id) userIds.add(m.teamB.user_id);
+    });
+
+    // 4️⃣ Lấy danh sách user (có avatar)
+    const users = await userService.findUsersByIds(Array.from(userIds));
+
+    // 5️⃣ Map userId -> avatar URL
+    const userMap = new Map();
+    users.forEach(u => userMap.set(u.id, u.avatar ? `${backendUrl}${u.avatar}` : null));
+
+    // 6️⃣ Hydrate matches với avatar
+    const hydratedMatches = matches.map(match => {
+      const data = match.get({ plain: true });
+      
+      if (data.teamA) {
+        data.teamA.avatar = userMap.get(data.teamA.user_id) || null;
+      }
+      
+      if (data.teamB) {
+        data.teamB.avatar = userMap.get(data.teamB.user_id) || null;
+      }
+      
+      return data;
+    });
+
+    return res.json(responseSuccess({ matches: hydratedMatches }));
 
   } catch (error) {
     console.error('getMatchesByRound error', error);
