@@ -95,6 +95,17 @@ const userService = {
     }
   },
 
+  // Admin: create new account
+  createAccountByAdmin: async (payload) => {
+    try {
+      const res = await apiClient.post('/users/new-account', payload);
+      return res.data || res;
+    } catch (error) {
+      console.error('userService.createAccountByAdmin error', error);
+      throw error;
+    }
+  },
+
   // Admin: get all users
   getAllUsers: async (params = {}) => {
     try {

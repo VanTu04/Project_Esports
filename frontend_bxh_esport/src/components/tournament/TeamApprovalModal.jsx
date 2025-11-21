@@ -2,6 +2,9 @@ import { Card } from '../common/Card';
 import Button from '../common/Button';
 import { useEffect, useState } from 'react';
 import tournamentService from '../../services/tournamentService';
+import { resolveTeamLogo } from '../../utils/imageHelpers';
+import { apiClient } from '../../services/api';
+import { API_ENDPOINTS } from '../../utils/constants';
 import { useNotification } from '../../context/NotificationContext';
 
 /**
@@ -12,6 +15,16 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
   const { showSuccess, showError } = useNotification();
   const [pendingTeams, setPendingTeams] = useState(pendingTeamsProp || []);
   const [processingTeamId, setProcessingTeamId] = useState(null);
+
+  // Helper: determine if a participant object represents a waiting approval state
+  const isWaitingApproval = (p) => {
+    try {
+      const status = (p?.status ?? p?.state ?? p?.raw?.status ?? '').toString().toUpperCase();
+      return status === 'WAITING_APPROVAL';
+    } catch (e) {
+      return false;
+    }
+  };
 
   const currentApproved = tournament?.teams?.current || 0;
   const minTeams = tournament?.teams?.min || 2;
@@ -38,7 +51,21 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
 
     const load = async () => {
       try {
-        const res = await tournamentService.getPendingRegistrations(tournament.id);
+        // Primary attempt: use the service helper which calls
+        // `/tournaments/:id/pending-registrations`.
+        let res = null;
+        try {
+          res = await tournamentService.getPendingRegistrations(tournament.id);
+        } catch (e) {
+          console.warn('tournamentService.getPendingRegistrations failed, will fallback to direct apiClient call', e);
+        }
+
+        // Fallback: call the exact endpoint directly if the service failed or returned unexpected shape
+        if (!res) {
+          const direct = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournament.id}/pending-registrations`);
+          res = direct?.data ?? direct;
+        }
+
         // Debug raw response to help troubleshoot shape issues
         console.debug('getPendingRegistrations response:', res);
 
@@ -62,15 +89,20 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
           // Try common nested locations
           participants = payload?.data?.participants || payload?.participants || payload?.data || [];
         }
-        const mapped = participants.map(p => ({
-          id: p.id,
-          name: p.team_name || p.full_name || `Team ${p.user_id}`,
-          captain: (p.User && (p.User.full_name || p.User.username)) || p.full_name || p.username || 'N/A',
-          members: p.members || 5,
-          registeredDate: p.createdAt || p.created_at,
-          description: `Wallet: ${p.wallet_address || p.walletAddress || p.wallet}`,
-          raw: p
-        }));
+        const mapped = participants.map(p => {
+          // Prefer backend-normalized `logo_url` or `avatar` fields produced by the controller
+          const resolvedLogo = p.logo_url || p.avatar || resolveTeamLogo(p) || p.logo || null;
+          return ({
+            id: p.id,
+            name: p.team_name || p.full_name || `Team ${p.user_id}`,
+            captain: (p.User && (p.User.full_name || p.User.username)) || p.full_name || p.username || 'N/A',
+            members: p.members || 5,
+            registeredDate: p.createdAt || p.created_at,
+            description: `Wallet: ${p.wallet_address || p.walletAddress || p.wallet}`,
+            logo: resolvedLogo,
+            raw: p
+          });
+        });
         setPendingTeams(mapped);
       } catch (err) {
         console.error('Failed to load pending registrations:', err);
@@ -193,7 +225,18 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
                 <Card key={team.id} hover padding="lg" className="border border-primary-700/30">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4 flex-1">
-                      <div className="text-4xl">{team.logo}</div>
+                      <div>
+                        {team.logo ? (
+                          <img
+                            src={team.logo}
+                            alt={team.name}
+                            className="w-12 h-12 rounded-full border-2 border-dark-500 bg-gray-600 object-cover"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-gray-700 border-2 border-dark-500" />
+                        )}
+                      </div>
                       <div className="flex-1">
                         <h3 className="text-lg font-bold text-white mb-1">{team.name}</h3>
                         <div className="space-y-1 text-sm text-gray-400">
