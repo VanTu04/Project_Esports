@@ -1253,6 +1253,12 @@ export const getFinalLeaderboard = async (req, res) => {
     }
     console.log("test", tournamentId);
 
+    // Lấy thông tin tournament để trả về cờ reward_distributed
+    const tournament = await models.Tournament.findByPk(tournamentId);
+    if (!tournament) {
+      return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại'));
+    }
+
     // Lấy BXH cuối từ blockchain
     const rawLeaderboard = await getLeaderboardFromChain(
       Number(tournamentId),
@@ -1266,6 +1272,9 @@ export const getFinalLeaderboard = async (req, res) => {
       rawLeaderboard.map(async (entry) => {
         const user = await tournamentService.getUserByWallet(entry.wallet);
 
+        const rawAvatar = user ? user.avatar : null;
+        const avatarUrl = normalizeImageUrl(rawAvatar);
+
         return {
           wallet: entry.wallet,
           score: entry.score,
@@ -1273,7 +1282,7 @@ export const getFinalLeaderboard = async (req, res) => {
           userId: user ? user.id : null,
           username: user ? user.username : null,
           fullname: user ? user.full_name : null,
-          avatar: user ? user.avatar : null, // nếu có
+          avatar: avatarUrl,
         };
       })
     );
@@ -1283,6 +1292,7 @@ export const getFinalLeaderboard = async (req, res) => {
       message: 'Lấy BXH cuối giải thành công',
       data: {
         tournamentId: Number(tournamentId),
+        reward_distributed: tournament.reward_distributed ?? 0,
         leaderboard
       }
     });
