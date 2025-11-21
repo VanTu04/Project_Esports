@@ -18,6 +18,16 @@ export default (sequelize) => {
       defaultValue: 0,
       comment: 'Đánh dấu giải đấu đã sẵn sàng bắt đầu hay chưa'
     },
+    leaderboard_saved: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: 'Đánh dấu bảng xếp hạng đã được lưu hay chưa'
+    },
+    reward_distributed: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: 'Đánh dấu phần thưởng đã được phân phối hay chưa'
+    },
     total_rounds: {
       type: DataTypes.INTEGER,
       allowNull: false,

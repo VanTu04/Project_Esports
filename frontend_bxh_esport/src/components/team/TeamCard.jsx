@@ -6,11 +6,16 @@ export const TeamCard = ({ team }) => {
   return (
     <Card hover>
       <div className="flex items-start gap-4">
-        <img
-          src={team.logo || '/default-team.png'}
-          alt={team.name}
-          className="w-20 h-20 rounded-lg object-cover"
-        />
+        {team?.logo ? (
+          <img
+            src={team.logo}
+            alt={team.name}
+            className="w-20 h-20 rounded-lg object-cover"
+            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-20 h-20 rounded-lg bg-primary-700/20" />
+        )}
         <div className="flex-1">
           <h3 className="text-lg font-bold text-white mb-1">{team.name}</h3>
           <p className="text-sm text-gray-400 mb-3">{team.region}</p>

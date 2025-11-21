@@ -2,7 +2,7 @@ import { Loading } from '../common/Loading';
 import { TournamentCard } from './TournamentCard';
 import { TrophyIcon } from '@heroicons/react/24/outline';
 
-export const TournamentList = ({ tournaments, loading, emptyMessage }) => {
+export const TournamentList = ({ tournaments, loading, emptyMessage, onQuickView }) => {
   if (loading) {
     return <Loading />;
   }
@@ -19,7 +19,7 @@ export const TournamentList = ({ tournaments, loading, emptyMessage }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {tournaments.map((tournament) => (
-        <TournamentCard key={tournament.id} tournament={tournament} />
+        <TournamentCard key={tournament.id} tournament={tournament} onQuickView={onQuickView} />
       ))}
     </div>
   );

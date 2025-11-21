@@ -69,22 +69,34 @@ export const TournamentTable = ({
                   </div>
                 )}
 
-                {/* Đội chờ duyệt */}
-                {tournament.status === 'upcoming' && tournament.teams?.pending > 0 && (
-                  <div className="flex items-center gap-1 mt-1">
-                    <Button
-                      onClick={() => onOpenTeamApproval(tournament)}
-                      variant="outline"
-                      size="xs"
-                      className="!text-yellow-400 !border-yellow-500/30 !bg-yellow-500/20 hover:!bg-yellow-500/30"
-                    >
-                      <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                      </svg>
-                      {tournament.teams.pending} đội chờ duyệt
-                    </Button>
-                  </div>
-                )}
+                {/* Đội chờ duyệt - derive from participants status when available */}
+                {(() => {
+                  // Only count explicit participants in WAITING_APPROVAL state.
+                  // Do NOT fall back to `tournament.teams.pending` because that may be a stale/derived value.
+                  const pendingCount = Array.isArray(tournament.participants)
+                    ? tournament.participants.filter(p => (p?.status || '').toString().toUpperCase() === 'WAITING_APPROVAL').length
+                    : 0;
+
+                  const statusNorm = (tournament.status || '').toString().toUpperCase();
+                  // treat either BACKEND 'PENDING' or legacy 'upcoming' as the pre-start state
+                  const isUpcoming = ['PENDING', 'UPCOMING'].includes(statusNorm);
+
+                  return (isUpcoming && pendingCount > 0) ? (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Button
+                        onClick={() => onOpenTeamApproval(tournament)}
+                        variant="outline"
+                        size="xs"
+                        className="!text-yellow-400 !border-yellow-500/30 !bg-yellow-500/20 hover:!bg-yellow-500/30"
+                      >
+                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                        </svg>
+                        {pendingCount} đội chờ duyệt
+                      </Button>
+                    </div>
+                  ) : null;
+                })()}
               </td>
 
               {/*THỜI GIAN */}

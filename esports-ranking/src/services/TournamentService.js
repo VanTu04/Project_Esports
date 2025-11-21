@@ -33,9 +33,23 @@ export const getTournamentByName = async (name) => {
 
 export const findParticipantsByStatus = async (id, status) => {
   const res = await models.Participant.findAll({
-    where : {tournament_id: id, status: status}
+    where : {tournament_id: id, status: status},
+    include: [
+      {
+        model: models.User,
+        as: 'team',
+        attributes: ['id', 'avatar', 'full_name', 'username']
+      }
+    ]
   });
-  return res;
+
+  // normalize to plain objects and expose avatar/logo_url for frontend
+  return res.map(r => {
+    const p = (typeof r.get === 'function') ? r.get({ plain: true }) : (typeof r.toJSON === 'function' ? r.toJSON() : r);
+    p.avatar = p.team?.avatar || null;
+    p.logo_url = p.avatar || null;
+    return p;
+  });
 }
 
 /**
@@ -46,11 +60,25 @@ export const findById = async (id) => {
 
   if (!tournament) return null;
 
-  const participants = await models.Participant.findAll({
+  const participantsRaw = await models.Participant.findAll({
     where: {
       tournament_id: id
     },
-    attributes: ['id', 'user_id', 'team_name', 'total_points', 'wallet_address', 'has_received_bye', 'status', 'createdAt', 'updatedAt', 'approved_at', 'approval_tx_hash', 'rejection_reason', 'registration_fee']
+    attributes: ['id', 'user_id', 'team_name', 'total_points', 'wallet_address', 'has_received_bye', 'status', 'createdAt', 'updatedAt', 'approved_at', 'approval_tx_hash', 'rejection_reason', 'registration_fee'],
+    include: [
+      {
+        model: models.User,
+        as: 'team',
+        attributes: ['id', 'avatar', 'full_name', 'username']
+      }
+    ]
+  });
+
+  const participants = participantsRaw.map(p => {
+    const item = (typeof p.get === 'function') ? p.get({ plain: true }) : (typeof p.toJSON === 'function' ? p.toJSON() : p);
+    item.avatar = item.team?.avatar || null;
+    item.logo_url = item.avatar || null;
+    return item;
   });
 
   const result = tournament.get({ plain: true });
@@ -73,7 +101,7 @@ export const findAllByAdmin = async (status, page = 1, limit = 10) => {
   const { count, rows: tournaments } = await models.Tournament.findAndCountAll({
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-  attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'start_time', 'end_time', 'registration_fee', 'isReady', 'createdAt', 'updatedAt'],
+    attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'createdAt', 'updatedAt'],
     include: [
       {
         model: models.TournamentReward,
@@ -116,7 +144,7 @@ export const findAll = async (status, page = 1, limit = 10) => {
   const { count, rows: tournaments } = await models.Tournament.findAndCountAll({
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-  attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'end_date', 'start_time', 'end_time', 'registration_fee', 'createdAt', 'updatedAt'],
+  attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'createdAt', 'updatedAt'],
     include: [
       {
         model: models.TournamentReward,
@@ -151,7 +179,7 @@ export const getUserByWallet = async (walletAddress) => {
     where: {
       wallet_address: walletAddress
     },
-    attributes: ['id', 'username', 'email', 'wallet_address']
+    attributes: ['id', 'username', 'email', 'wallet_address', 'avatar']
   });
 };
 
@@ -237,11 +265,25 @@ export const updateParticipantStatusByTournament = async (
  * Lấy danh sách participant của 1 giải theo status
  */
 export const getParticipantsByStatus = async (tournament_id, status) => {
-  return await models.Participant.findAll({
+  const res = await models.Participant.findAll({
     where: {
       tournament_id: tournament_id,
       status: status
-    }
+    },
+    include: [
+      {
+        model: models.User,
+        as: 'team',
+        attributes: ['id', 'avatar', 'full_name', 'username']
+      }
+    ]
+  });
+
+  return res.map(r => {
+    const p = (typeof r.get === 'function') ? r.get({ plain: true }) : (typeof r.toJSON === 'function' ? r.toJSON() : r);
+    p.avatar = p.team?.avatar || null;
+    p.logo_url = p.avatar || null;
+    return p;
   });
 };
 
@@ -283,12 +325,14 @@ export const getTournamentMatches = async (tournament_id, round = null) => {
       {
         model: models.Participant,
         as: 'teamA',
-        attributes: ['id', 'team_name', 'wallet_address']
+        attributes: ['id', 'team_name', 'wallet_address'],
+        include: [ { model: models.User, as: 'team', attributes: ['id', 'avatar', 'full_name'] } ]
       },
       {
         model: models.Participant,
         as: 'teamB',
-        attributes: ['id', 'team_name', 'wallet_address']
+        attributes: ['id', 'team_name', 'wallet_address'],
+        include: [ { model: models.User, as: 'team', attributes: ['id', 'avatar', 'full_name'] } ]
       },
       {
         model: models.Participant,

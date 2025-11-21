@@ -3,8 +3,16 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card } from '../common/Card';
 import { Loading } from '../common/Loading';
 import Button from '../common/Button';
+import TournamentInfo from './TournamentInfo';
+import TournamentTeams from './TournamentTeams';
+import TournamentMatches from './TournamentMatches';
+import LeaderboardTable from './LeaderboardTable';
 import tournamentService from '../../services/tournamentService';
+import rewardService from '../../services/rewardService';
+import { resolveTeamLogo } from '../../utils/imageHelpers';
 import { useNotification } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
+import { USER_ROLES, ROUTES } from '../../utils/constants';
 
 export const TournamentDetail = () => {
   const { tournamentId } = useParams();
@@ -14,6 +22,8 @@ export const TournamentDetail = () => {
   const [loading, setLoading] = useState(true);
   const [tournament, setTournament] = useState(null);
   const [teams, setTeams] = useState([]);
+  const [rewards, setRewards] = useState([]);
+  const [teamLogos, setTeamLogos] = useState({});
   const [matches, setMatches] = useState([]);
   const [activeTab, setActiveTab] = useState('teams'); // 'teams' or 'matches'
   const [selectedMatch, setSelectedMatch] = useState(null);
@@ -27,10 +37,18 @@ export const TournamentDetail = () => {
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [creatingRound, setCreatingRound] = useState(false);
+  const [selectedRound, setSelectedRound] = useState(1);
+  const { user } = useAuth();
+  const isAdmin = user && Number(user.role) === USER_ROLES.ADMIN;
+  const isTeamManager = user && Number(user.role) === USER_ROLES.TEAM_MANAGER;
 
   useEffect(() => {
     loadData();
   }, [tournamentId]);
+
+  useEffect(() => {
+    if (tournament) setSelectedRound(tournament?.current_round || 1);
+  }, [tournament]);
 // Auto-create next round removed: manual creation only to avoid unexpected round generation
   const loadData = async () => {
     try {
@@ -42,10 +60,43 @@ export const TournamentDetail = () => {
       const tournamentData = wrapper?.data ?? wrapper;
       setTournament(tournamentData);
 
-      // Lấy danh sách đội
+      // Fetch rewards separately from dedicated endpoint to ensure canonical data
+      try {
+        const rResp = await rewardService.getTournamentRewards(tournamentId);
+        const wrapperR = rResp?.data ?? rResp;
+        const payloadR = wrapperR?.data ?? wrapperR;
+        let rewardsArray = [];
+        if (Array.isArray(payloadR)) rewardsArray = payloadR;
+        else if (Array.isArray(payloadR?.rewards)) rewardsArray = payloadR.rewards;
+        else if (Array.isArray(payloadR?.data)) rewardsArray = payloadR.data;
+        setRewards(rewardsArray);
+      } catch (e) {
+        console.debug('No rewards for tournament or failed to fetch:', e?.message || e);
+        setRewards([]);
+      }
+
+      // Lấy danh sách đội và chuẩn hoá logo
       try {
         const teamsRes = await tournamentService.getParticipants(tournamentId, 'APPROVED');
-        setTeams(teamsRes.data || []);
+        const rawTeams = teamsRes.data || [];
+        const normalizedTeams = (Array.isArray(rawTeams) ? rawTeams : []).map(t => ({
+          ...t,
+          // `logo` is the normalized URL used by the UI; `logo_url` keeps raw value from backend
+          logo: resolveTeamLogo(t),
+          logo_url: t.logo_url ?? t.avatar ?? t.logo ?? null
+        }));
+        setTeams(normalizedTeams);
+
+        // Build a quick map id -> normalized logo URL for fast lookup when matches only contain participant ids
+        const map = {};
+        normalizedTeams.forEach(t => {
+          if (t && (t.id || t.user_id)) {
+            const logoUrl = t.logo || resolveTeamLogo(t);
+            if (t.id) map[t.id] = logoUrl;
+            if (t.user_id) map[t.user_id] = logoUrl;
+          }
+        });
+        setTeamLogos(map);
       } catch {
         setTeams([]);
       }
@@ -88,7 +139,21 @@ export const TournamentDetail = () => {
         const roundsMatches = await Promise.all(matchPromises);
         // flatten and normalize
         const matchesData = roundsMatches.flat().map(normalizeMatch);
-        setMatches(matchesData);
+        // enrich matches with logos from teamLogos map (if available)
+        const enriched = matchesData.map(m => {
+          const aId = m.team_a_participant_id ?? m.teamA?.id ?? null;
+          const bId = m.team_b_participant_id ?? m.teamB?.id ?? null;
+          const aLogo = aId ? teamLogos[aId] : null;
+          const bLogo = bId ? teamLogos[bId] : null;
+          return {
+            ...m,
+            team_a_logo: m.team_a_logo ?? m.teamA?.logo_url ?? aLogo ?? null,
+            team_b_logo: m.team_b_logo ?? m.teamB?.logo_url ?? bLogo ?? null,
+            teamA: m.teamA ? { ...m.teamA, logo_url: m.teamA.logo_url ?? aLogo } : m.teamA,
+            teamB: m.teamB ? { ...m.teamB, logo_url: m.teamB.logo_url ?? bLogo } : m.teamB,
+          };
+        });
+        setMatches(enriched);
       } catch (err) {
         console.error('loadData getTournamentMatches error', err);
         setMatches([]);
@@ -163,6 +228,33 @@ export const TournamentDetail = () => {
     };
   };
 
+  const findTeamLogo = (teamOrId) => {
+    if (!teamOrId) return null;
+
+    // If caller passed an id (number or numeric string), try to resolve from `teams` state
+    let teamObj = null;
+    if (typeof teamOrId === 'object') {
+      teamObj = teamOrId;
+    } else {
+      const id = Number(teamOrId);
+      if (!Number.isNaN(id)) {
+        // Prefer fast map lookup which contains normalized logo URLs
+        const logoFromMap = teamLogos[id];
+        if (logoFromMap) return logoFromMap;
+
+        teamObj = teams.find(t => t.id === id || t.user_id === id || t.team_id === id) || null;
+      }
+    }
+
+    // If we resolved a full team object, prefer its pre-normalized `logo` property
+    if (teamObj) return teamObj.logo || resolveTeamLogo(teamObj);
+
+    // If a string was passed, treat as URL/logo token
+    if (typeof teamOrId === 'string') return resolveTeamLogo({ logo: teamOrId });
+
+    return null;
+  };
+
   const handleOpenScoreModal = (match) => {
     setSelectedMatch(match);
     // prefill scores if available
@@ -191,14 +283,19 @@ export const TournamentDetail = () => {
 
       // Call numeric-score endpoint which stores score_team_a/score_team_b and computes points
       const response = await tournamentService.updateMatchScore(matchId, a, b);
-      const resp = response?.data ?? response;
+      console.debug('updateMatchScore response raw:', response);
+      let wrapper;
+      if (response && typeof response === 'object' && response.code !== undefined) wrapper = response;
+      else if (response && typeof response === 'object' && response.data && response.data.code !== undefined) wrapper = response.data;
+      else if (typeof response !== 'object') wrapper = { code: 0, data: response, message: '' };
+      else wrapper = response;
 
-      if (resp?.code === 0) {
-        showSuccess(resp?.message || 'Cập nhật kết quả thành công!');
+      if (wrapper?.code === 0) {
+        showSuccess(wrapper?.message || 'Cập nhật kết quả thành công!');
         handleCloseModals();
 
         // Use returned match from server when available to keep state canonical
-        const returnedMatch = resp?.data?.match ?? resp?.match ?? null;
+        const returnedMatch = wrapper?.data?.match ?? wrapper?.match ?? null;
         if (returnedMatch) {
           setMatches(prev => prev.map(m => m.id === matchId ? ({ ...m, ...normalizeMatch(returnedMatch) }) : m));
         } else {
@@ -219,7 +316,7 @@ export const TournamentDetail = () => {
           }));
         }
       } else {
-        showError(resp?.message || 'Không thể cập nhật kết quả');
+        showError(wrapper?.message || 'Không thể cập nhật kết quả');
       }
     } catch (error) {
       console.error('handleUpdateScore error', error);
@@ -232,33 +329,51 @@ export const TournamentDetail = () => {
       const payload = { match_time: new Date(scheduledTime).toISOString() };
       console.debug('Updating match schedule', { matchId, payload, status: selectedMatch?.status });
       const response = await tournamentService.updateMatchSchedule(matchId, payload);
+      console.debug('updateMatchSchedule response raw:', response);
+      let wrapper;
+      if (response && typeof response === 'object' && response.code !== undefined) wrapper = response;
+      else if (response && typeof response === 'object' && response.data && response.data.code !== undefined) wrapper = response.data;
+      else if (typeof response !== 'object') wrapper = { code: 0, data: response, message: '' };
+      else wrapper = response;
 
-      // Normalize axios response (server payload lives in response.data)
-      const resp = response?.data ?? response;
-
-      if (resp?.code === 0) {
-        showSuccess(resp?.message || 'Cập nhật thời gian thành công!');
+      if (wrapper?.code === 0) {
+        showSuccess(wrapper?.message || 'Cập nhật thời gian thành công!');
         handleCloseModals();
         // Update match time locally without reloading everything
-        setMatches(prev => prev.map(m => m.id === matchId ? { ...m, match_time: payload.match_time } : m));
+        const scheduledMs = new Date(payload.match_time).getTime();
+        const reached = !Number.isNaN(scheduledMs) && scheduledMs <= Date.now();
+        setMatches(prev => prev.map(m => m.id === matchId ? { ...m, match_time: payload.match_time, __scheduledReached: reached } : m));
       } else {
-        showError(resp?.message || 'Không thể cập nhật thời gian');
+        // Try multiple locations for server message and fall back to generic text
+        const serverMsg = wrapper?.message || wrapper?.data?.message || wrapper?.error || 'Không thể cập nhật thời gian';
+        console.warn('updateMatchSchedule non-OK response wrapper:', wrapper, 'raw response:', response);
+        showError(serverMsg);
       }
     } catch (error) {
-      console.error('handleUpdateTime error', error);
-      showError(error?.response?.data?.message || error?.message || 'Không thể cập nhật thời gian');
+      // Log full error for debugging and show best available message to user
+      console.error('handleUpdateTime error (full):', error);
+      const serverMsg = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Không thể cập nhật thời gian';
+      showError(serverMsg);
     }
   };
 
   const handleStartNewRound = async () => {
     try {
+      setCreatingRound(true);
       const response = await tournamentService.startNextRound(tournamentId);
-      if (response?.code === 0) {
-        const nextRound = response?.data?.round_number;
-        showSuccess(response?.message || `Tạo vòng ${nextRound} thành công!`);
+      console.debug('startNextRound response raw:', response);
+      let wrapper;
+      if (response && typeof response === 'object' && response.code !== undefined) wrapper = response;
+      else if (response && typeof response === 'object' && response.data && response.data.code !== undefined) wrapper = response.data;
+      else if (typeof response !== 'object') wrapper = { code: 0, data: response, message: '' };
+      else wrapper = response;
+
+      if (wrapper?.code === 0) {
+        const nextRound = wrapper?.data?.round_number ?? wrapper?.round_number;
+        showSuccess(wrapper?.message || `Tạo vòng ${nextRound} thành công!`);
 
         // Fetch matches for the newly created round and append to local state
-        try {
+          try {
           const matchesResp = await tournamentService.getTournamentMatches(tournamentId, { round_number: nextRound });
           let newMatches = [];
           if (Array.isArray(matchesResp)) newMatches = matchesResp;
@@ -266,11 +381,31 @@ export const TournamentDetail = () => {
           else if (matchesResp?.matches && Array.isArray(matchesResp.matches)) newMatches = matchesResp.matches;
 
           if (newMatches.length > 0) {
-            setMatches(prev => [...prev, ...newMatches.map(normalizeMatch)]);
+            const normalizedNew = newMatches.map(normalizeMatch).map(m => {
+              const aId = m.team_a_participant_id ?? m.teamA?.id ?? null;
+              const bId = m.team_b_participant_id ?? m.teamB?.id ?? null;
+              const aLogo = aId ? teamLogos[aId] : null;
+              const bLogo = bId ? teamLogos[bId] : null;
+              return {
+                ...m,
+                team_a_logo: m.team_a_logo ?? m.teamA?.logo_url ?? aLogo ?? null,
+                team_b_logo: m.team_b_logo ?? m.teamB?.logo_url ?? bLogo ?? null,
+                teamA: m.teamA ? { ...m.teamA, logo_url: m.teamA.logo_url ?? aLogo } : m.teamA,
+                teamB: m.teamB ? { ...m.teamB, logo_url: m.teamB.logo_url ?? bLogo } : m.teamB,
+              };
+            });
+            setMatches(prev => [...prev, ...normalizedNew]);
           }
-
-          // Update tournament current_round locally
+          // Update tournament current_round locally and switch UI to show new round
           setTournament(prev => ({ ...prev, current_round: nextRound, status: 'ACTIVE' }));
+          setSelectedRound(nextRound);
+          setActiveTab('matches');
+
+          // Mark previous round COMPLETED matches as DONE locally to reflect backend behavior
+          const prevRound = Number(nextRound) - 1;
+          if (prevRound >= 1) {
+            setMatches(prev => prev.map(m => (m.round_number === prevRound && (m.status || '').toString().toUpperCase() === 'COMPLETED') ? ({ ...m, status: 'DONE' }) : m));
+          }
         } catch (err) {
           console.warn('Could not fetch new round matches', err);
         }
@@ -279,8 +414,56 @@ export const TournamentDetail = () => {
       }
     } catch (error) {
       showError(error?.response?.data?.message || error?.message || 'Không thể tạo vòng mới');
+    } finally {
+      setCreatingRound(false);
     }
   };
+
+  // Modal state for creating next round (replace window.confirm)
+  const [showCreateRoundModal, setShowCreateRoundModal] = useState(false);
+  const openCreateRoundModal = () => setShowCreateRoundModal(true);
+  const closeCreateRoundModal = () => setShowCreateRoundModal(false);
+
+  const confirmCreateRound = async () => {
+    closeCreateRoundModal();
+    await handleStartNewRound();
+  };
+
+  const handleRecordRanking = async () => {
+    try {
+      setIsRecording(true);
+      const resp = await tournamentService.recordRanking(tournamentId);
+      console.debug('recordRanking response raw:', resp);
+      // Normalize response wrapper patterns (match other handlers)
+      let wrapper;
+      if (resp && typeof resp === 'object' && resp.code !== undefined) wrapper = resp;
+      else if (resp && typeof resp === 'object' && resp.data && resp.data.code !== undefined) wrapper = resp.data;
+      else if (typeof resp !== 'object') wrapper = { code: 0, data: resp, message: '' };
+      else wrapper = resp;
+
+      if (wrapper?.code === 0) {
+        showSuccess(wrapper?.message || 'Ghi bảng xếp hạng thành công');
+        // Mark leaderboard_saved on the tournament so UI reflects persisted state
+        setTournament(prev => ({ ...prev, leaderboard_saved: 1 }));
+        setIsRecorded(true);
+      } else {
+        // Try to extract server message from multiple locations
+        const serverMsg = wrapper?.message || wrapper?.data?.message || wrapper?.error || 'Không thể ghi bảng xếp hạng';
+        console.warn('recordRanking non-OK response wrapper:', wrapper, 'raw response:', resp);
+        showError(serverMsg);
+      }
+    } catch (err) {
+      console.error('handleRecordRanking error', err);
+      showError(err?.response?.data?.message || err?.message || 'Không thể ghi bảng xếp hạng');
+    } finally {
+      setIsRecording(false);
+    }
+  };
+
+  // Prefer canonical rewards fetched from rewards endpoint; fall back to tournament.rewards/prizes
+  const normalizedRewards = (Array.isArray(rewards) && rewards.length > 0)
+    ? rewards
+    : (tournament && (Array.isArray(tournament.rewards) ? tournament.rewards : (Array.isArray(tournament.prizes) ? tournament.prizes : []))) || [];
 
   if (loading) {
     return (
@@ -305,6 +488,40 @@ export const TournamentDetail = () => {
   const currentRoundNumber = tournament?.current_round || 1;
   const currentRoundMatches = groupedMatches[currentRoundNumber] || [];
   const roundFinished = currentRoundMatches.length > 0 && currentRoundMatches.every(m => m.status === 'COMPLETED');
+  // Consider tournament finished (for UI actions) when all matches across all rounds are DONE
+  const allMatches = matches || [];
+  const allRoundsDone = allMatches.length > 0 && allMatches.every(m => (m?.status || '').toString().toUpperCase() === 'DONE');
+
+  // Normalize leaderboard rows into the shape expected by `LeaderboardTable`.
+  // LeaderboardTable expects items like: { rank, team: { logo, name }, wins, losses, points }
+  const normalizedLeaderboard = (Array.isArray(leaderboard) ? leaderboard : []).map((row, idx) => {
+    // row may be: { team: { id, name, logo_url } } or { team_id, team_name, logo_url } or simple objects from blockchain
+    const rawTeam = row?.team ?? null;
+
+    // prefer explicit logo_url fields, then nested team.logo, then other common keys
+    const rawLogo = row?.team?.logo_url ?? row?.team?.logo ?? row?.logo ?? row?.team_logo ?? row?.avatar ?? row?.team?.avatar ?? null;
+    const rawName = row?.team?.name ?? row?.team_name ?? row?.name ?? row?.username ?? row?.wallet ?? null;
+
+    const teamObj = rawTeam && typeof rawTeam === 'object' ? rawTeam : {
+      id: row?.team_id ?? row?.id ?? null,
+      name: rawName || `Team ${row?.team_id ?? (idx + 1)}`,
+      logo_url: rawLogo
+    };
+
+    // ensure logo URL is normalized so <img> can load it
+    const logoUrl = resolveTeamLogo(teamObj.logo_url ? { logo: teamObj.logo_url } : (teamObj || { logo: rawLogo }));
+
+    return {
+      rank: row?.rank ?? (idx + 1),
+      team: {
+        logo: logoUrl,
+        name: teamObj.name || ('-' ),
+      },
+      wins: row?.wins ?? row?.win ?? row?.wins_count ?? 0,
+      losses: row?.losses ?? row?.loss ?? row?.losses_count ?? 0,
+      points: row?.points ?? row?.score ?? row?.total_points ?? 0,
+    };
+  });
 
   return (
     <div className="min-h-screen bg-dark-400 p-6">
@@ -316,39 +533,75 @@ export const TournamentDetail = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate('/admin/tournaments')}
+              onClick={() => {
+                if (isAdmin) return navigate(ROUTES.ADMIN_TOURNAMENTS);
+                if (isTeamManager) return navigate(ROUTES.TEAM_MANAGER_TOURNAMENTS);
+                return navigate(ROUTES.TOURNAMENTS);
+              }}
             >
               Quay lại
             </Button>
             <div>
               <h1 className="text-2xl font-bold text-white">{tournament.name}</h1>
               <p className="text-gray-300 text-sm">{tournament.game_name || 'Esports'}</p>
+              {tournament?.prize_pool != null && (
+                <div className="text-sm text-yellow-300 mt-1">Giải thưởng: {tournament.prize_pool} ETH</div>
+              )}
+              
             </div>
           </div>
         </div>
 
         {/* Thông tin giải đấu */}
-        <Card padding="lg">
-          <h2 className="text-xl font-bold text-white mb-4">Thông tin giải đấu</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="rounded-lg p-4 border border-primary-500/30 bg-primary-500/10">
-              <span className="text-gray-300 text-sm">Vòng đấu</span>
-              <p className="text-2xl font-bold text-white">{tournament.current_round || 0}/{tournament.total_rounds || 0}</p>
-            </div>
-            <div className="rounded-lg p-4 border border-blue-500/30 bg-blue-500/10">
-              <span className="text-gray-300 text-sm">Số đội</span>
-              <p className="text-2xl font-bold text-white">{teams.length}</p>
-            </div>
-            <div className="rounded-lg p-4 border border-green-500/30 bg-green-500/10">
-              <span className="text-gray-300 text-sm">Trận đấu</span>
-              <p className="text-2xl font-bold text-white">{matches.length}</p>
-            </div>
-            <div className="rounded-lg p-4 border border-yellow-500/30 bg-yellow-500/10">
-              <span className="text-gray-300 text-sm">Trạng thái</span>
-              <p className="text-lg font-bold text-yellow-400">{tournament.status || 'PENDING'}</p>
-            </div>
+        <TournamentInfo
+          tournament={tournament}
+          teamsLength={teams.length}
+          matchesLength={matches.length}
+          normalizedRewards={normalizedRewards}
+          getStatusBadge={getStatusBadge}
+          formatDateTime={(d) => (d ? new Date(d).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '')}
+          isTeamView={isTeamManager}
+          isAdmin={isAdmin}
+          handleStartNewRound={handleStartNewRound}
+          openCreateRoundModal={openCreateRoundModal}
+          creatingRound={creatingRound}
+          teams={teams}
+        />
+
+        {/* Admin action: Ghi bảng xếp hạng when all rounds are DONE */}
+        {isAdmin && allRoundsDone && (
+          <div className="mt-4">
+            {/* Disable button if leaderboard already saved */}
+            <Button
+              variant={tournament?.leaderboard_saved === 1 ? 'secondary' : 'primary'}
+              className="w-full max-w-xs"
+              disabled={isRecording || tournament?.leaderboard_saved === 1}
+              onClick={() => {
+                if (tournament?.leaderboard_saved === 1) return;
+                handleRecordRanking();
+              }}
+            >
+              {tournament?.leaderboard_saved === 1 ? 'Đã ghi bảng xếp hạng' : (isRecording ? 'Đang ghi bảng...' : 'Ghi bảng xếp hạng')}
+            </Button>
           </div>
-        </Card>
+        )}
+
+        {/* Show Register button for non-admin users when tournament is PENDING */}
+        {!isAdmin && String(tournament?.status || '').toUpperCase() === 'PENDING' && (
+          <div className="mt-4">
+            <Button
+              variant="primary"
+              className="w-full"
+              onClick={() => {
+                // For team managers, navigate to their registration page; for public users, go to tournaments list
+                if (isTeamManager) return navigate(ROUTES.TEAM_MANAGER_TOURNAMENTS);
+                return navigate(ROUTES.TOURNAMENTS);
+              }}
+            >
+              Đăng ký tham gia
+            </Button>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="border-b border-primary-700/20">
@@ -400,252 +653,55 @@ export const TournamentDetail = () => {
 
         {/* Tab Content - Teams */}
         {activeTab === 'teams' && (
-          <Card padding="lg">
-            {teams.length === 0 ? (
-                <div className="text-center py-12 text-gray-300">Chưa có đội tham gia</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-primary-700/20">
-                    <thead>
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Hạng</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Tên đội</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Wallet</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Trạng thái</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {teams.map((team, index) => (
-                        <tr key={team.id} className="hover:bg-primary-500/10 transition-colors">
-                          <td className="px-6 py-4 text-white font-bold">#{index + 1}</td>
-                          <td className="px-6 py-4 text-white font-medium">{team.team_name}</td>
-                          <td className="px-6 py-4 text-gray-300">{team.wallet_address ? `${team.wallet_address.substring(0, 10)}...` : 'N/A'}</td>
-                          <td className="px-6 py-4">{getStatusBadge(team.status || 'APPROVED')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-          </Card>
+          <TournamentTeams
+            teams={teams}
+            getStatusBadge={getStatusBadge}
+            findTeamLogo={findTeamLogo}
+          />
         )}
 
         {/* Tab Content - Matches */}
         {activeTab === 'matches' && (
-          <div className="space-y-6">
-            {/* top action area removed - Ghi BXH moved below */}
-            {Object.keys(groupedMatches).length === 0 ? (
-                  <Card padding="lg" className="text-center text-gray-300">Chưa có trận đấu</Card>
-                ) : (
-              Object.keys(groupedMatches).sort((a,b)=>a-b).map(round => (
-                <Card key={round} padding="lg">
-                  <h3 className="text-xl font-bold text-white mb-4">Vòng {round}</h3>
-                  <div className="space-y-3">
-                    {groupedMatches[round].map(match => (
-                      <div key={match.id} className="rounded-lg p-4 border border-primary-500/30 bg-primary-500/10">
-                        <div className="flex items-center justify-between mb-3">
-                                  <span className="text-gray-300 text-sm">
-                                    {match.match_time ? new Date(match.match_time).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Chưa có lịch'}
-                                  </span>
-                                  {/*
-                                    If backend hasn't updated `status` but scores/winner exist,
-                                    infer COMPLETED so UI shows correct badge.
-                                  */}
-                                  {(() => {
-                                    const scoreA = Number(match.score_team_a ?? match.score_a ?? 0);
-                                    const scoreB = Number(match.score_team_b ?? match.score_b ?? 0);
-                                    const hasWinner = !!match.winner_participant_id;
-                                    const inferredCompleted = (scoreA > 0 || scoreB > 0 || hasWinner) && (match.status === 'PENDING' || !match.status);
-                                    const statusForBadge = inferredCompleted ? 'COMPLETED' : (match.status || 'PENDING');
-                                    return getMatchStatusBadge(statusForBadge);
-                                  })()}
-                                </div>
-                        {match.team_b_participant_id ? (
-                          <div className="flex items-center justify-center gap-4 mb-3">
-                            <div className="flex-1 text-right text-lg font-bold text-white">
-                              {match.team_a_name || 'TBD'}
-                              {match.winner_participant_id && (
-                                <div className={`text-sm mt-1 ${match.winner_participant_id === match.team_a_participant_id ? 'text-green-400' : 'text-red-400'}`}>
-                                  {match.winner_participant_id === match.team_a_participant_id ? 'Thắng' : 'Thua'}
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="text-2xl font-bold text-cyan-300 px-4">VS</div>
-
-                            <div className="flex-1 text-left text-lg font-bold text-white">
-                              {match.team_b_name || 'TBD'}
-                              {match.winner_participant_id && (
-                                <div className={`text-sm mt-1 ${match.winner_participant_id === match.team_b_participant_id ? 'text-green-400' : 'text-red-400'}`}>
-                                  {match.winner_participant_id === match.team_b_participant_id ? 'Thắng' : 'Thua'}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center gap-4 mb-3">
-                            <div className="w-full text-center text-lg font-bold text-white">
-                              {match.team_a_name || 'TBD'}
-                              <div className="text-sm mt-1 text-green-400">Thắng (BYE)</div>
-                            </div>
-                          </div>
-                        )}
-                        <div className="flex justify-center gap-3 mt-2">
-                          <div className="flex justify-center gap-3">
-                            {/* Show update time button only when match not completed */}
-                            {match.status !== 'COMPLETED' && (tournament?.status || '').toUpperCase() !== 'DONE' && (
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => handleOpenTimeModal(match)}
-                                title={match.status === 'COMPLETED' ? 'Không thể thay đổi lịch trận đã kết thúc' : ''}
-                              >
-                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                Cập nhật thời gian
-                              </Button>
-                            )}
-
-                            {/* Show update result only when:
-                                 - has opponent
-                                 - match_time exists and has passed
-                                 - match not DONE/CANCELLED (startNextRound sets previous COMPLETED -> DONE)
-                            */}
-                            {match.team_b_participant_id && match.match_time && new Date(match.match_time).getTime() <= Date.now() && match.status !== 'DONE' && match.status !== 'CANCELLED' && (tournament?.status || '').toUpperCase() !== 'DONE' && (
-                               <Button
-                                 variant="primary"
-                                 size="sm"
-                                 onClick={() => handleOpenScoreModal(match)}
-                                 className="text-white"
-                               >
-                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                </svg>
-                                Cập nhật kết quả
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              ))
-            )}
-            {/* Create Next Round Button: show as long as tournament isn't COMPLETED (allow pressing even when at last round) */}
-            {(tournament?.status || '').toUpperCase() !== 'DONE' && (
-              <div className="flex justify-end mt-4">
-                <Button
-                  variant="primary"
-                  onClick={async () => {
-                    if (creatingRound) return;
-                    setCreatingRound(true);
-                    try {
-                      await handleStartNewRound();
-                    } finally {
-                      setCreatingRound(false);
-                    }
-                  }}
-                  loading={creatingRound}
-                  disabled={creatingRound}
-                >
-                  Tạo vòng tiếp theo
-                </Button>
-              </div>
-            )}
-
-              {/* Ghi BXH button: only visible when tournament is COMPLETED. Placed below create-next area */}
-              {(tournament?.status || '').toUpperCase() === 'COMPLETED' && (
-                <div className="flex justify-end mt-4">
-                  <Button
-                    variant="primary"
-                    onClick={async () => {
-                      if (!tournamentId) return;
-
-                      if (isRecording || isRecorded) return;
-
-                      setIsRecording(true);
-                      try {
-                        const resp = await tournamentService.recordRanking(tournamentId);
-                        if (resp?.code !== 0) {
-                          showError(resp.message || 'Không thể ghi BXH');
-                          setIsRecording(false);
-                          return;
-                        }
-                        setIsRecorded(true);
-                        showSuccess(resp.message || 'Ghi BXH thành công.');
-
-                        try {
-                          const lbResp = await tournamentService.getFinalLeaderboard(tournamentId);
-                          let raw = [];
-                          if (lbResp?.code === 0 && lbResp?.data?.leaderboard) raw = lbResp.data.leaderboard;
-                          else if (lbResp?.data && Array.isArray(lbResp.data.leaderboard)) raw = lbResp.data.leaderboard;
-                          else if (Array.isArray(lbResp)) raw = lbResp;
-                          else if (lbResp?.leaderboard) raw = lbResp.leaderboard;
-
-                          setLeaderboard(Array.isArray(raw) ? raw : raw?.leaderboard ?? []);
-                          setActiveTab('leaderboard');
-                        } catch (err) {
-                          console.error('Không thể tải bảng xếp hạng', err);
-                          showError('Ghi BXH thành công nhưng không thể tải bảng xếp hạng.');
-                        }
-                      } catch (err) {
-                        const serverMsg = err?.response?.data?.message || err?.message || 'Không thể ghi BXH';
-                        showError(serverMsg);
-                      } finally {
-                        setIsRecording(false);
-                      }
-                    }}
-                    disabled={loading || isRecording || isRecorded}
-                  >
-                    {isRecording ? 'Đang ghi BXH...' : isRecorded ? 'Đã ghi BXH' : 'Ghi BXH'}
-                  </Button>
-                </div>
-              )}
-          </div>
+          <TournamentMatches
+            groupedMatchesMap={groupedMatches}
+            selectedRound={selectedRound}
+            setSelectedRound={setSelectedRound}
+            tournament={tournament}
+            isTeamView={false}
+            isAdmin={isAdmin}
+            getMatchStatusBadge={getMatchStatusBadge}
+            handleOpenTimeModal={handleOpenTimeModal}
+            handleOpenScoreModal={handleOpenScoreModal}
+            findTeamLogo={findTeamLogo}
+            handleStartNewRound={handleStartNewRound}
+            openCreateRoundModal={openCreateRoundModal}
+            creatingRound={creatingRound}
+            handleRecordRanking={handleRecordRanking}
+            isRecording={isRecording}
+          />
         )}
 
         {/* Tab Content - Leaderboard */}
         {activeTab === 'leaderboard' && (
-          <Card padding="lg">
-            <h2 className="text-xl font-bold text-white mb-4">Bảng xếp hạng cuối cùng</h2>
-            {leaderboardLoading ? (
-              <div className="text-center text-gray-300">Đang tải bảng xếp hạng...</div>
-            ) : (!leaderboard || (Array.isArray(leaderboard) && leaderboard.length === 0)) ? (
-              <div className="text-center text-gray-300">Chưa có bảng xếp hạng</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-primary-700/20">
-                  <thead>
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Hạng</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Tên đội / Wallet</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Điểm</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Array.isArray(leaderboard) ? leaderboard.map((row, idx) => (
-                      <tr key={row.id || idx} className="hover:bg-primary-500/10 transition-colors">
-                        <td className="px-6 py-4 text-white font-bold">#{idx + 1}</td>
-                        <td className="px-6 py-4 text-white font-medium">
-                          <div>{row.team_name || row.name || '-'}</div>
-                          <div className="text-sm text-gray-300">{row.username || row.wallet || row.wallet_address || '-'}</div>
-                        </td>
-                        <td className="px-6 py-4 text-gray-300">{row.points ?? row.score ?? row.total_points ?? '-'}</td>
-                      </tr>
-                    )) : (
-                      <tr><td className="px-6 py-4 text-gray-300">Không có dữ liệu</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+          <LeaderboardTable data={normalizedLeaderboard} loading={leaderboardLoading} />
         )}
       </div>
 
       {/* Modals */}
+      {showCreateRoundModal && (
+        <div className="fixed inset-0 bg-gray-900/70 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <div className="p-6 space-y-4">
+              <h2 className="text-xl font-bold text-white">Xác nhận tạo vòng tiếp theo</h2>
+              <p className="text-gray-300">Sau khi tạo vòng tiếp theo, kết quả các trận ở vòng trước sẽ không thể sửa. Bạn có chắc muốn tiếp tục?</p>
+              <div className="flex gap-3 pt-4">
+                <Button variant="secondary" className="flex-1" onClick={closeCreateRoundModal}>Hủy</Button>
+                <Button variant="primary" className="flex-1" onClick={confirmCreateRound} disabled={creatingRound}>{creatingRound ? 'Đang tạo...' : 'Xác nhận'}</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
       {isUpdateTimeModalOpen && selectedMatch && (
   <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
     <Card className="w-full max-w-md">

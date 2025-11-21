@@ -88,7 +88,7 @@ app.get('/api/auth/fail', (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 sequelize
-  .sync({ alter: false })
+  .sync({ alter: true })
   .then(async () => {
     console.log('Database synced');
 

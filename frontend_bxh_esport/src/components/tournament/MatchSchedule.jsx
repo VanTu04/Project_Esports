@@ -23,11 +23,16 @@ export const MatchSchedule = ({ matches, loading }) => {
           <div className="flex items-center justify-between">
             {/* Team 1 */}
             <div className="flex items-center gap-3 flex-1">
-              <img
-                src={match.team1?.logo || '/default-team.png'}
-                alt={match.team1?.name}
-                className="w-12 h-12 rounded-full object-cover"
-              />
+              {match.team1?.logo ? (
+                <img
+                  src={match.team1.logo}
+                  alt={match.team1?.name}
+                  className="w-12 h-12 rounded-full object-cover"
+                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = 'none'; }}
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-primary-700/20" />
+              )}
               <div>
                 <h4 className="font-semibold text-white">{match.team1?.name}</h4>
                 <p className="text-sm text-gray-400">{match.team1?.region}</p>
@@ -62,11 +67,16 @@ export const MatchSchedule = ({ matches, loading }) => {
 
             {/* Team 2 */}
             <div className="flex items-center gap-3 flex-1 flex-row-reverse">
-              <img
-                src={match.team2?.logo || '/default-team.png'}
-                alt={match.team2?.name}
-                className="w-12 h-12 rounded-full object-cover"
-              />
+              {match.team2?.logo ? (
+                <img
+                  src={match.team2.logo}
+                  alt={match.team2?.name}
+                  className="w-12 h-12 rounded-full object-cover"
+                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = 'none'; }}
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-primary-700/20" />
+              )}
               <div className="text-right">
                 <h4 className="font-semibold text-white">{match.team2?.name}</h4>
                 <p className="text-sm text-gray-400">{match.team2?.region}</p>
