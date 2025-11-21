@@ -8,7 +8,15 @@ import { isAddress } from 'ethers';
 import { Op } from 'sequelize';
 import * as userService from '../services/UserService.js';
 
-const backendUrl = process.env.BACKEND_URL || 'https://api.vawndev.online';
+const backendUrl = (process.env.BACKEND_URL || 'https://api.vawndev.online').replace(/\/$/, '');
+
+const normalizeImageUrl = (url) => {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (/^data:/i.test(url)) return url;
+  if (url.startsWith('/')) return `${backendUrl}${url}`;
+  return `${backendUrl}/${url}`;
+};
 
 // 1. Tạo một giải đấu mới
 export const createTournamentWithRewards = async (req, res) => {
@@ -593,14 +601,20 @@ export const getPendingRequests = async (req, res) => {
       pendingParticipants.map(async (p) => {
         try {
           const blockchainStatus = await getRegistrationStatus(tournament_id, p.wallet_address);
+          const plain = (typeof p.toJSON === 'function') ? p.toJSON() : (typeof p.get === 'function' ? p.get({ plain: true }) : p);
+          plain.avatar = normalizeImageUrl(plain.avatar || plain.team?.avatar || plain.logo_url || plain.logo || null);
+          plain.logo_url = plain.avatar;
           return {
-            ...p.toJSON(),
+            ...plain,
             blockchain_status: blockchainStatus.statusName,
             blockchain_amount: weiToEth(blockchainStatus.amountDeposited) + ' ETH'
           };
         } catch (error) {
+          const plain = (typeof p.toJSON === 'function') ? p.toJSON() : (typeof p.get === 'function' ? p.get({ plain: true }) : p);
+          plain.avatar = normalizeImageUrl(plain.avatar || plain.team?.avatar || plain.logo_url || plain.logo || null);
+          plain.logo_url = plain.avatar;
           return {
-            ...p.toJSON(),
+            ...plain,
             blockchain_status: 'Error',
             blockchain_amount: '0 ETH'
           };

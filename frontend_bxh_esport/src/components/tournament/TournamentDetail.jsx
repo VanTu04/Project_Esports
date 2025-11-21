@@ -372,42 +372,17 @@ export const TournamentDetail = () => {
         const nextRound = wrapper?.data?.round_number ?? wrapper?.round_number;
         showSuccess(wrapper?.message || `Tạo vòng ${nextRound} thành công!`);
 
-        // Fetch matches for the newly created round and append to local state
-          try {
-          const matchesResp = await tournamentService.getTournamentMatches(tournamentId, { round_number: nextRound });
-          let newMatches = [];
-          if (Array.isArray(matchesResp)) newMatches = matchesResp;
-          else if (matchesResp?.data && Array.isArray(matchesResp.data)) newMatches = matchesResp.data;
-          else if (matchesResp?.matches && Array.isArray(matchesResp.matches)) newMatches = matchesResp.matches;
-
-          if (newMatches.length > 0) {
-            const normalizedNew = newMatches.map(normalizeMatch).map(m => {
-              const aId = m.team_a_participant_id ?? m.teamA?.id ?? null;
-              const bId = m.team_b_participant_id ?? m.teamB?.id ?? null;
-              const aLogo = aId ? teamLogos[aId] : null;
-              const bLogo = bId ? teamLogos[bId] : null;
-              return {
-                ...m,
-                team_a_logo: m.team_a_logo ?? m.teamA?.logo_url ?? aLogo ?? null,
-                team_b_logo: m.team_b_logo ?? m.teamB?.logo_url ?? bLogo ?? null,
-                teamA: m.teamA ? { ...m.teamA, logo_url: m.teamA.logo_url ?? aLogo } : m.teamA,
-                teamB: m.teamB ? { ...m.teamB, logo_url: m.teamB.logo_url ?? bLogo } : m.teamB,
-              };
-            });
-            setMatches(prev => [...prev, ...normalizedNew]);
-          }
-          // Update tournament current_round locally and switch UI to show new round
-          setTournament(prev => ({ ...prev, current_round: nextRound, status: 'ACTIVE' }));
-          setSelectedRound(nextRound);
+        // Ensure the UI reflects the new round by reloading full tournament data.
+        // Previously we attempted to append only the new matches; that can miss
+        // shapes or nested payloads returned by the backend. A full reload is
+        // simpler and more reliable.
+        try {
+          await loadData();
+          // After reload, switch to matches tab and the new round
           setActiveTab('matches');
-
-          // Mark previous round COMPLETED matches as DONE locally to reflect backend behavior
-          const prevRound = Number(nextRound) - 1;
-          if (prevRound >= 1) {
-            setMatches(prev => prev.map(m => (m.round_number === prevRound && (m.status || '').toString().toUpperCase() === 'COMPLETED') ? ({ ...m, status: 'DONE' }) : m));
-          }
+          setSelectedRound(nextRound);
         } catch (err) {
-          console.warn('Could not fetch new round matches', err);
+          console.warn('Could not reload tournament after creating round', err);
         }
       } else {
         showError(response?.message || 'Không thể tạo vòng mới');
@@ -587,21 +562,7 @@ export const TournamentDetail = () => {
         )}
 
         {/* Show Register button for non-admin users when tournament is PENDING */}
-        {!isAdmin && String(tournament?.status || '').toUpperCase() === 'PENDING' && (
-          <div className="mt-4">
-            <Button
-              variant="primary"
-              className="w-full"
-              onClick={() => {
-                // For team managers, navigate to their registration page; for public users, go to tournaments list
-                if (isTeamManager) return navigate(ROUTES.TEAM_MANAGER_TOURNAMENTS);
-                return navigate(ROUTES.TOURNAMENTS);
-              }}
-            >
-              Đăng ký tham gia
-            </Button>
-          </div>
-        )}
+        
 
         {/* Tabs */}
         <div className="border-b border-primary-700/20">
