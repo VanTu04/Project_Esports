@@ -323,9 +323,8 @@ export const findParticipantsByIds = async (participant_ids) => {
         [Op.in]: participant_ids
       }
     },
-    attributes: ['id', 'team_name']
+    attributes: ['id', 'team_name', 'user_id']
   });
-  return participants;
 };
 
 export const findParticipantsByRound = async (tournament_id, round_number) => {

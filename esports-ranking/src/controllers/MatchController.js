@@ -4,57 +4,78 @@ import * as tournamentService from '../services/TournamentService.js';
 import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
 import models from '../models/index.js';
+import * as userService from '../services/UserService.js';
 
 // === YÊU CẦU 1: LẤY LỊCH THI ĐẤU (VỚI TÊN) ===
 export const getAllMatches = async (req, res) => {
   try {
-    const query = req.query; // { tournament_id, round_number }
+    const query = req.query;
 
     if (!query.tournament_id || !query.round_number) {
-        return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Bắt buộc phải cung cấp tournament_id và round_number.'));
+      return res.json(responseWithError(
+        ErrorCodes.ERROR_REQUEST_DATA_INVALID,
+        'Bắt buộc phải cung cấp tournament_id và round_number.'
+      ));
     }
-    
-    // 1. Service "mỏng" lấy các trận đấu (chỉ ID)
+
+    // 1. Lấy danh sách trận đấu
     const matches = await matchService.findAll(query);
 
     if (matches.length === 0) {
       return res.json(responseSuccess([], "Không tìm thấy trận đấu nào."));
     }
 
-    // 2. Controller: Thu thập TẤT CẢ ID đội
-    const participantIds = new Set(); // Dùng Set để tránh lặp ID
-    matches.forEach(match => {
-      participantIds.add(match.team_a_participant_id);
-      if (match.team_b_participant_id) { // (Tránh trận "Bye")
-        participantIds.add(match.team_b_participant_id);
-      }
+    // 2. Thu thập participant_id
+    const participantIds = new Set();
+    matches.forEach(m => {
+      participantIds.add(m.team_a_participant_id);
+      if (m.team_b_participant_id) participantIds.add(m.team_b_participant_id);
     });
 
-    // 3. Gọi service 1 LẦN để lấy TẤT CẢ tên
-    const participants = await tournamentService.findParticipantsByIds(Array.from(participantIds));
+    // 3. Lấy danh sách participant
+    const participants = await tournamentService.findParticipantsByIds(
+      Array.from(participantIds)
+    );
 
-    // 4. Tạo một "bản đồ" (Map) để tra cứu tên (tối ưu hiệu suất)
+    // 4. Lấy danh sách user_id từ participant
+    const userIds = participants.map(p => p.user_id);
+
+    // 5. Lấy danh sách user (có avatar)
+    const users = await userService.findUsersByIds(userIds);
+
+    // 6. Map userId -> avatar
+    const userMap = new Map();
+    users.forEach(u => userMap.set(u.id, u.avatar));
+
+    // 7. Map participantId → team_name + avatar
     const participantMap = new Map();
     participants.forEach(p => {
-      participantMap.set(p.id, p.team_name);
+      participantMap.set(p.id, {
+        team_name: p.team_name,
+        avatar: userMap.get(p.user_id) || null
+      });
     });
 
-    // 5. "Gắn" tên vào kết quả trả về
+    // 8. Hydrate dữ liệu trả về
     const hydratedMatches = matches.map(match => {
-      // Dùng .get({ plain: true }) để lấy đối tượng thuần
-      const matchData = match.get({ plain: true });
+      const data = match.get({ plain: true });
 
-      // Gắn tên
-      matchData.team_a_name = participantMap.get(match.team_a_participant_id) || 'N/A';
-      matchData.team_b_name = participantMap.get(match.team_b_participant_id) || 'BYE'; // Nếu team_b_id là null
+      const teamA = participantMap.get(match.team_a_participant_id);
+      const teamB = participantMap.get(match.team_b_participant_id);
 
-      return matchData;
+      data.team_a_name = teamA?.team_name || "N/A";
+      data.team_a_avatar = teamA?.avatar || null;
+
+      data.team_b_name = teamB?.team_name || "BYE";
+      data.team_b_avatar = teamB?.avatar || null;
+
+      return data;
     });
 
     return res.json(responseSuccess(hydratedMatches, "Lấy danh sách trận đấu thành công"));
 
   } catch (error) {
-    console.error('getAllMatches error', error);
+    console.error("getAllMatches error", error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };

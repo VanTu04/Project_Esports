@@ -57,6 +57,19 @@ api.interceptors.response.use(
         return api(originalRequest); // retry request gốc
       } catch (err) {
         processQueue(err, null);
+        
+        // Nếu refresh token thất bại (401) → logout user
+        if (err.response?.status === 401) {
+          console.warn('[api] Refresh token expired, logging out...');
+          
+          // Clear all cookies/storage
+          storage.remove(STORAGE_KEYS.USER);
+          storage.remove(STORAGE_KEYS.TOKEN);
+          
+          // Redirect to login
+          window.location.href = '/login';
+        }
+        
         return Promise.reject(err);
       } finally {
         isRefreshing = false;

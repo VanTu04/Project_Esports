@@ -389,3 +389,13 @@ export const updateProfile = async (userId, { full_name, phone, avatar }) => {
 
   return true;
 };
+
+export const findUsersByIds = async (userIds) => {
+  return await models.User.findAll({
+    where: {
+      id: {
+        [Op.in]: userIds
+      }
+    }
+  });
+};
