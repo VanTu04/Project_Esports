@@ -186,8 +186,8 @@ export const TournamentDetail = () => {
   const getMatchStatusBadge = (status) => {
     const badges = {
       PENDING: { bg: 'bg-gray-500/20', text: 'text-gray-300', border: 'border-gray-500/30', label: 'Chưa diễn ra' },
-      LIVE: { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', label: 'Đang diễn ra' },
-      COMPLETED: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', label: 'Đã kết thúc' }
+      COMPLETED: { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', label: 'Đang diễn ra' },
+      DONE: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', label: 'Đã kết thúc' }
     };
     const badge = badges[status] || badges.PENDING;
     return (
@@ -543,23 +543,7 @@ export const TournamentDetail = () => {
           teams={teams}
         />
 
-        {/* Admin action: Ghi bảng xếp hạng when all rounds are DONE */}
-        {isAdmin && allRoundsDone && (
-          <div className="mt-4">
-            {/* Disable button if leaderboard already saved */}
-            <Button
-              variant={tournament?.leaderboard_saved === 1 ? 'secondary' : 'primary'}
-              className="w-full max-w-xs"
-              disabled={isRecording || tournament?.leaderboard_saved === 1}
-              onClick={() => {
-                if (tournament?.leaderboard_saved === 1) return;
-                handleRecordRanking();
-              }}
-            >
-              {tournament?.leaderboard_saved === 1 ? 'Đã ghi bảng xếp hạng' : (isRecording ? 'Đang ghi bảng...' : 'Ghi bảng xếp hạng')}
-            </Button>
-          </div>
-        )}
+       
 
         {/* Show Register button for non-admin users when tournament is PENDING */}
         
