@@ -137,8 +137,8 @@ export const TournamentDetail = () => {
         }
 
         const roundsMatches = await Promise.all(matchPromises);
-        // flatten and normalize
-        const matchesData = roundsMatches.flat().map(normalizeMatch);
+        // flatten (use backend-provided shape directly)
+        const matchesData = roundsMatches.flat();
         // enrich matches with logos from teamLogos map (if available)
         const enriched = matchesData.map(m => {
           const aId = m.team_a_participant_id ?? m.teamA?.id ?? null;
@@ -183,11 +183,36 @@ export const TournamentDetail = () => {
     );
   };
 
-  const getMatchStatusBadge = (status) => {
+  const getMatchStatusBadge = (matchOrStatus) => {
+    // Accept either the full match object or a status string for backward compatibility
+    let status = 'PENDING';
+    let matchTime = null;
+    let scheduledReachedFlag = false;
+    if (!matchOrStatus) matchOrStatus = {};
+    if (typeof matchOrStatus === 'string') {
+      status = matchOrStatus;
+    } else if (typeof matchOrStatus === 'object') {
+      status = (matchOrStatus.status || 'PENDING').toString().toUpperCase();
+      matchTime = matchOrStatus.match_time ?? matchOrStatus.scheduled_time ?? matchOrStatus.scheduledAt ?? null;
+      scheduledReachedFlag = !!matchOrStatus.__scheduledReached;
+    }
+
+    // If there's no scheduled time or scheduled time is in the future, show 'Chưa diễn ra'
+    if (!matchTime) {
+      return (<span className={`px-2 py-1 rounded-full text-xs font-medium border bg-gray-700/10 text-gray-300 border-gray-700/20`}>Chưa diễn ra</span>);
+    }
+    const scheduledMs = new Date(matchTime).getTime();
+    if (!Number.isNaN(scheduledMs) && scheduledMs > Date.now() && !scheduledReachedFlag) {
+      return (<span className={`px-2 py-1 rounded-full text-xs font-medium border bg-gray-700/10 text-gray-300 border-gray-700/20`}>Chưa diễn ra</span>);
+    }
+
     const badges = {
-      PENDING: { bg: 'bg-gray-500/20', text: 'text-gray-300', border: 'border-gray-500/30', label: 'Chưa diễn ra' },
-      COMPLETED: { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', label: 'Đang diễn ra' },
-      DONE: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', label: 'Đã kết thúc' }
+      // PENDING: treat as ongoing and editable
+      PENDING: { bg: 'bg-gray-500/20', text: 'text-gray-300', border: 'border-gray-500/30', label: 'Đang diễn ra' },
+      // COMPLETED: finished but still editable (allow result edits)
+      COMPLETED: { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', label: 'Đã kết thúc' },
+      // DONE: finished and locked (no edits allowed)
+      DONE: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', label: 'Đã kết thúc (LOCKED)' }
     };
     const badge = badges[status] || badges.PENDING;
     return (
@@ -207,26 +232,7 @@ export const TournamentDetail = () => {
     return grouped;
   };
 
-  // Chuẩn hoá object match từ nhiều shape khác nhau của backend
-  const normalizeMatch = (m) => {
-    if (!m) return m;
-    return {
-      ...m,
-      id: m.id ?? m.match_id,
-      round_number: m.round_number ?? m.round ?? m.roundNumber ?? 1,
-      match_time: m.match_time ?? m.scheduled_time ?? m.scheduledAt ?? m.time ?? m.matchTime ?? null,
-      team_a_participant_id: m.team_a_participant_id ?? m.teamA?.id ?? m.teamAId ?? m.team_a_id ?? m.team_a_id,
-      team_b_participant_id: m.team_b_participant_id ?? m.teamB?.id ?? m.teamBId ?? m.team_b_id ?? m.team_b_id,
-      team_a_name: m.team_a_name ?? m.teamA?.team_name ?? m.teamA?.name ?? m.teamA_name ?? m.teamAName,
-      team_b_name: m.team_b_name ?? m.teamB?.team_name ?? m.teamB?.name ?? m.teamB_name ?? m.teamBName,
-      score_team_a: m.score_team_a ?? m.score_a ?? m.score1 ?? m.scoreA ?? (m.scores ? m.scores[0] : null),
-      score_team_b: m.score_team_b ?? m.score_b ?? m.score2 ?? m.scoreB ?? (m.scores ? m.scores[1] : null),
-      point_team_a: m.point_team_a ?? m.point_a ?? m.pointsA ?? null,
-      point_team_b: m.point_team_b ?? m.point_b ?? m.pointsB ?? null,
-      winner_participant_id: m.winner_participant_id ?? m.winner_id ?? m.winner ?? null,
-      status: m.status ?? m.match_status ?? m.state ?? 'PENDING'
-    };
-  };
+  // NOTE: normalizeMatch removed — rely on backend to provide canonical match shape.
 
   const findTeamLogo = (teamOrId) => {
     if (!teamOrId) return null;
@@ -309,6 +315,7 @@ export const TournamentDetail = () => {
                 winner_participant_id: a > b ? m.team_a_participant_id : (b > a ? m.team_b_participant_id : null),
                 point_team_a: a > b ? 2 : (a === b ? 1 : 0),
                 point_team_b: b > a ? 2 : (a === b ? 1 : 0),
+                // After result update, mark as COMPLETED (still editable until marked DONE)
                 status: 'COMPLETED'
               };
             }
@@ -373,10 +380,10 @@ export const TournamentDetail = () => {
         showSuccess(wrapper?.message || `Tạo vòng ${nextRound} thành công!`);
 
         // Ensure the UI reflects the new round by reloading full tournament data.
-        // Previously we attempted to append only the new matches; that can miss
-        // shapes or nested payloads returned by the backend. A full reload is
-        // simpler and more reliable.
+        // Also mark existing matches as COMPLETED so UI shows them as finished
+        // (backend may later mark matches as DONE when fully locked).
         try {
+          setMatches(prev => prev.map(m => ({ ...m, status: 'COMPLETED' })));
           await loadData();
           // After reload, switch to matches tab and the new round
           setActiveTab('matches');
@@ -462,39 +469,37 @@ export const TournamentDetail = () => {
   const groupedMatches = groupMatchesByRound();
   const currentRoundNumber = tournament?.current_round || 1;
   const currentRoundMatches = groupedMatches[currentRoundNumber] || [];
-  const roundFinished = currentRoundMatches.length > 0 && currentRoundMatches.every(m => m.status === 'COMPLETED');
+  // A round is considered finished when all matches are COMPLETED or DONE
+  const roundFinished = currentRoundMatches.length > 0 && currentRoundMatches.every(m => {
+    const s = (m?.status || '').toString().toUpperCase();
+    return s === 'COMPLETED' || s === 'DONE';
+  });
   // Consider tournament finished (for UI actions) when all matches across all rounds are DONE
   const allMatches = matches || [];
   const allRoundsDone = allMatches.length > 0 && allMatches.every(m => (m?.status || '').toString().toUpperCase() === 'DONE');
 
-  // Normalize leaderboard rows into the shape expected by `LeaderboardTable`.
-  // LeaderboardTable expects items like: { rank, team: { logo, name }, wins, losses, points }
-  const normalizedLeaderboard = (Array.isArray(leaderboard) ? leaderboard : []).map((row, idx) => {
-    // row may be: { team: { id, name, logo_url } } or { team_id, team_name, logo_url } or simple objects from blockchain
-    const rawTeam = row?.team ?? null;
-
-    // prefer explicit logo_url fields, then nested team.logo, then other common keys
-    const rawLogo = row?.team?.logo_url ?? row?.team?.logo ?? row?.logo ?? row?.team_logo ?? row?.avatar ?? row?.team?.avatar ?? null;
-    const rawName = row?.team?.name ?? row?.team_name ?? row?.name ?? row?.username ?? row?.wallet ?? null;
-
-    const teamObj = rawTeam && typeof rawTeam === 'object' ? rawTeam : {
-      id: row?.team_id ?? row?.id ?? null,
-      name: rawName || `Team ${row?.team_id ?? (idx + 1)}`,
-      logo_url: rawLogo
-    };
-
-    // ensure logo URL is normalized so <img> can load it
-    const logoUrl = resolveTeamLogo(teamObj.logo_url ? { logo: teamObj.logo_url } : (teamObj || { logo: rawLogo }));
-
+  // Normalize leaderboard rows from API response to match LeaderboardTable component
+  // API returns: { rank, wallet, score, userId, username, avatar, teamName, wins, losses, draws, totalMatches, buchholzScore }
+  const normalizedLeaderboard = (Array.isArray(leaderboard) ? leaderboard : []).map((row) => {
+    // Return data directly as API structure matches LeaderboardTable expectations
     return {
-      rank: row?.rank ?? (idx + 1),
+      rank: row?.rank ?? 0,
+      wallet: row?.wallet ?? '',
+      score: row?.score ?? 0,
+      userId: row?.userId ?? null,
+      username: row?.username ?? '',
+      avatar: row?.avatar ?? null,
+      teamName: row?.teamName ?? row?.username ?? '',
+      wins: row?.wins ?? 0,
+      losses: row?.losses ?? 0,
+      draws: row?.draws ?? 0,
+      totalMatches: row?.totalMatches ?? 0,
+      buchholzScore: row?.buchholzScore ?? 0,
+      // Keep team object for backward compatibility with old LeaderboardTable
       team: {
-        logo: logoUrl,
-        name: teamObj.name || ('-' ),
-      },
-      wins: row?.wins ?? row?.win ?? row?.wins_count ?? 0,
-      losses: row?.losses ?? row?.loss ?? row?.losses_count ?? 0,
-      points: row?.points ?? row?.score ?? row?.total_points ?? 0,
+        logo: row?.avatar ?? null,
+        name: row?.teamName ?? row?.username ?? '',
+      }
     };
   });
 
@@ -509,8 +514,15 @@ export const TournamentDetail = () => {
               variant="ghost"
               size="sm"
               onClick={() => {
-                // Always navigate back to home to ensure consistent UX when returning
-                // from detail page as requested by product.
+                // Prefer going back in browser history when possible so users
+                // return to their previous page. Fall back to HOME route.
+                try {
+                  if (window && window.history && window.history.length > 1) {
+                    return navigate(-1);
+                  }
+                } catch (e) {
+                  // ignore and fallback
+                }
                 return navigate(ROUTES.HOME || '/');
               }}
             >
@@ -675,7 +687,7 @@ export const TournamentDetail = () => {
             defaultValue={selectedMatch.match_time ? new Date(selectedMatch.match_time).toISOString().slice(0, 16) : ''}
             className="w-full px-3 py-2 bg-white border border-primary-700/30 rounded-lg text-gray-900 focus:outline-none focus:border-primary-500"
             id="scheduledTime"
-            disabled={selectedMatch.status === 'COMPLETED'}
+            disabled={selectedMatch.status === 'DONE'}
           />
         </div>
 
@@ -691,8 +703,8 @@ export const TournamentDetail = () => {
             variant="primary"
             className="flex-1"
             onClick={() => {
-              if (selectedMatch.status === 'COMPLETED') {
-                showError('Không thể gán lịch cho trận đấu đã kết thúc.');
+              if (selectedMatch.status === 'DONE') {
+                showError('Không thể gán lịch cho trận đấu đã bị khoá và không thể sửa.');
                 return;
               }
               const scheduledTime = document.getElementById('scheduledTime').value;
@@ -753,8 +765,12 @@ export const TournamentDetail = () => {
                 <Button
                   variant="primary"
                   className="flex-1"
-                  disabled={scoreA === '' || scoreB === '' || Number(scoreA) === Number(scoreB)}
+                  disabled={scoreA === '' || scoreB === '' || Number(scoreA) === Number(scoreB) || selectedMatch.status === 'DONE'}
                   onClick={() => {
+                    if (selectedMatch.status === 'DONE') {
+                      showError('Trận đấu đã bị khoá, không thể sửa kết quả.');
+                      return;
+                    }
                     const a = scoreA === '' ? 0 : Number(scoreA);
                     const b = scoreB === '' ? 0 : Number(scoreB);
                     handleUpdateScore(selectedMatch.id, a, b);

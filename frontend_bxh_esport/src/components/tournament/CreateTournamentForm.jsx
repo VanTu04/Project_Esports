@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { apiClient } from '../../services/api';
 import { API_ENDPOINTS } from '../../utils/constants';
 import { useNotification } from '../../context/NotificationContext';
@@ -20,6 +22,16 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const { showSuccess, showError } = useNotification();
+  const [startDateObj, setStartDateObj] = useState(form.start_date ? new Date(form.start_date) : null);
+  const [endDateObj, setEndDateObj] = useState(form.end_date ? new Date(form.end_date) : null);
+
+  useEffect(() => {
+    setStartDateObj(form.start_date ? new Date(form.start_date) : null);
+  }, [form.start_date]);
+
+  useEffect(() => {
+    setEndDateObj(form.end_date ? new Date(form.end_date) : null);
+  }, [form.end_date]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -70,8 +82,9 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
     if (form.start_date && form.end_date) {
       const startDate = new Date(form.start_date);
       const endDate = new Date(form.end_date);
-      if (startDate >= endDate) {
-        newErrors.end_date = 'Ngày kết thúc phải sau ngày bắt đầu';
+      // End date must not be before start date (allow same-day end)
+      if (endDate < startDate) {
+        newErrors.end_date = 'Ngày kết thúc không được trước ngày bắt đầu';
       }
 
       const today = new Date();
@@ -116,6 +129,8 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
+  
 
   // Compute Swiss-system recommended min/max participants for given rounds
   // Assumptions:
@@ -173,7 +188,9 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
         total_rounds: parseInt(form.total_rounds),
         start_date: form.start_date,
         end_date: form.end_date,
-        expected_teams: form.expected_teams ? parseInt(form.expected_teams) : undefined,
+        // Backend requires `total_team` to be provided and non-falsy.
+        // If admin left the "Số đội dự kiến" empty, default to 2 to satisfy backend validation.
+        total_team: form.expected_teams ? parseInt(form.expected_teams) : 2,
         description: form.description.trim() || undefined,
         registration_fee: form.registration_fee !== '' ? Number(form.registration_fee) : 1,
         rewards: Array.isArray(form.rewards) && form.rewards.length > 0 ? form.rewards.map(r => ({ rank: Number(r.rank), reward_amount: Number(r.reward_amount) })) : undefined,
@@ -307,10 +324,10 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
           </div>
         </div>
 
-        {/* Expected / planned number of teams (optional) */}
+        {/* Số đội tham gia */}
         <div>
           <label className="block text-sm font-semibold text-white mb-2">
-            Số đội dự kiến (tuỳ chọn)
+            Số đội tham gia
           </label>
           <input
             name="expected_teams"
@@ -323,6 +340,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
             }`}
           />
           {errors.expected_teams && <p className="text-xs text-rose-400 mt-1">{errors.expected_teams}</p>}
+          
           {/* Show notification inline if expected_teams is outside recommended bounds */}
           {form.expected_teams && (() => {
             const t = parseInt(form.expected_teams);
@@ -344,14 +362,24 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
             <label className="block text-sm font-semibold text-white mb-2">
               Ngày bắt đầu <span className="text-rose-400">*</span>
             </label>
-            <input 
-              name="start_date" 
-              type="date"
-              value={form.start_date} 
-              onChange={handleChange} 
-              className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${
-                errors.start_date ? 'border-rose-500' : 'border-primary-700/30'
-              }`}
+            <DatePicker
+              selected={startDateObj}
+              onChange={(date) => {
+                setStartDateObj(date);
+                const iso = date ? date.toISOString().slice(0, 10) : '';
+                setForm(prev => ({ ...prev, start_date: iso }));
+                // If current end date is before newly chosen start date, clear end date
+                if (date && endDateObj && endDateObj < date) {
+                  setEndDateObj(null);
+                  setForm(prev => ({ ...prev, end_date: '' }));
+                }
+                if (errors.start_date) {
+                  setErrors(prev => { const c = { ...prev }; delete c.start_date; return c; });
+                }
+              }}
+              dateFormat="dd/MM/yyyy"
+              placeholderText="dd/mm/yyyy"
+              className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.start_date ? 'border-rose-500' : 'border-primary-700/30'}`}
             />
             {errors.start_date && <p className="text-xs text-rose-400 mt-1">{errors.start_date}</p>}
           </div>
@@ -360,15 +388,20 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
             <label className="block text-sm font-semibold text-white mb-2">
               Ngày kết thúc <span className="text-rose-400">*</span>
             </label>
-            <input 
-              name="end_date" 
-              type="date"
-              value={form.end_date} 
-              onChange={handleChange} 
-              min={form.start_date || undefined}
-              className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${
-                errors.end_date ? 'border-rose-500' : 'border-primary-700/30'
-              }`}
+            <DatePicker
+              selected={endDateObj}
+              onChange={(date) => {
+                setEndDateObj(date);
+                const iso = date ? date.toISOString().slice(0, 10) : '';
+                setForm(prev => ({ ...prev, end_date: iso }));
+                if (errors.end_date) {
+                  setErrors(prev => { const c = { ...prev }; delete c.end_date; return c; });
+                }
+              }}
+              minDate={startDateObj || null}
+              dateFormat="dd/MM/yyyy"
+              placeholderText="dd/mm/yyyy"
+              className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.end_date ? 'border-rose-500' : 'border-primary-700/30'}`}
             />
             {errors.end_date && <p className="text-xs text-rose-400 mt-1">{errors.end_date}</p>}
           </div>
@@ -376,7 +409,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
 
         {/* Phần thưởng (Rewards) */}
         <div>
-          <label className="block text-sm font-semibold text-white mb-2">Phần thưởng (Rewards)</label>
+          <label className="block text-sm font-semibold text-white mb-2">Phần thưởng</label>
           <div className="space-y-2">
             {(form.rewards || []).map((r, idx) => (
               <div key={idx} className="grid grid-cols-3 gap-3 items-end">

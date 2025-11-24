@@ -33,6 +33,10 @@ export default (sequelize) => {
       allowNull: false,
       comment: 'Tổng số vòng (do Admin quyết định)'
     },
+    total_team: {
+      type: DataTypes.INTEGER,
+      comment: 'Tổng số đội tham gia (do Admin quyết định)'
+    },
     current_round: {
       type: DataTypes.INTEGER,
       defaultValue: 0,

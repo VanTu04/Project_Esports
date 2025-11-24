@@ -195,9 +195,27 @@ export const TournamentManagement = () => {
       const totalPagesFromServer = data?.totalPages ?? data?.meta?.totalPages ?? null;
       const currentPageFromServer = data?.currentPage ?? data?.meta?.currentPage ?? null;
 
-      if (totalItemsFromServer != null) setTotalItems(Number(totalItemsFromServer));
-      if (totalPagesFromServer != null) setTotalPages(Number(totalPagesFromServer));
-      if (currentPageFromServer != null) setCurrentPage(Math.max(1, Number(currentPageFromServer)));
+      // Derive pagination values safely when server metadata is missing or inconsistent.
+      // Prefer server-provided totals; otherwise fall back to sensible defaults computed
+      // from the returned items and the current UI page size.
+      const derivedTotalItems = (totalItemsFromServer != null)
+        ? Number(totalItemsFromServer)
+        : (Array.isArray(data?.tournaments) ? data.tournaments.length : (Array.isArray(data) ? data.length : (mappedTournaments.length || null)));
+
+      const derivedTotalPages = (totalPagesFromServer != null)
+        ? Math.max(1, Number(totalPagesFromServer))
+        : (derivedTotalItems != null ? Math.max(1, Math.ceil(derivedTotalItems / itemsPerPage)) : Math.max(1, Math.ceil((mappedTournaments.length || 1) / itemsPerPage)));
+
+      let derivedCurrentPage = (currentPageFromServer != null)
+        ? Math.max(1, Number(currentPageFromServer))
+        : currentPage;
+
+      // Clamp current page to valid range to avoid invalid requests or UI glitches
+      if (derivedCurrentPage > derivedTotalPages) derivedCurrentPage = derivedTotalPages;
+
+      setTotalItems(derivedTotalItems ?? mappedTournaments.length);
+      setTotalPages(derivedTotalPages);
+      setCurrentPage(derivedCurrentPage);
 
       const mappedTournaments = await Promise.all(
         tournamentsData.map(async (t) => {
@@ -223,10 +241,13 @@ export const TournamentManagement = () => {
 
           const rounds = t.total_rounds || t.totalRounds || 0;
           const computedMax = rounds > 0 ? Math.pow(2, Number(rounds)) : (t.max_teams || 32);
-          const computedMin = rounds > 0 ? Math.max(2, Number(rounds) + 1) : 2;
+          
+          // Use total_team from backend as the target number of teams
+          const totalTeam = t.total_team || null;
 
-          teamsCount.max = t.max_teams || computedMax;
-          teamsCount.min = computedMin;
+          teamsCount.max = totalTeam || t.max_teams || computedMax;
+          teamsCount.min = 2; // Minimum 2 teams always required
+          teamsCount.total_team = t.total_team || null; // Store original total_team from backend
 
           return {
             ...t,
@@ -634,15 +655,18 @@ export const TournamentManagement = () => {
     setProcessingTeamId(teamId);
     
     try {
-      // Prevent approving if already reached minimum required teams
+      // Get tournament info with total_team from backend
       const tournament = tournaments.find(t => t.id === selectedTournamentForApproval?.id);
       const current = tournament?.teams?.current || 0;
-      const minTeams = tournament?.teams?.min || 2;
-      if (current >= minTeams) {
-        showError(`Đã có đủ số đội tối thiểu (${minTeams}). Không thể duyệt thêm đội.`);
+      const totalTeamFromBackend = tournament?.teams?.total_team || tournament?.total_team || null;
+      
+      // If total_team is set, check if we've reached the limit
+      if (totalTeamFromBackend && current >= totalTeamFromBackend) {
+        showError(`Đã đủ số đội dự kiến (${current}/${totalTeamFromBackend}). Không thể duyệt thêm đội.`);
         setProcessingTeamId(null);
         return;
       }
+      
       // Call real API to approve
       await tournamentService.approveParticipant(teamId);
       
@@ -655,7 +679,7 @@ export const TournamentManagement = () => {
       const prevCurrent = targetTournament?.teams?.current || 0;
       const newPending = Math.max(0, prevPending - 1);
       const newCurrent = prevCurrent + 1;
-      const minTeamsLocal = targetTournament?.teams?.min || targetTournament?.min_teams || 2;
+      const totalTeamLocal = targetTournament?.teams?.total_team || targetTournament?.total_team || null;
 
       // Update state (pure update)
       setTournaments(prev => prev.map(t => {
@@ -673,11 +697,15 @@ export const TournamentManagement = () => {
       }));
 
       // Notify once based on computed values
-      if (newCurrent >= minTeamsLocal) {
-        showSuccess(`Đã duyệt đội thành công! Hiện tại đã có ${newCurrent} đội — đủ số đội tối thiểu (${minTeamsLocal}) để bắt đầu giải.`);
+      if (totalTeamLocal) {
+        if (newCurrent >= totalTeamLocal) {
+          showSuccess(`Đã duyệt đội thành công! Hiện tại đã có đủ số đội (${newCurrent}/${totalTeamLocal}).`);
+        } else {
+          const need = Math.max(0, totalTeamLocal - newCurrent);
+          showWarning(`Đã duyệt đội thành công. Hiện tại: ${newCurrent}/${totalTeamLocal} đội. Còn thiếu ${need} đội.`);
+        }
       } else {
-        const need = Math.max(0, minTeamsLocal - newCurrent);
-        showWarning(`Đã duyệt đội. Còn thiếu ${need} đội để đạt tối thiểu ${minTeamsLocal}.`);
+        showSuccess(`Đã duyệt đội thành công! Hiện tại đã có ${newCurrent} đội.`);
       }
     } catch (error) {
       console.error('❌ Failed to approve team:', error);
@@ -726,10 +754,10 @@ export const TournamentManagement = () => {
   const handleStartTournament = async (tournamentId) => {
     const tournament = tournaments.find(t => t.id === tournamentId);
     const current = tournament?.teams?.current || 0;
-    const minTeams = tournament?.teams?.min || 2;
+    const minRequired = 2; // Minimum 2 teams always required to start
 
-    if (current < minTeams) {
-      showError(`Chưa đủ đội tối thiểu để bắt đầu giải. Cần ít nhất ${minTeams} đội, hiện có ${current}.`);
+    if (current < minRequired) {
+      showError(`Chưa đủ đội để bắt đầu giải. Cần ít nhất ${minRequired} đội, hiện có ${current}.`);
       return;
     }
 

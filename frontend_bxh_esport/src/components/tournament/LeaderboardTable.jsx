@@ -21,24 +21,15 @@ const LeaderboardTable = ({ data, loading }) => {
     },
     {
       header: 'Logo',
-      accessor: 'team',
-      render: (team) => {
-        // team may be an object with nested shapes; try resolveTeamLogo first then fallbacks
-        let src = resolveTeamLogo(team);
-        // if resolveTeamLogo returned null, try common raw fields
-        if (!src) {
-          if (typeof team?.logo === 'string' && team.logo) src = normalizeImageUrl(team.logo);
-          else if (typeof team?.logo_url === 'string' && team.logo_url) src = normalizeImageUrl(team.logo_url);
-          else if (typeof team?.avatar === 'string' && team.avatar) src = normalizeImageUrl(team.avatar);
-          else if (typeof team?.team?.avatar === 'string' && team.team.avatar) src = normalizeImageUrl(team.team.avatar);
-        }
-
+      accessor: 'avatar',
+      render: (avatar, row) => {
+        const src = avatar || row?.team?.avatar || null;
         return (
           <div className="flex items-center">
             {src ? (
               <img
                 src={src}
-                alt={team?.name || 'team'}
+                alt={row?.teamName || row?.username || 'team'}
                 className="w-8 h-8 rounded-full object-cover"
                 onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = 'none'; }}
               />
@@ -51,15 +42,54 @@ const LeaderboardTable = ({ data, loading }) => {
     },
     {
       header: 'Tên đội',
-      accessor: 'team',
-      render: (team) => (
-        <span className="font-medium text-white">{team?.name || '-'}</span>
+      accessor: 'teamName',
+      render: (value, row) => (
+        <div>
+          <div className="font-medium text-white">{value || row?.username || '-'}</div>
+          {row?.username && <div className="text-xs text-gray-400">@{row.username}</div>}
+        </div>
+      ),
+    },
+    {
+      header: 'Ví',
+      accessor: 'wallet',
+      render: (value) => (
+        <span className="text-xs text-gray-400 font-mono">
+          {value ? `${value.slice(0, 6)}...${value.slice(-4)}` : '-'}
+        </span>
       ),
     },
     {
       header: 'Điểm',
-      accessor: 'points',
-      render: (value) => <span className="font-bold text-primary-500">{value ?? 0}</span>,
+      accessor: 'score',
+      render: (value) => <span className="font-bold text-primary-500 text-lg">{value ?? 0}</span>,
+    },
+    {
+      header: 'Thắng/Thua/Hòa',
+      accessor: 'wins',
+      render: (wins, row) => (
+        <div className="text-sm">
+          <span className="text-green-400">{wins ?? 0}</span>
+          <span className="text-gray-400"> / </span>
+          <span className="text-red-400">{row?.losses ?? 0}</span>
+          <span className="text-gray-400"> / </span>
+          <span className="text-yellow-400">{row?.draws ?? 0}</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Tổng trận',
+      accessor: 'totalMatches',
+      render: (value) => <span className="text-gray-300">{value ?? 0}</span>,
+    },
+    {
+      header: 'Tổng điểm đối thủ',
+      accessor: 'buchholzScore',
+      render: (value) => (
+        <span className="text-cyan-400 font-semibold" title="Tổng điểm của các đối thủ đã gặp">
+          {value ?? 0}
+        </span>
+      ),
     },
   ];
 

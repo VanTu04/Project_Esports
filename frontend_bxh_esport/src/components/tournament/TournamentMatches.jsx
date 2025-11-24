@@ -25,6 +25,18 @@ const TournamentMatches = ({
 }) => {
   const [participantLogos, setParticipantLogos] = useState({});
 
+  const isByeMatch = (match) => {
+    if (!match) return false;
+    // Common backend flags
+    if (match.is_bye || match.bye || match.walkover || match.isWalkover) return true;
+    // If one side is missing (no participant id) and name contains 'bye'
+    if (!match.team_b_participant_id && typeof match.team_b_name === 'string' && /bye/i.test(match.team_b_name)) return true;
+    if (!match.team_b_participant_id && typeof match.team_a_name === 'string' && /bye/i.test(match.team_a_name)) return true;
+    // Some backends label result_type or code
+    if (match.result_type === 'BYE' || match.result === 'BYE') return true;
+    return false;
+  };
+
   // Normalize tournament done state here so rendering logic below is consistent
   const _tStatus = (tournament?.status || '').toString().toUpperCase();
   const tournamentDone = ['DONE', 'COMPLETED'].includes(_tStatus);
@@ -128,7 +140,7 @@ const TournamentMatches = ({
                 <div key={match.id} className="rounded-lg p-4 border border-primary-500/30 bg-primary-500/10">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-gray-300 text-sm">{match.match_time ? new Date(match.match_time).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Chưa có lịch'}</span>
-                    {(() => getMatchStatusBadge(match.status || 'PENDING'))()}
+                    {(() => getMatchStatusBadge(match))()}
                   </div>
 
                   {match.team_b_participant_id ? (
@@ -204,7 +216,16 @@ const TournamentMatches = ({
                   ) : (
                     <div className="flex items-center justify-center gap-4 mb-3">
                       <div className="w-full text-center text-lg font-bold text-white">
-                        {match.team_a_name || 'TBD'}
+                        {(() => {
+                          const bye = isByeMatch(match);
+                          const name = match.team_a_name || match.teamA?.team_name || match.teamA?.name || match.teamA?.teamName || (bye ? 'BYE' : 'TBD');
+                          return (
+                            <>
+                              <div>{name}</div>
+                              {bye && <div className="text-xs text-amber-300 mt-1">Miễn thi đấu (BYE)</div>}
+                            </>
+                          );
+                        })()}
                         <div className="text-sm mt-1 text-green-400">{match.point_team_a != null ? `+${match.point_team_a}` : ''}</div>
                       </div>
                     </div>
