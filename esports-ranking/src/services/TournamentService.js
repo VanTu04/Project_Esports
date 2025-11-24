@@ -8,6 +8,7 @@ export const create = async (data, options = {}) => {
   const newTournament = await models.Tournament.create({
     name: data.name,
     total_rounds: data.total_rounds,
+    total_team: data.total_team,
     created_by: data.created_by || null,
     game_id: data.game_id || null,
     season_id: data.season_id || null,
@@ -31,6 +32,16 @@ export const getTournamentByName = async (name) => {
   return existing;
 };
 
+const backendUrl = (process.env.BACKEND_URL || 'https://api.vawndev.online').replace(/\/$/, '');
+
+const normalizeImageUrl = (url) => {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (/^data:/i.test(url)) return url;
+  if (url.startsWith('/')) return `${backendUrl}${url}`;
+  return `${backendUrl}/${url}`;
+};
+
 export const findParticipantsByStatus = async (id, status) => {
   const res = await models.Participant.findAll({
     where : {tournament_id: id, status: status},
@@ -46,8 +57,9 @@ export const findParticipantsByStatus = async (id, status) => {
   // normalize to plain objects and expose avatar/logo_url for frontend
   return res.map(r => {
     const p = (typeof r.get === 'function') ? r.get({ plain: true }) : (typeof r.toJSON === 'function' ? r.toJSON() : r);
-    p.avatar = p.team?.avatar || null;
-    p.logo_url = p.avatar || null;
+    const rawAvatar = p.team?.avatar || null;
+    p.avatar = rawAvatar;
+    p.logo_url = normalizeImageUrl(rawAvatar);
     return p;
   });
 }
@@ -76,8 +88,9 @@ export const findById = async (id) => {
 
   const participants = participantsRaw.map(p => {
     const item = (typeof p.get === 'function') ? p.get({ plain: true }) : (typeof p.toJSON === 'function' ? p.toJSON() : p);
-    item.avatar = item.team?.avatar || null;
-    item.logo_url = item.avatar || null;
+    const rawAvatar = item.team?.avatar || null;
+    item.avatar = rawAvatar;
+    item.logo_url = normalizeImageUrl(rawAvatar);
     return item;
   });
 
@@ -101,7 +114,7 @@ export const findAllByAdmin = async (status, page = 1, limit = 10) => {
   const { count, rows: tournaments } = await models.Tournament.findAndCountAll({
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-    attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'createdAt', 'updatedAt'],
+    attributes: ['id', 'name', 'status', 'total_rounds', 'total_team', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'createdAt', 'updatedAt'],
     include: [
       {
         model: models.TournamentReward,
@@ -144,7 +157,7 @@ export const findAll = async (status, page = 1, limit = 10) => {
   const { count, rows: tournaments } = await models.Tournament.findAndCountAll({
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-  attributes: ['id', 'name', 'status', 'total_rounds', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'createdAt', 'updatedAt'],
+  attributes: ['id', 'name', 'status', 'total_rounds', 'total_team', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'createdAt', 'updatedAt'],
     include: [
       {
         model: models.TournamentReward,
@@ -281,8 +294,9 @@ export const getParticipantsByStatus = async (tournament_id, status) => {
 
   return res.map(r => {
     const p = (typeof r.get === 'function') ? r.get({ plain: true }) : (typeof r.toJSON === 'function' ? r.toJSON() : r);
-    p.avatar = p.team?.avatar || null;
-    p.logo_url = p.avatar || null;
+    const rawAvatar = p.team?.avatar || null;
+    p.avatar = rawAvatar;
+    p.logo_url = normalizeImageUrl(rawAvatar);
     return p;
   });
 };

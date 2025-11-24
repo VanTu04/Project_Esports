@@ -26,8 +26,12 @@ export default (sequelize) => {
       type: DataTypes.DECIMAL(18, 8),
       allowNull: false,
       comment: 'Số tiền ETH/Token tương ứng cho hạng này'
+    },
+    hash: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Hash giao dịch phân phối giải thưởng'
     }
-
   }, {
     tableName: 'tournament_rewards',
     timestamps: true,

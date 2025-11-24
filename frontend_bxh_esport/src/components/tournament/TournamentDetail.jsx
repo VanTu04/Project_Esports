@@ -467,34 +467,28 @@ export const TournamentDetail = () => {
   const allMatches = matches || [];
   const allRoundsDone = allMatches.length > 0 && allMatches.every(m => (m?.status || '').toString().toUpperCase() === 'DONE');
 
-  // Normalize leaderboard rows into the shape expected by `LeaderboardTable`.
-  // LeaderboardTable expects items like: { rank, team: { logo, name }, wins, losses, points }
-  const normalizedLeaderboard = (Array.isArray(leaderboard) ? leaderboard : []).map((row, idx) => {
-    // row may be: { team: { id, name, logo_url } } or { team_id, team_name, logo_url } or simple objects from blockchain
-    const rawTeam = row?.team ?? null;
-
-    // prefer explicit logo_url fields, then nested team.logo, then other common keys
-    const rawLogo = row?.team?.logo_url ?? row?.team?.logo ?? row?.logo ?? row?.team_logo ?? row?.avatar ?? row?.team?.avatar ?? null;
-    const rawName = row?.team?.name ?? row?.team_name ?? row?.name ?? row?.username ?? row?.wallet ?? null;
-
-    const teamObj = rawTeam && typeof rawTeam === 'object' ? rawTeam : {
-      id: row?.team_id ?? row?.id ?? null,
-      name: rawName || `Team ${row?.team_id ?? (idx + 1)}`,
-      logo_url: rawLogo
-    };
-
-    // ensure logo URL is normalized so <img> can load it
-    const logoUrl = resolveTeamLogo(teamObj.logo_url ? { logo: teamObj.logo_url } : (teamObj || { logo: rawLogo }));
-
+  // Normalize leaderboard rows from API response to match LeaderboardTable component
+  // API returns: { rank, wallet, score, userId, username, avatar, teamName, wins, losses, draws, totalMatches, buchholzScore }
+  const normalizedLeaderboard = (Array.isArray(leaderboard) ? leaderboard : []).map((row) => {
+    // Return data directly as API structure matches LeaderboardTable expectations
     return {
-      rank: row?.rank ?? (idx + 1),
+      rank: row?.rank ?? 0,
+      wallet: row?.wallet ?? '',
+      score: row?.score ?? 0,
+      userId: row?.userId ?? null,
+      username: row?.username ?? '',
+      avatar: row?.avatar ?? null,
+      teamName: row?.teamName ?? row?.username ?? '',
+      wins: row?.wins ?? 0,
+      losses: row?.losses ?? 0,
+      draws: row?.draws ?? 0,
+      totalMatches: row?.totalMatches ?? 0,
+      buchholzScore: row?.buchholzScore ?? 0,
+      // Keep team object for backward compatibility with old LeaderboardTable
       team: {
-        logo: logoUrl,
-        name: teamObj.name || ('-' ),
-      },
-      wins: row?.wins ?? row?.win ?? row?.wins_count ?? 0,
-      losses: row?.losses ?? row?.loss ?? row?.losses_count ?? 0,
-      points: row?.points ?? row?.score ?? row?.total_points ?? 0,
+        logo: row?.avatar ?? null,
+        name: row?.teamName ?? row?.username ?? '',
+      }
     };
   });
 

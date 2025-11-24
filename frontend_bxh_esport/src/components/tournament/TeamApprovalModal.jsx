@@ -27,8 +27,8 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
   };
 
   const currentApproved = tournament?.teams?.current || 0;
-  const minTeams = tournament?.teams?.min || 2;
-  const isMinReached = currentApproved >= minTeams;
+  const totalTeam = tournament?.teams?.total_team || null;
+  const isMaxReached = totalTeam && currentApproved >= totalTeam;
 
   useEffect(() => {
     if (!show) return;
@@ -206,9 +206,9 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
         </div>
 
         <div className="p-6">
-          {isMinReached && (
-            <div className="mb-4 p-3 rounded-md bg-emerald-600/10 border border-emerald-600/20 text-emerald-300">
-              Đã đủ số đội tối thiểu ({minTeams}) để bắt đầu giải. Không thể duyệt thêm đội.
+          {isMaxReached && (
+            <div className="mb-4 p-3 rounded-md bg-orange-600/10 border border-orange-600/20 text-orange-300">
+              Đã đủ số đội dự kiến ({currentApproved}/{totalTeam}). Không thể duyệt thêm đội.
             </div>
           )}
 
@@ -268,7 +268,7 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
                         variant="success"
                         size="sm"
                         onClick={() => handleApprove(team.id)}
-                        disabled={effectiveProcessingId === team.id || isMinReached}
+                        disabled={effectiveProcessingId === team.id || isMaxReached}
                         loading={effectiveProcessingId === team.id}
                       >
                         Duyệt

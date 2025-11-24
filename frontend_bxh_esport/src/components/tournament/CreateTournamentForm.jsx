@@ -173,7 +173,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
         total_rounds: parseInt(form.total_rounds),
         start_date: form.start_date,
         end_date: form.end_date,
-        expected_teams: form.expected_teams ? parseInt(form.expected_teams) : undefined,
+        total_team: form.expected_teams ? parseInt(form.expected_teams) : undefined,
         description: form.description.trim() || undefined,
         registration_fee: form.registration_fee !== '' ? Number(form.registration_fee) : 1,
         rewards: Array.isArray(form.rewards) && form.rewards.length > 0 ? form.rewards.map(r => ({ rank: Number(r.rank), reward_amount: Number(r.reward_amount) })) : undefined,
