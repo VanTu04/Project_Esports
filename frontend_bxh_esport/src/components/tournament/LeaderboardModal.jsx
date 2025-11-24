@@ -4,6 +4,7 @@ import Button from '../common/Button';
 import tournamentService from '../../services/tournamentService';
 import rewardService from '../../services/rewardService';
 import { apiClient } from '../../services/api';
+import { API_ENDPOINTS } from '../../utils/constants';
 import { useNotification } from '../../context/NotificationContext';
 import { TrophyIcon } from '@heroicons/react/24/solid';
 import { resolveTeamLogo } from '../../utils/imageHelpers';
@@ -248,8 +249,9 @@ export const LeaderboardModal = ({
                   // Call wallet distribute endpoint: POST /wallet/distribute-rewards with body { idTournament }
                   if (!tournamentId) return showError('Thiếu tournamentId');
                   setDistributing(true);
-                  try {
-                    const resp = await apiClient.post('/wallet/distribute-rewards', { idTournament: Number(tournamentId) });
+                    try {
+                    const endpoint = `${API_ENDPOINTS.WALLET}/distribute-rewards`;
+                    const resp = await apiClient.post(endpoint, { idTournament: Number(tournamentId) });
                     showSuccess('Đã gửi yêu cầu phân phối. Kiểm tra log để biết trạng thái.');
                     console.debug('distribute response:', resp);
                   } catch (err) {

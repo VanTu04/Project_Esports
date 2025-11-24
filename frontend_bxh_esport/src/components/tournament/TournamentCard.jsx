@@ -1,75 +1,162 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { CalendarIcon, TrophyIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { formatDate, formatCurrency } from '../../utils/helpers';
 import { getStatusColor, getStatusText } from '../../utils/helpers';
 import Card from '../common/Card';
+import Button from '../common/Button';
+import { useAuth } from '../../context/AuthContext';
+import tournamentService from '../../services/tournamentService';
 
-export const TournamentCard = ({ tournament, onQuickView }) => {
+export const TournamentCard = ({ tournament, compact = false }) => {
+  const [startDate, setStartDate] = useState(tournament?.startDate ?? tournament?.start_date ?? tournament?.start_time ?? null);
+  const [endDate, setEndDate] = useState(tournament?.endDate ?? tournament?.end_date ?? tournament?.end_time ?? null);
+  const [participantsCount, setParticipantsCount] = useState((tournament?.participantsCount ?? tournament?.participants_count ?? tournament?.participants) || 0);
+  const [prize, setPrize] = useState(tournament?.prize ?? tournament?.prize_pool ?? tournament?.prizePool ?? null);
+
+  // Determine if registration is open: pending status, explicit registration flag, or isReady/is_ready flag
+  const statusUpper = (tournament?.status || '').toString().toUpperCase();
+  const isReadyFlag = tournament?.isReady === 1 || tournament?.is_ready === 1 || tournament?.isReady === true;
+  const isRegisterOpen = statusUpper === 'PENDING' || statusUpper === 'REGISTRATION' || Boolean(tournament?.registration) || isReadyFlag;
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  const handleRegisterClick = (e) => {
+    e.preventDefault?.();
+    if (!isAuthenticated) {
+      // require login
+      navigate('/login');
+      return;
+    }
+    navigate(`/tournaments/${tournament.id}/register`);
+  };
+
+  const badgeText = isRegisterOpen ? 'Đang mở đăng ký' : getStatusText(tournament.status);
+  const badgeClass = isRegisterOpen ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : getStatusColor(tournament.status);
+
+  useEffect(() => {
+    // If any important display field is missing, fetch tournament details once
+    const missing = !startDate || !endDate || participantsCount === undefined || participantsCount === null || prize === undefined || prize === null;
+    if (!missing) return;
+    let mounted = true;
+    (async () => {
+      try {
+        if (!tournament?.id) return;
+        const resp = await tournamentService.getTournamentById(tournament.id);
+        const wrapper = resp?.data ?? resp;
+        const data = wrapper?.data ?? wrapper;
+        if (!mounted || !data) return;
+        setStartDate(prev => prev ?? (data.startDate ?? data.start_date ?? data.start_time ?? null));
+        setEndDate(prev => prev ?? (data.endDate ?? data.end_date ?? data.end_time ?? null));
+        setParticipantsCount(prev => (prev || prev === 0) ? prev : ((data.participantsCount ?? data.participants_count ?? data.participants) || 0));
+        setPrize(prev => (prev || prev === 0) ? prev : (data.prize ?? data.prize_pool ?? data.prizePool ?? null));
+      } catch (err) {
+        // silent fallback — card will show the best available data from prop
+        console.debug('TournamentCard: failed to fetch details', err?.message || err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [tournament, startDate, endDate, participantsCount, prize]);
   return (
-    <Card hover className="overflow-hidden">
-      {/* Banner */}
-      <div className="h-32 bg-gradient-gold relative overflow-hidden">
-        {tournament.banner && (
-          <img
-            src={tournament.banner}
-            alt={tournament.name}
-            className="w-full h-full object-cover"
-          />
-        )}
-        <div className="absolute top-2 right-2">
-            <div className="flex flex-col items-end gap-2">
-              <span
-                className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                  tournament.status
-                )} text-white`}
-              >
-                {getStatusText(tournament.status)}
-              </span>
+    <Card hover className={compact ? 'overflow-hidden p-3' : 'overflow-hidden'}>
+      {compact ? (
+        // Compact layout for listings (Home) — image removed per request
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white truncate">{tournament.name}</h3>
+              <span className={`text-xs font-medium ${badgeClass} px-2 py-0.5 rounded`}>{badgeText}</span>
+            </div>
 
-              {tournament.registration && (
-                <span className="px-2 py-1 rounded-full text-xs bg-dark-600 text-gray-200">{tournament.registration.label}</span>
+            <div className="text-xs text-gray-400 mt-2 grid grid-cols-1 gap-1">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4 text-gray-400" />
+                <span>{formatDate(startDate || tournament.startDate || tournament.start_date, 'dd/MM/yyyy')}{endDate || tournament.endDate || tournament.end_date ? ` — ${formatDate(endDate || tournament.endDate || tournament.end_date, 'dd/MM/yyyy')}` : ''}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <TrophyIcon className="w-4 h-4 text-gray-400" />
+                <span>{formatCurrency(prize ?? tournament.prize ?? tournament.prize_pool ?? 0, 'VND')}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <UsersIcon className="w-4 h-4 text-gray-400" />
+                <span>{participantsCount ?? tournament.participantsCount ?? tournament.participants_count ?? 0} đội</span>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              {isRegisterOpen ? (
+                <Button size="sm" variant="success" onClick={handleRegisterClick}>
+                  Đăng ký
+                </Button>
+              ) : (
+                <Link to={`/tournaments/${tournament.id}`} className={`text-xs px-3 py-1 rounded-md text-white bg-primary-500 hover:bg-primary-600`}>
+                  Xem chi tiết
+                </Link>
               )}
             </div>
-        </div>
-      </div>
-
-      <div className="p-4">
-        <h3 className="text-lg font-bold text-white mb-2">{tournament.name}</h3>
-        <p className="text-sm text-gray-400 mb-4 line-clamp-2">
-          {tournament.description}
-        </p>
-
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center gap-2 text-sm text-gray-300">
-            <CalendarIcon className="h-4 w-4" />
-            <span>{formatDate(tournament.startDate, 'dd/MM/yyyy')}</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-300">
-            <TrophyIcon className="h-4 w-4" />
-            <span>{formatCurrency(tournament.prize, 'VND')}</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-300">
-            <UsersIcon className="h-4 w-4" />
-            <span>{tournament.participantsCount || 0} đội</span>
           </div>
         </div>
+      ) : (
+        /* Full layout */
+        <>
+          {/* Banner */}
+          <div className="h-32 bg-gradient-gold relative overflow-hidden">
+            {tournament.banner && (
+              <img
+                src={tournament.banner}
+                alt={tournament.name}
+                className="w-full h-full object-cover"
+              />
+            )}
+            <div className="absolute top-2 right-2">
+                <div className="flex flex-col items-end gap-2">
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${badgeClass}`}>{badgeText}</span>
 
-        <div className="flex gap-2">
-          <Link
-            to={`/tournaments/${tournament.id}`}
-            className="flex-1 py-2 text-center bg-primary-500 hover:bg-primary-600 text-white rounded-md transition-colors"
-          >
-            Xem chi tiết
-          </Link>
-          <button
-            type="button"
-            onClick={() => onQuickView?.(tournament)}
-            className="px-3 py-2 bg-dark-400 text-white rounded-md hover:bg-dark-300 transition-colors"
-          >
-            Xem nhanh
-          </button>
-        </div>
-      </div>
+                  {tournament.registration && (
+                    <span className="px-2 py-1 rounded-full text-xs bg-dark-600 text-gray-200">{tournament.registration.label}</span>
+                  )}
+                </div>
+            </div>
+          </div>
+
+          <div className="p-4">
+            <h3 className="text-lg font-bold text-white mb-2">{tournament.name}</h3>
+            <p className="text-sm text-gray-400 mb-4 line-clamp-2">
+              {tournament.description}
+            </p>
+
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center gap-2 text-sm text-gray-300">
+                <CalendarIcon className="h-4 w-4" />
+                <span>{formatDate(startDate || tournament.startDate || tournament.start_date, 'dd/MM/yyyy')}{endDate || tournament.endDate || tournament.end_date ? ` — ${formatDate(endDate || tournament.endDate || tournament.end_date, 'dd/MM/yyyy')}` : ''}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-300">
+                <TrophyIcon className="h-4 w-4" />
+                <span>{formatCurrency(prize ?? tournament.prize ?? tournament.prize_pool ?? 0, 'VND')}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-300">
+                <UsersIcon className="h-4 w-4" />
+                <span>{participantsCount ?? tournament.participantsCount ?? tournament.participants_count ?? 0} đội</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              {isRegisterOpen ? (
+                <Button fullWidth size="md" variant="success" onClick={handleRegisterClick}>
+                  Đăng ký
+                </Button>
+              ) : (
+                <Link
+                  to={`/tournaments/${tournament.id}`}
+                  className="flex-1 py-2 text-center bg-primary-500 hover:bg-primary-600 text-white rounded-md transition-colors"
+                >
+                  Xem chi tiết
+                </Link>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </Card>
   );
 };

@@ -8,7 +8,7 @@ const userService = {
     // opts can be { token, baseUrl }
     try {
       // use axios instance which already sets withCredentials
-      const res = await apiClient.get('/users/profile');
+      const res = await apiClient.get(API_ENDPOINTS.USER_PROFILE);
       // axios response in res.data
       const payload = res && res.data ? res.data : res;
       // normalized: if payload.data exists, take payload.data, else payload
@@ -49,7 +49,7 @@ const userService = {
   // Update profile (JSON) - rarely used by backend in this project
   updateProfile: async (payload) => {
     try {
-      const res = await apiClient.put('/users/update-profile', payload);
+      const res = await apiClient.put(`${API_ENDPOINTS.USERS}/update-profile`, payload);
       return res.data || res;
     } catch (error) {
       console.error('userService.updateProfile error', error);
@@ -66,7 +66,7 @@ const userService = {
       if (avatarFile) form.append('avatar', avatarFile);
       if (bannerFile) form.append('banner', bannerFile);
 
-      const res = await apiClient.post('/users/update-profile', form, {
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/update-profile`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       return res.data || res;
@@ -79,7 +79,7 @@ const userService = {
   // Check exist email
   checkExistEmail: async (email) => {
     try {
-      const res = await apiClient.post('/users/check-exist-email', { email });
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/check-exist-email`, { email });
       return res.data || res;
     } catch (error) {
       throw error;
@@ -88,7 +88,7 @@ const userService = {
 
   checkExistUsername: async (username) => {
     try {
-      const res = await apiClient.post('/users/check-exist-username', { username });
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/check-exist-username`, { username });
       return res.data || res;
     } catch (error) {
       throw error;
@@ -98,7 +98,7 @@ const userService = {
   // Admin: create new account
   createAccountByAdmin: async (payload) => {
     try {
-      const res = await apiClient.post('/users/new-account', payload);
+      const res = await apiClient.post(API_ENDPOINTS.ADMIN_CREATE_ACCOUNT, payload);
       return res.data || res;
     } catch (error) {
       console.error('userService.createAccountByAdmin error', error);
@@ -141,7 +141,7 @@ const userService = {
   // Change password: { current_password, new_password }
   changePassword: async (payload) => {
     try {
-      const res = await apiClient.post('/users/change-password', payload);
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/change-password`, payload);
       return res.data || res;
     } catch (error) {
       console.error('userService.changePassword error', error);
@@ -152,7 +152,7 @@ const userService = {
   // Enable/disable two-factor auth
   setTwoFactor: async (enabled) => {
     try {
-      const res = await apiClient.post('/users/two-factor', { enabled });
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/two-factor`, { enabled });
       return res.data || res;
     } catch (error) {
       console.error('userService.setTwoFactor error', error);
@@ -165,7 +165,7 @@ const userService = {
     try {
       // Common pattern: backend may expose DELETE /users or /users/me
       // Try DELETE /users first (many backends map to current user), fallback not implemented.
-      const res = await apiClient.delete('/users');
+      const res = await apiClient.delete(API_ENDPOINTS.USERS);
       return res.data || res;
     } catch (error) {
       console.error('userService.deleteAccount error', error);
@@ -176,7 +176,7 @@ const userService = {
   // Get wallet balance from backend
   getWalletBalance: async () => {
     try {
-      const res = await apiClient.get('/wallet/balance');
+      const res = await apiClient.get(`${API_ENDPOINTS.WALLET}/balance`);
       const payload = res && res.data ? res.data : res;
       // Try common shapes: { data: { balance } } or { balance }
       if (payload && payload.data && payload.data.balance !== undefined) return payload.data.balance;

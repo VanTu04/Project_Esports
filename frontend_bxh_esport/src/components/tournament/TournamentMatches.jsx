@@ -21,6 +21,7 @@ const TournamentMatches = ({
   handleRecordRanking,
   isRecording,
   openCreateRoundModal,
+  showRoundSelector = true,
 }) => {
   const [participantLogos, setParticipantLogos] = useState({});
 
@@ -68,17 +69,19 @@ const TournamentMatches = ({
       ) : (
         <Card padding="lg">
           <div className="mb-4 flex items-center justify-between">
-            <div className="flex flex-wrap gap-2">
-              {Object.keys(groupedMatchesMap).sort((a,b)=>a-b).map(r => (
-                <button
-                  key={r}
-                  onClick={() => setSelectedRound(Number(r))}
-                  className={`px-3 py-1 rounded-full text-sm font-medium ${selectedRound === Number(r) ? 'bg-cyan-300 text-dark-900' : 'bg-transparent text-gray-300 border border-primary-700/20'}`}
-                >
-                  Vòng {r}
-                </button>
-              ))}
-            </div>
+            {showRoundSelector ? (
+              <div className="flex flex-wrap gap-2">
+                {Object.keys(groupedMatchesMap).sort((a,b)=>a-b).map(r => (
+                  <button
+                    key={r}
+                    onClick={() => setSelectedRound(Number(r))}
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${selectedRound === Number(r) ? 'bg-cyan-300 text-dark-900' : 'bg-transparent text-gray-300 border border-primary-700/20'}`}
+                  >
+                    Vòng {r}
+                  </button>
+                ))}
+              </div>
+            ) : <div />}
 
             <div className="flex items-center gap-2">
               {/* Create next round OR Record leaderboard button aligned with the round selectors */}
@@ -158,11 +161,18 @@ const TournamentMatches = ({
                       </div>
 
                       <div className="flex flex-col items-center px-6">
-                        <div className="text-2xl font-extrabold text-white flex items-center gap-3">
-                          <span className="text-cyan-300 text-3xl">{scoreA != null ? scoreA : '-'}</span>
-                          <span className="text-gray-400">/</span>
-                          <span className="text-yellow-300 text-3xl">{scoreB != null ? scoreB : '-'}</span>
-                        </div>
+                                      <div className="text-2xl font-extrabold text-white flex items-center gap-3">
+                                        {((scoreA == null && scoreB == null) && match.team_b_participant_id) ? (
+                                          // Scheduled but no result: show "A & B"
+                                          <span className="text-lg text-gray-200">{(match.team_a_name || match.teamA?.team_name || match.teamA?.name || 'A')} &amp; {(match.team_b_name || match.teamB?.team_name || match.teamB?.name || 'B')}</span>
+                                        ) : (
+                                          <>
+                                            <span className="text-cyan-300 text-3xl">{scoreA != null ? scoreA : '-'}</span>
+                                            <span className="text-gray-400">/</span>
+                                            <span className="text-yellow-300 text-3xl">{scoreB != null ? scoreB : '-'}</span>
+                                          </>
+                                        )}
+                                      </div>
                       </div>
 
                       <div className="flex-1 flex items-center justify-start gap-3 text-left">

@@ -1,5 +1,5 @@
 // API Base URL
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ;
 // External backend (for stats or alternate API). Use VITE_API_BACKEND in .env to override.
 export const API_BACKEND = import.meta.env.VITE_API_BACKEND ;
 
@@ -99,11 +99,11 @@ export const BLOCKCHAIN_NETWORK = {
 export const API_ENDPOINTS = {
   LOGIN: '/users/login',
   REGISTER: '/users/register',
-  REFRESH_TOKEN: '/auth/refresh',
-  LOGOUT: '/auth/logout',
+  REFRESH_TOKEN: '/users/refresh-token',
+  LOGOUT: '/users/logout',
   USERS: '/users',
   USER_PROFILE: '/users/profile',
-  ADMIN_CREATE_ACCOUNT: '/users/new-account',  // Fixed: Match backend route
+  ADMIN_CREATE_ACCOUNT: '/users/new-account',
   
   // Backend có các endpoint này
   GAMES: '/games',
@@ -111,14 +111,29 @@ export const API_ENDPOINTS = {
   SEASONS: '/seasons',
   RANKING_BOARD: '/ranking-board',
   
-  // Backend chưa có các endpoint này (TODO)
   TEAM_MEMBERS: '/teams/:id/members',
   TEAM_INVITATIONS: '/teams/:id/invitations',
   PLAYERS: '/players',
   PLAYER_STATS: '/players/:id/stats',
-  TOURNAMENTS: '/tournaments',  // Chưa có backend - đang dùng /ranking-board thay thế
+  TOURNAMENTS: '/tournaments',
   TOURNAMENT_REGISTRATIONS: '/tournaments/:id/registrations',
   TOURNAMENT_LEADERBOARD: '/tournaments/:id/leaderboard',
+  TOURNAMENT_REWARDS: '/tournaments/:id/rewards',
+  WALLET: '/wallet',
+  REWARDS: '/rewards',
+  NEWS: '/news',
+
+  // Blockchain-related endpoints
+  BLOCKCHAIN_STORE_MATCH_RESULT: '/blockchain/store-match-result',
+  BLOCKCHAIN_VERIFY_MATCH_RESULT: '/blockchain/verify-match-result',
+  BLOCKCHAIN_REWARDS: '/blockchain/rewards',
+  BLOCKCHAIN_VERIFY_WALLET: '/blockchain/verify-wallet',
+  BLOCKCHAIN_STATS: '/blockchain/stats',
+  BLOCKCHAIN_TX_PENDING: '/blockchain/transactions/pending',
+  BLOCKCHAIN_TX_FAILED: '/blockchain/transactions/failed',
+  BLOCKCHAIN_GAS_PRICE: '/blockchain/gas-price',
+  BLOCKCHAIN_STORE_TOURNAMENT: '/blockchain/store-tournament',
+  BLOCKCHAIN_TOURNAMENTS: '/blockchain/tournaments/:id',
   MATCHES: '/matches',
   MATCH_RESULTS: '/matches/:id/results',
   BLOCKCHAIN_TRANSACTIONS: '/blockchain/transactions',

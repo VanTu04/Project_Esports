@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { STORAGE_KEYS, API_BASE_URL } from '../utils/constants';
+import { STORAGE_KEYS, API_BASE_URL, API_ENDPOINTS } from '../utils/constants';
 import storage from '../utils/storage';
 
 // Tạo instance axios với baseURL tương đối (hoặc thay bằng URL backend thật nếu cần)
@@ -52,7 +52,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        await api.post('/users/refresh-token'); // backend tạo accessToken mới trong cookie
+        await api.post(API_ENDPOINTS.REFRESH_TOKEN); // backend tạo accessToken mới trong cookie
         processQueue(null);
         return api(originalRequest); // retry request gốc
       } catch (err) {

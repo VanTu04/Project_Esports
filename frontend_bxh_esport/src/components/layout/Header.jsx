@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bars3Icon, BellIcon, UserCircleIcon } from "@heroicons/react/24/outline";
+import { Bars3Icon, BellIcon, UserCircleIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { Menu, Transition } from "@headlessui/react";
 import { useAuth } from "../../context/AuthContext";
 import { USER_ROLES, ROUTES } from '../../utils/constants';
@@ -54,27 +54,32 @@ const Header = ({ onMenuClick }) => {
           <LogoLink user={user} />
         </div>
 
-        {/* Navigation */}
-        <nav className="hidden lg:flex items-center gap-10 text-base font-semibold text-gray-300">
-          <Link to="/" className="hover:text-white transition">Trang chủ</Link>
-          <Link to="/schedule" className="hover:text-white transition">Lịch thi đấu</Link>
-
-          <Link to="/leaderboard" className="hover:text-white transition">Bảng xếp hạng</Link>
-
-          {/* only show core links: Home, Schedule, Standings */}
+        {/* Navigation - expanded to match demo */}
+        <nav className="hidden lg:flex items-center gap-6 text-base font-semibold text-gray-300">
+          <Link to="/" className="hover:text-white transition px-2 py-1 rounded">Trang chủ</Link>
+          <Link to="/tournaments" className="hover:text-white transition px-2 py-1 rounded">Giải đấu</Link>
+          <Link to="/teams" className="hover:text-white transition px-2 py-1 rounded">Đội tuyển</Link>
+          <Link to="/schedule" className="hover:text-white transition px-2 py-1 rounded">Lịch thi đấu</Link>
+          <Link to="/news" className="hover:text-white transition px-2 py-1 rounded">Tin tức</Link>
+          <Link to="/leaderboard" className="hover:text-white transition px-2 py-1 rounded">Xếp hạng</Link>
         </nav>
 
         {/* Right Section */}
         <div className="flex items-center gap-6">
+          {/* Search icon */}
+          <Link to="/search" className="p-2 text-gray-400 hover:text-white transition hidden md:inline-flex">
+            <MagnifyingGlassIcon className="h-6 w-6" />
+          </Link>
+
           {/* Notifications - Chỉ hiển thị khi đã login */}
           {user && (
             <Link
               to="/notifications"
               className="relative p-2 text-gray-400 hover:text-white transition"
             >
-              <BellIcon className="h-7 w-7" />
+              <BellIcon className="h-6 w-6" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 h-5 w-5 bg-red-600 rounded-full flex items-center justify-center text-xs text-white">
+                <span className="absolute top-0 right-0 -mt-1 -mr-1 h-5 w-5 bg-red-600 rounded-full flex items-center justify-center text-xs text-white">
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}

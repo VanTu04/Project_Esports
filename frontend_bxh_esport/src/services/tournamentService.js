@@ -46,12 +46,17 @@ const tournamentService = {
       // Backend exposes matches via the tournaments router at POST /tournaments/rounds/matches
       // The controller expects body fields named `tournaments` and `rounds` (legacy names),
       // so include both `tournament_id`/`round_number` and the legacy keys to be safe.
+      // IMPORTANT: do NOT default `round_number` to 1 here — if caller omits round_number
+      // we should request matches for all rounds (backend will treat missing round_number
+      // as "all rounds"), otherwise callers that want all rounds will only receive round 1.
       const body = {
         tournament_id: tournamentId,
-        round_number: params.round_number || 1,
-        tournaments: tournamentId,
-        rounds: params.round_number || 1
+        tournaments: tournamentId
       };
+      if (params && params.round_number !== undefined && params.round_number !== null) {
+        body.round_number = params.round_number;
+        body.rounds = params.round_number;
+      }
 
       const res = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/rounds/matches`, body);
       return res?.data ?? res;
@@ -295,12 +300,13 @@ const tournamentService = {
   // GET /api/matches/matches?tournament_id=1&round_number=1
   getMatches: async (params = {}) => {
     try {
-      // Backend yêu cầu round_number, nếu không có thì dùng mặc định là 1
-      const queryParams = {
-        ...params,
-        round_number: params.round_number || 1
-      };
-  const res = await apiClient.get(`${API_ENDPOINTS.MATCHES}/matches`, { params: queryParams });
+      // Do not default round_number to 1 here. If caller omits round_number,
+      // pass only the provided params so backend can decide behavior (or return all rounds).
+      const queryParams = { ...params };
+      if (params && params.round_number !== undefined && params.round_number !== null) {
+        queryParams.round_number = params.round_number;
+      }
+      const res = await apiClient.get(`${API_ENDPOINTS.MATCHES}/matches`, { params: queryParams });
   return res?.data ?? res;
     } catch (error) {
       throw error;

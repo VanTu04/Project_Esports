@@ -509,9 +509,9 @@ export const TournamentDetail = () => {
               variant="ghost"
               size="sm"
               onClick={() => {
-                if (isAdmin) return navigate(ROUTES.ADMIN_TOURNAMENTS);
-                if (isTeamManager) return navigate(ROUTES.TEAM_MANAGER_TOURNAMENTS);
-                return navigate(ROUTES.TOURNAMENTS);
+                // Always navigate back to home to ensure consistent UX when returning
+                // from detail page as requested by product.
+                return navigate(ROUTES.HOME || '/');
               }}
             >
               Quay lại
