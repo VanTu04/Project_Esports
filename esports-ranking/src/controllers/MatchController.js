@@ -136,19 +136,24 @@ export const reportMatchResult = async (req, res) => {
     }
 
     // 5. Tính điểm: Thắng 2 điểm, Thua 1 điểm
-    const scoreA = Number(winner_participant_id) === teamA_id ? 2 : 1;
-    const scoreB = Number(winner_participant_id) === teamB_id ? 2 : 1;
+    const pointA = Number(winner_participant_id) === teamA_id ? 2 : 1;
+    const pointB = Number(winner_participant_id) === teamB_id ? 2 : 1;
+
+    // Score là tỷ số thắng thua (có thể lấy từ body nếu cần chi tiết hơn)
+    const { score_team_a = 1, score_team_b = 0 } = req.body; // Mặc định thắng 1-0
 
     // 6. Cập nhật điểm lên blockchain
     // NOTE: Contract hiện tại chỉ hỗ trợ updateRoundLeaderboard, không có updateMatchScore
     // Blockchain sẽ được cập nhật khi kết thúc round thông qua updateRoundLeaderboard
-    // await updateMatchScoreOnChain(match_id, scoreA, scoreB);
+    // await updateMatchScoreOnChain(match_id, pointA, pointB);
 
-    // 7. Cập nhật CSDL (bao gồm score_a và score_b)
+    // 7. Cập nhật CSDL
     await match.update({
       winner_participant_id,
-      score_a: scoreA,
-      score_b: scoreB,
+      point_team_a: pointA,
+      point_team_b: pointB,
+      score_team_a: score_team_a,
+      score_team_b: score_team_b,
       status: 'COMPLETED'
     }, { transaction: t });
 
@@ -157,8 +162,10 @@ export const reportMatchResult = async (req, res) => {
 
     return res.json(responseSuccess({
       winner_participant_id,
-      score_a: scoreA,
-      score_b: scoreB
+      point_team_a: pointA,
+      point_team_b: pointB,
+      score_team_a,
+      score_team_b
     }, 'Báo cáo kết quả thành công. Điểm sẽ được cập nhật lên blockchain khi kết thúc vòng đấu.'));
   } catch (error) {
     await t.rollback();
@@ -222,6 +229,101 @@ export const getMatchesByTournament = async (req, res) => {
     return res.json(responseSuccess(matches, "Lấy danh sách trận đấu thành công"));
   } catch (error) {
     console.error("getMatchesByTournament error:", error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+/**
+ * Lấy danh sách trận đấu của team hiện tại (user đang đăng nhập)
+ * GET /api/matches/my-team
+ * Query params: 
+ *   - page (default: 1)
+ *   - limit (default: 10)
+ *   - tournament_id (optional): lọc theo giải đấu
+ *   - status (optional): PENDING, IN_PROGRESS, COMPLETED
+ *   - search (optional): tìm kiếm theo tên đối thủ
+ */
+export const getMatchesByTeam = async (req, res) => {
+  try {
+    const { id: user_id } = req.user; // Lấy user_id từ token
+    const { page, limit, tournament_id, status, search } = req.query;
+
+    // 1. Tìm participant_id của user trong các tournament
+    const participants = await models.Participant.findAll({
+      where: { 
+        user_id,
+        status: 'APPROVED' // Chỉ lấy team đã được duyệt
+      },
+      attributes: ['id', 'tournament_id']
+    });
+
+    if (!participants || participants.length === 0) {
+      return res.json(responseSuccess({
+        matches: [],
+        pagination: { page: 1, limit: 10, total: 0, totalPages: 0 }
+      }, "Bạn chưa tham gia giải đấu nào"));
+    }
+
+    const participantIds = participants.map(p => p.id);
+
+    // 2. Gọi service với danh sách participant_id
+    const { matches, total } = await matchService.findMatchesByTeam(participantIds, {
+      page: page || 1,
+      limit: limit || 10,
+      tournamentId: tournament_id,
+      status,
+      search
+    });
+
+    // 3. Format response - giữ nguyên structure từ DB, chỉ thêm avatar URL
+    const formattedMatches = matches.map(match => ({
+      id: match.id,
+      tournament_id: match.tournament_id,
+      round_number: match.round_number,
+      team_a_participant_id: match.team_a_participant_id,
+      team_b_participant_id: match.team_b_participant_id,
+      winner_participant_id: match.winner_participant_id,
+      point_team_a: match.point_team_a,
+      point_team_b: match.point_team_b,
+      score_team_a: match.score_team_a,
+      score_team_b: match.score_team_b,
+      status: match.status,
+      match_time: match.match_time,
+      created_at: match.created_at,
+      updated_at: match.updated_at,
+      tournament: match.tournament,
+      teamA: match.teamA ? {
+        id: match.teamA.id,
+        user_id: match.teamA.user_id,
+        team_name: match.teamA.team_name,
+        wallet_address: match.teamA.wallet_address,
+        avatar: match.teamA.team?.avatar ? `${backendUrl}${match.teamA.team.avatar}` : null
+      } : null,
+      teamB: match.teamB ? {
+        id: match.teamB.id,
+        user_id: match.teamB.user_id,
+        team_name: match.teamB.team_name,
+        wallet_address: match.teamB.wallet_address,
+        avatar: match.teamB.team?.avatar ? `${backendUrl}${match.teamB.team.avatar}` : null
+      } : null
+    }));
+
+    const currentPage = parseInt(page || 1);
+    const currentLimit = parseInt(limit || 10);
+    const totalPages = Math.ceil(total / currentLimit);
+
+    return res.json(responseSuccess({
+      matches: formattedMatches,
+      pagination: {
+        page: currentPage,
+        limit: currentLimit,
+        total,
+        totalPages
+      }
+    }, "Lấy danh sách trận đấu thành công"));
+
+  } catch (error) {
+    console.error("getMatchesByTeam error:", error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };

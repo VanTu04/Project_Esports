@@ -1,6 +1,6 @@
 import express from 'express';
 import * as matchController from '../controllers/MatchController.js';
-import { checkRole } from '../middlewares/jwt_token.js';
+import { checkAccessToken, checkRole } from '../middlewares/jwt_token.js';
 import roles from '../constant/roles.js';
 
 const router = express.Router();
@@ -20,5 +20,9 @@ router.get('/match/:matchId/score', matchController.getMatchScore);
 
 // === 5. Lấy tất cả trận đấu theo tournament từ blockchain ===
 router.get('/tournament/:tournamentId/matches', matchController.getMatchesByTournament);
+
+// === 6. Lấy danh sách trận đấu của team hiện tại (có phân trang, tìm kiếm) ===
+router.get('/my-team', checkAccessToken, matchController.getMatchesByTeam);
+// query: ?page=1&limit=10&tournament_id=1&status=COMPLETED&search=team_name
 
 export default router;

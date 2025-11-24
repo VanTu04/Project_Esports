@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { leaderboardContract, adminWallet } from '../init/blockchain.js';
+import { leaderboardContract, adminWallet, provider } from '../init/blockchain.js';
 
 // ================= Ghi BXH =================
 export const updateLeaderboardOnChain = async ({ tournamentId, roundNumber, participantsArr, scoresArr }) => {
@@ -310,12 +310,12 @@ export const distributeRewardOnChain = async (to, amountEth) => {
   if (!ethers.isAddress(to)) throw new Error("Địa chỉ nhận không hợp lệ");
 
   // Kiểm tra số dư contract
-  const contractBalance = await provider.getBalance(leaderboardContract.address);
+  const contractBalance = await provider.getBalance(leaderboardContract.target);
   if (parseFloat(ethers.formatEther(contractBalance)) < amountEth) {
     throw new Error("Contract không đủ ETH để phân phối");
   }
 
-  const tx = await leaderboardContract.connect(adminWallet).distribute(
+  const tx = await leaderboardContract.distributeReward(
     to,
     ethers.parseEther(amountEth.toString())
   );
@@ -327,4 +327,43 @@ export const distributeRewardOnChain = async (to, amountEth) => {
     txHash: tx.hash,
     blockNumber: receipt.blockNumber,
   };
+};
+
+/**
+ * Admin nạp tiền vào contract để phân phối rewards
+ */
+export const fundContractForRewards = async (amountEth) => {
+  if (amountEth <= 0) throw new Error("Số tiền phải lớn hơn 0");
+
+  // Kiểm tra số dư admin
+  const adminBalance = await provider.getBalance(adminWallet.address);
+  if (parseFloat(ethers.formatEther(adminBalance)) < amountEth) {
+    throw new Error("Admin không đủ ETH để nạp vào contract");
+  }
+
+  // Gửi ETH vào contract
+  const tx = await adminWallet.sendTransaction({
+    to: leaderboardContract.target,
+    value: ethers.parseEther(amountEth.toString())
+  });
+
+  const receipt = await tx.wait();
+  
+  // Lấy số dư contract sau khi nạp
+  const newBalance = await provider.getBalance(leaderboardContract.target);
+
+  return {
+    txHash: tx.hash,
+    blockNumber: receipt.blockNumber,
+    amountFunded: amountEth,
+    newContractBalance: parseFloat(ethers.formatEther(newBalance))
+  };
+};
+
+/**
+ * Xem số dư của contract
+ */
+export const getContractBalance = async () => {
+  const balance = await provider.getBalance(leaderboardContract.target);
+  return parseFloat(ethers.formatEther(balance));
 };

@@ -1,5 +1,5 @@
 import models from '../models/index.js';
-import { getLeaderboardFromChain, distributeRewardOnChain } from '../services/BlockchainService.js';
+import { getLeaderboardFromChain, distributeRewardOnChain, fundContractForRewards, getContractBalance } from '../services/BlockchainService.js';
 import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
 
@@ -11,8 +11,9 @@ export const distributeTournamentRewards = async (req, res) => {
   const t = await models.sequelize.transaction();
   
   try {
-    const { tournament_id } = req.params;
+    const { tournament_id } = req.body;
     const { id: admin_id } = req.user; // Lấy ID admin từ token
+    console.log("Phân phối giải thưởng cho giải đấu ID:", tournament_id, "bởi admin ID:", admin_id);
 
     // 1️⃣ Lấy giải đấu
     const tournament = await models.Tournament.findByPk(tournament_id, { transaction: t });
@@ -79,7 +80,40 @@ export const distributeTournamentRewards = async (req, res) => {
       };
     });
 
-    // 6️⃣ Phân phối giải thưởng và lưu transaction history
+    // 6️⃣ Tính tổng tiền cần phân phối
+    const totalRewardAmount = rewards.reduce((sum, r) => sum + parseFloat(r.reward_amount), 0);
+    console.log(`💰 Tổng phần thưởng cần phân phối: ${totalRewardAmount} ETH`);
+
+    // 7️⃣ Kiểm tra số dư contract
+    const contractBalance = await getContractBalance();
+    console.log(`📦 Số dư contract hiện tại: ${contractBalance} ETH`);
+
+    // 8️⃣ Nếu không đủ, admin nạp thêm tiền vào contract
+    if (contractBalance < totalRewardAmount) {
+      const amountToFund = totalRewardAmount - contractBalance + 0.01; // Thêm 0.01 ETH dự phòng
+      console.log(`⚠️ Contract thiếu ${amountToFund.toFixed(4)} ETH, đang nạp tiền...`);
+
+      const fundResult = await fundContractForRewards(amountToFund);
+      console.log(`✅ Đã nạp ${amountToFund} ETH vào contract. TX: ${fundResult.txHash}`);
+
+      // Ghi lại transaction admin nạp tiền (chi tiền ra)
+      await models.TransactionHistory.create({
+        tournament_id: tournament_id,
+        participant_id: null, // Không liên quan đến participant cụ thể
+        user_id: admin_id,
+        from_user_id: admin_id,
+        to_user_id: null, // Nạp vào contract, không có người nhận cụ thể
+        actor: 'ADMIN',
+        type: 'FUND_CONTRACT',
+        tx_hash: fundResult.txHash,
+        amount: amountToFund,
+        status: 'SUCCESS',
+        description: `Admin nạp ${amountToFund} ETH vào contract để phân phối giải thưởng giải đấu #${tournament_id}`
+      }, { transaction: t });
+    }
+
+    // 9️⃣ Phân phối giải thưởng cho từng team
+    // 9️⃣ Phân phối giải thưởng cho từng team
     const distributions = [];
     
     for (let i = 0; i < rewards.length && i < leaderboard.length; i++) {
@@ -93,8 +127,13 @@ export const distributeTournamentRewards = async (req, res) => {
       }
 
       try {
-        // Gọi smart contract phân phối
+        // Gọi smart contract phân phối từ contract -> team
+        console.log(`⏳ Đang phân phối cho hạng ${reward.rank}...`);
         const txResult = await distributeRewardOnChain(winner.wallet, reward.reward_amount);
+        console.log(`✅ Phân phối hạng ${reward.rank} thành công. TX: ${txResult.txHash}`);
+
+        // Đợi 500ms để tránh nonce conflict
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         // Cập nhật tx_hash vào TournamentReward
         await reward.update({ 
@@ -102,19 +141,19 @@ export const distributeTournamentRewards = async (req, res) => {
           distributed_at: new Date()
         }, { transaction: t });
 
-        // Lưu vào TransactionHistory
+        // Lưu 1 bản ghi TransactionHistory cho user (thu tiền từ contract)
         await models.TransactionHistory.create({
           tournament_id: tournament_id,
           participant_id: participantInfo.participant_id,
-          user_id: participantInfo.user_id,
-          from_user_id: admin_id, // Admin phân phối
-          to_user_id: participantInfo.user_id, // User nhận
-          actor: 'ADMIN',
-          type: 'DISTRIBUTE_REWARD',
+          user_id: participantInfo.user_id, // User xem được giao dịch này
+          from_user_id: admin_id,
+          to_user_id: participantInfo.user_id,
+          actor: 'SYSTEM',
+          type: 'RECEIVE_REWARD',
           tx_hash: txResult.txHash,
           amount: reward.reward_amount,
           status: 'SUCCESS',
-          description: `Phân phối giải thưởng hạng ${reward.rank}`
+          description: `Nhận giải thưởng hạng ${reward.rank} từ giải đấu #${tournament_id}`
         }, { transaction: t });
 
         distributions.push({
@@ -136,13 +175,13 @@ export const distributeTournamentRewards = async (req, res) => {
       }
     }
 
-    // 7️⃣ Đánh dấu giải đấu đã phân phối
+    // 🔟 Đánh dấu giải đấu đã phân phối
     await tournament.update({ 
       reward_distributed: 1,
       reward_distributed_at: new Date()
     }, { transaction: t });
 
-    // 8️⃣ Commit transaction
+    // 1️⃣1️⃣ Commit transaction
     await t.commit();
 
     return res.json(responseSuccess({
@@ -157,3 +196,42 @@ export const distributeTournamentRewards = async (req, res) => {
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };
+
+/**
+ * Admin nạp tiền vào contract để chuẩn bị phân phối
+ * POST /api/admin/fund-contract
+ */
+export const fundContract = async (req, res) => {
+  try {
+    const { amount } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Số tiền phải lớn hơn 0'));
+    }
+
+    const result = await fundContractForRewards(amount);
+
+    return res.json(responseSuccess(result, `Đã nạp ${amount} ETH vào contract thành công`));
+
+  } catch (error) {
+    console.error('fundContract error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+/**
+ * Kiểm tra số dư của contract
+ * GET /api/admin/contract-balance
+ */
+export const checkContractBalance = async (req, res) => {
+  try {
+    const balance = await getContractBalance();
+
+    return res.json(responseSuccess({ balance }, `Số dư contract: ${balance} ETH`));
+
+  } catch (error) {
+    console.error('checkContractBalance error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+

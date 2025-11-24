@@ -201,6 +201,40 @@ contract Leaderboard {
             v := byte(0, mload(add(sig, 96)))
         }
     }
+
+    // ============================================================
+    // MODULE C: PHÂN PHỐI PHẦN THƯỞNG (REWARD DISTRIBUTION)
+    // ============================================================
+
+    event RewardDistributed(address indexed recipient, uint256 amount);
+
+    /**
+     * @dev Admin phân phối phần thưởng cho người thắng cuộc
+     */
+    function distributeReward(address payable _recipient, uint256 _amount) external onlyOwner {
+        require(_recipient != address(0), "Invalid recipient address");
+        require(_amount > 0, "Amount must be greater than 0");
+        require(address(this).balance >= _amount, "Insufficient contract balance");
+
+        (bool success, ) = _recipient.call{value: _amount}("");
+        require(success, "Transfer failed");
+
+        emit RewardDistributed(_recipient, _amount);
+    }
+
+    /**
+     * @dev Admin nạp tiền vào contract để chuẩn bị phân phối
+     */
+    function fundContract() external payable onlyOwner {
+        require(msg.value > 0, "Must send ETH");
+    }
+
+    /**
+     * @dev Xem số dư của contract
+     */
+    function getContractBalance() external view returns (uint256) {
+        return address(this).balance;
+    }
     
     // Hàm nhận tiền fallback (để Contract có thể nhận ETH trực tiếp nếu cần)
     receive() external payable {}
