@@ -1,5 +1,8 @@
 import { apiClient } from './api';
 import { API_ENDPOINTS } from '../utils/constants';
+import storage from '../utils/storage';
+
+const CACHE_KEY_WALLET_TX = 'CACHED_WALLET_TRANSACTIONS';
 
 const blockchainService = {
   /**
@@ -7,8 +10,10 @@ const blockchainService = {
    */
   getAllTransactions: async (params = {}) => {
     try {
-      const response = await apiClient.get(API_ENDPOINTS.BLOCKCHAIN_TRANSACTIONS || '/blockchain/transactions', { params });
-      return response;
+      // Backend does not expose a global /blockchain/transactions endpoint.
+      // Use wallet transactions endpoint (current user's transactions) as the closest supported API.
+      const response = await apiClient.get(`${API_ENDPOINTS.WALLET}/transactions`, { params });
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }
@@ -19,8 +24,12 @@ const blockchainService = {
    */
   getTransactionByHash: async (txHash) => {
     try {
-      const response = await apiClient.get(`/blockchain/transactions/${txHash}`);
-      return response;
+      // Backend has no direct /blockchain/transactions/:hash route. Fall back to fetching wallet transactions and filter.
+      const resp = await apiClient.get(`${API_ENDPOINTS.WALLET}/transactions`);
+      const payload = resp && resp.data ? resp.data : resp;
+      const transactions = payload?.data ?? payload ?? [];
+      const found = (Array.isArray(transactions) ? transactions : []).find(t => t.tx_hash === txHash || t.txHash === txHash || t.tx_hash === txHash);
+      return found || null;
     } catch (error) {
       throw error;
     }
@@ -31,8 +40,10 @@ const blockchainService = {
    */
   storeMatchResult: async (matchId) => {
     try {
-      const response = await apiClient.post(API_ENDPOINTS.BLOCKCHAIN_STORE_MATCH_RESULT, { matchId });
-      return response;
+      // There is no dedicated backend HTTP route for storing match result on-chain.
+      // Prefer using tournament endpoints if available (e.g., recording ranking is exposed), otherwise return an informative error.
+      console.warn('[blockchainService] storeMatchResult called but no backend route available');
+      throw new Error('storeMatchResult is not exposed via HTTP on the backend');
     } catch (error) {
       throw error;
     }
@@ -43,11 +54,9 @@ const blockchainService = {
    */
   verifyMatchResult: async (matchId, txHash) => {
     try {
-      const response = await apiClient.post(API_ENDPOINTS.BLOCKCHAIN_VERIFY_MATCH_RESULT, {
-        matchId,
-        txHash,
-      });
-      return response;
+      // No dedicated backend HTTP route for verifying match result; this is a blockchain contract call on the server.
+      console.warn('[blockchainService] verifyMatchResult called but no backend route available');
+      throw new Error('verifyMatchResult is not exposed via HTTP on the backend');
     } catch (error) {
       throw error;
     }
@@ -59,11 +68,11 @@ const blockchainService = {
   distributeRewards: async (tournamentId, distributionData) => {
     try {
       // Backend exposes tournament-level distribute endpoint: POST /api/tournaments/:tournament_id/distribute-rewards
-      const endpoint = API_ENDPOINTS.TOURNAMENTS + `/${tournamentId}/distribute-rewards`;
-      const response = await apiClient.post(endpoint, {
-        ...distributionData,
-      });
-      return response;
+      // However there is also a wallet-scoped endpoint POST /wallet/distribute-rewards which may be used by the UI.
+      // Call the wallet endpoint for distribution as it matches backend `wallet.route.js`.
+      const endpoint = `${API_ENDPOINTS.WALLET}/distribute-rewards`;
+      const response = await apiClient.post(endpoint, { idTournament: tournamentId, ...distributionData });
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }
@@ -74,8 +83,9 @@ const blockchainService = {
    */
   getRewardHistory: async (params = {}) => {
     try {
-      const response = await apiClient.get(API_ENDPOINTS.BLOCKCHAIN_REWARDS, { params });
-      return response;
+      // Backend may not expose a dedicated blockchain rewards list; fall back to tournament rewards or return empty.
+      console.warn('[blockchainService] getRewardHistory: backend endpoint may not exist; returning empty list');
+      return { data: [] };
     } catch (error) {
       throw error;
     }
@@ -88,9 +98,49 @@ const blockchainService = {
   getMyWalletTransactions: async (params = {}) => {
     try {
       const response = await apiClient.get(`${API_ENDPOINTS.WALLET}/transactions`, { params });
-      return response;
+      const payload = (response && response.data) ? response.data : response;
+      // Cache successful transactions for offline/fallback usage
+      try {
+        const txs = payload?.data ?? payload ?? [];
+        storage.setItem(CACHE_KEY_WALLET_TX, txs);
+      } catch (e) {
+        // ignore cache errors
+      }
+      return payload;
     } catch (error) {
-      throw error;
+      // Log detailed error to help debugging
+      // eslint-disable-next-line no-console
+      console.error('[blockchainService] getMyWalletTransactions error:', {
+        message: error.message,
+        status: error.response?.status,
+        body: error.response?.data,
+        url: error.config?.url,
+      });
+
+      // Try to parse error message from HTML or JSON returned by server
+      let parsedError = error.response?.data;
+      try {
+        if (typeof parsedError === 'string' && parsedError.startsWith('<!DOCTYPE')) {
+          // crude extraction: find first occurrence of 'ReferenceError' or message inside <pre>
+          const m = parsedError.match(/<pre>([\s\S]*?)<\/pre>/i);
+          if (m && m[1]) parsedError = m[1];
+        }
+      } catch (e) {
+        // ignore parse
+      }
+
+      // Attempt to return cached transactions if available
+      try {
+        const cached = storage.getItem(CACHE_KEY_WALLET_TX) || [];
+        if (cached && Array.isArray(cached) && cached.length > 0) {
+          return { data: cached, totalItems: cached.length, totalPages: 1, currentPage: 1, _error: parsedError, _stale: true };
+        }
+      } catch (e) {
+        // ignore cache read errors
+      }
+
+      // No cache available -> return structured fallback with error
+      return { data: [], totalItems: 0, totalPages: 0, currentPage: 0, _error: parsedError || error.message };
     }
   },
 
@@ -98,7 +148,7 @@ const blockchainService = {
   getTeamWalletTransactions: async (params = {}) => {
     try {
       const response = await apiClient.get(`${API_ENDPOINTS.WALLET}/transactions`, { params });
-      return response;
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }
@@ -111,7 +161,7 @@ const blockchainService = {
   getMyWalletBalance: async () => {
     try {
       const response = await apiClient.get(`${API_ENDPOINTS.WALLET}/balance`);
-      return response;
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }
@@ -121,7 +171,7 @@ const blockchainService = {
   getTeamWalletBalance: async () => {
     try {
       const response = await apiClient.get(`${API_ENDPOINTS.WALLET}/balance`);
-      return response;
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }
@@ -137,7 +187,7 @@ const blockchainService = {
         signature,
         message,
       });
-      return response;
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }
@@ -149,7 +199,7 @@ const blockchainService = {
   getBlockchainStats: async () => {
     try {
       const response = await apiClient.get(API_ENDPOINTS.BLOCKCHAIN_STATS);
-      return response;
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }
@@ -161,7 +211,7 @@ const blockchainService = {
   getPendingTransactions: async () => {
     try {
       const response = await apiClient.get(API_ENDPOINTS.BLOCKCHAIN_TX_PENDING);
-      return response;
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }
@@ -173,7 +223,7 @@ const blockchainService = {
   getFailedTransactions: async (params = {}) => {
     try {
       const response = await apiClient.get(API_ENDPOINTS.BLOCKCHAIN_TX_FAILED, { params });
-      return response;
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }
@@ -185,7 +235,7 @@ const blockchainService = {
   retryTransaction: async (transactionId) => {
     try {
       const response = await apiClient.post(`/blockchain/transactions/${transactionId}/retry`);
-      return response;
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }
@@ -197,7 +247,7 @@ const blockchainService = {
   getGasPriceEstimation: async () => {
     try {
       const response = await apiClient.get(API_ENDPOINTS.BLOCKCHAIN_GAS_PRICE);
-      return response;
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }
@@ -209,7 +259,7 @@ const blockchainService = {
   storeTournamentData: async (tournamentId) => {
     try {
       const response = await apiClient.post(API_ENDPOINTS.BLOCKCHAIN_STORE_TOURNAMENT, { tournamentId });
-      return response;
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }
@@ -220,9 +270,9 @@ const blockchainService = {
    */
   getTournamentDataFromBlockchain: async (tournamentId) => {
     try {
-      const endpoint = API_ENDPOINTS.BLOCKCHAIN_TOURNAMENTS.replace(':id', tournamentId);
-      const response = await apiClient.get(endpoint);
-      return response;
+      // Backend exposes final leaderboard via POST /tournaments/bxh/:tournamentId
+      const response = await apiClient.post(`${API_ENDPOINTS.TOURNAMENTS}/bxh/${tournamentId}`);
+      return (response && response.data) ? response.data : response;
     } catch (error) {
       throw error;
     }

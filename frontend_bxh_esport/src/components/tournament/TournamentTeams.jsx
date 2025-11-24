@@ -1,8 +1,9 @@
 import React from 'react';
 import { Card } from '../common/Card';
 import { resolveTeamLogo } from '../../utils/imageHelpers';
+import { getStatusBadge } from './TournamentInfo';
 
-const TournamentTeams = ({ teams = [], findTeamLogo, getStatusBadge }) => {
+const TournamentTeams = ({ teams = [], findTeamLogo }) => {
   return (
     <Card padding="lg">
       {teams.length === 0 ? (

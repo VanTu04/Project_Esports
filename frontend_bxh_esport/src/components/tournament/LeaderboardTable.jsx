@@ -4,6 +4,23 @@ import { resolveTeamLogo, normalizeImageUrl } from '../../utils/imageHelpers';
 import { TrophyIcon } from '@heroicons/react/24/solid';
 
 const LeaderboardTable = ({ data, loading }) => {
+  // Accept raw leaderboard payload and normalize here so caller is simpler
+  const rows = (Array.isArray(data) ? data : []).map((row) => ({
+    rank: row?.rank ?? 0,
+    wallet: row?.wallet ?? '',
+    score: row?.score ?? 0,
+    userId: row?.userId ?? null,
+    username: row?.username ?? '',
+    avatar: row?.avatar ?? null,
+    teamName: row?.teamName ?? row?.username ?? '',
+    wins: row?.wins ?? 0,
+    losses: row?.losses ?? 0,
+    draws: row?.draws ?? 0,
+    totalMatches: row?.totalMatches ?? 0,
+    buchholzScore: row?.buchholzScore ?? 0,
+    team: { logo: row?.avatar ?? null, name: row?.teamName ?? row?.username ?? '' }
+  }));
+
   const columns = [
     {
       header: 'Hạng',
@@ -93,7 +110,7 @@ const LeaderboardTable = ({ data, loading }) => {
     },
   ];
 
-  return <Table columns={columns} data={data} loading={loading} />;
+  return <Table columns={columns} data={rows} loading={loading} />;
 };
 
 export default LeaderboardTable;

@@ -18,7 +18,6 @@ export default (sequelize) => {
 
     participant_id: {
       type: DataTypes.INTEGER,
-      allowNull: false,
       references: {
         model: 'participants',
         key: 'id'
@@ -49,7 +48,8 @@ export default (sequelize) => {
       type: DataTypes.ENUM(
         'ADMIN',
         'TEAM',
-        'ANONYMOUS'
+        'ANONYMOUS',
+        'SYSTEM'
       ),
       allowNull: false,
       comment: 'Người thực hiện giao dịch'
@@ -61,7 +61,9 @@ export default (sequelize) => {
         'RECEIVE_REFUND',     // user nhận tiền khi bị từ chối
         'REWARD',             // user nhận thưởng
         'APPROVE',            // admin approve đăng ký
-        'DISTRIBUTE_REWARD'   // admin phân phối thưởng
+        'DISTRIBUTE_REWARD',  // admin phân phối thưởng
+        'FUND_CONTRACT',      // admin nạp tiền vào contract
+        'RECEIVE_REWARD'      // user nhận tiền từ contract
       ),
       allowNull: false
     },  
@@ -76,6 +78,20 @@ export default (sequelize) => {
       allowNull: false,
       comment: 'Số tiền (đơn vị ETH)'
     },
+    
+    status: {
+      type: DataTypes.ENUM('SUCCESS', 'FAILED', 'PENDING'),
+      defaultValue: 'SUCCESS',
+      allowNull: false,
+      comment: 'Trạng thái giao dịch'
+    },
+
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Mô tả giao dịch'
+    },
+
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW

@@ -2,12 +2,27 @@ import React from 'react';
 import { Card } from '../common/Card';
 import Button from '../common/Button';
 
+export const getStatusBadge = (status) => {
+  const s = (status || '').toString().toUpperCase();
+  const map = {
+    PENDING: { badge: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', label: 'Chờ (PENDING)' },
+    COMPLETED: { badge: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30', label: 'Đã cập nhật kết quả' },
+    DONE: { badge: 'bg-gray-700/20 text-gray-300 border-gray-700/30', label: 'Đã hoàn tất (DONE)' },
+    CANCELLED: { badge: 'bg-red-500/20 text-red-400 border-red-500/30', label: 'Hủy' }
+  };
+  const item = map[s] || { badge: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', label: status || 'Chờ' };
+  return (
+    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${item.badge} ${item.badge.includes('bg-') ? '' : ''}`}>
+      {item.label}
+    </span>
+  );
+};
+
 const TournamentInfo = ({
   tournament,
   teamsLength,
   matchesLength,
   normalizedRewards,
-  getStatusBadge,
   formatDateTime,
   isTeamView,
   isAdmin,

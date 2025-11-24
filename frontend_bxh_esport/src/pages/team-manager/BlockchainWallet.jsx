@@ -21,16 +21,41 @@ export const BlockchainWallet = () => {
     try {
       // ---- GET BALANCE ----
       const balResp = await blockchainService.getMyWalletBalance();
-      const balanceEth = balResp?.data?.data?.balanceEth ?? null;
-      setBalance(balanceEth);
+      // Support multiple response shapes: service may return axios.response.data (backend wrapper)
+      // or the backend wrapper directly. Try both patterns defensively.
+      const balanceEth = balResp?.data?.data?.balanceEth ?? balResp?.data?.balanceEth ?? balResp?.balanceEth ?? null;
+
+      // If the service returned a structured fallback with an _error field, surface it to the user
+      const balError = balResp?._error || balResp?.data?._error || balResp?.data?.data?._error;
+      if (balError) {
+        showError(balError?.message || balError || 'Lỗi khi lấy số dư ví');
+        setBalance(null);
+      } else {
+        setBalance(balanceEth);
+      }
 
       // ---- GET TRANSACTION HISTORY ----
       const txResp = await blockchainService.getMyWalletTransactions();
-      const transactions = txResp?.data?.data ?? [];
+      // txResp may be shaped as: axiosResp.data (wrapper) -> wrapper.data (array)
+      // or service may already return the wrapper. Normalize defensively.
+      const transactions = txResp?.data?.data ?? txResp?.data ?? txResp ?? [];
 
-      setWalletTransactions(transactions);
-      const possibleId = transactions?.[0]?.user_id ?? transactions?.[0]?.user?.id ?? null;
-      setCurrentUserId(possibleId);
+      // If backend returned an error fallback, show it to the user or use stale cache
+      const txError = txResp?._error || txResp?.data?._error || txResp?.data?.data?._error;
+      const isStale = txResp?._stale === true;
+      if (txError && !isStale) {
+        showError(txError?.message || txError || 'Lỗi khi tải lịch sử giao dịch');
+        setWalletTransactions([]);
+        setCurrentUserId(null);
+      } else {
+        // If stale cached data is returned, show a warning but use the data
+        if (isStale) {
+          showError('Không thể tải dữ liệu mới, đang hiển thị dữ liệu đã lưu (cũ).');
+        }
+        setWalletTransactions(Array.isArray(transactions) ? transactions : []);
+        const possibleId = (Array.isArray(transactions) ? transactions[0] : transactions)?.user_id ?? (Array.isArray(transactions) ? transactions[0]?.user?.id : transactions?.user?.id) ?? null;
+        setCurrentUserId(possibleId);
+      }
 
     } catch (err) {
       console.error(err);

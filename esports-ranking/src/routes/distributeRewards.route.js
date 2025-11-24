@@ -5,6 +5,8 @@ import roles from '../constant/roles.js';
 
 const router = express.Router();
 
-router.post('/:tournament_id/distribute-rewards', checkRole([roles.ADMIN]), distribute.distributeTournamentRewards);
+router.post('/', checkRole([roles.ADMIN]), distribute.distributeTournamentRewards);
+router.post('/fund-contract', checkRole([roles.ADMIN]), distribute.fundContract);
+router.get('/contract-balance', checkRole([roles.ADMIN]), distribute.checkContractBalance);
 
 export default router;

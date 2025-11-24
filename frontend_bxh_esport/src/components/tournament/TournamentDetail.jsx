@@ -26,11 +26,7 @@ export const TournamentDetail = () => {
   const [teamLogos, setTeamLogos] = useState({});
   const [matches, setMatches] = useState([]);
   const [activeTab, setActiveTab] = useState('teams'); // 'teams' or 'matches'
-  const [selectedMatch, setSelectedMatch] = useState(null);
-  const [isUpdateScoreModalOpen, setIsUpdateScoreModalOpen] = useState(false);
-  const [isUpdateTimeModalOpen, setIsUpdateTimeModalOpen] = useState(false);
-  const [scoreA, setScoreA] = useState('');
-  const [scoreB, setScoreB] = useState('');
+  // Match modal state moved into `TournamentMatches` to keep detail file focused on data loading
   const [isRecording, setIsRecording] = useState(false);
   const [isRecorded, setIsRecorded] = useState(false);
   const [leaderboard, setLeaderboard] = useState(null);
@@ -46,9 +42,7 @@ export const TournamentDetail = () => {
     loadData();
   }, [tournamentId]);
 
-  useEffect(() => {
-    if (tournament) setSelectedRound(tournament?.current_round || 1);
-  }, [tournament]);
+  // `selectedRound` synchronization handled inside `TournamentMatches` component
 // Auto-create next round removed: manual creation only to avoid unexpected round generation
   const loadData = async () => {
     try {
@@ -166,22 +160,7 @@ export const TournamentDetail = () => {
     }
   };
 
-  const getStatusBadge = (status) => {
-    const s = (status || '').toString().toUpperCase();
-    const map = {
-      PENDING: { badge: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', label: 'Chờ (PENDING)' },
-      ACTIVE: { badge: 'bg-green-500/20 text-green-400 border-green-500/30', label: 'Đang diễn ra' },
-      COMPLETED: { badge: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30', label: 'Đã cập nhật kết quả' },
-      DONE: { badge: 'bg-gray-700/20 text-gray-300 border-gray-700/30', label: 'Đã hoàn tất (DONE)' },
-      CANCELLED: { badge: 'bg-red-500/20 text-red-400 border-red-500/30', label: 'Hủy' }
-    };
-    const item = map[s] || { badge: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', label: status || 'Chờ' };
-    return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${item.badge} ${item.badge.includes('bg-') ? '' : ''}`}>
-        {item.label}
-      </span>
-    );
-  };
+  // Status badge helper moved to TournamentInfo (imported there and used by other components)
 
   const getMatchStatusBadge = (matchOrStatus) => {
     // Accept either the full match object or a status string for backward compatibility
@@ -197,6 +176,20 @@ export const TournamentDetail = () => {
       scheduledReachedFlag = !!matchOrStatus.__scheduledReached;
     }
 
+    // BYE detection: if this is a BYE/walkover match, show a BYE badge and
+    // do not surface scheduling-related labels like 'Chưa diễn ra' or 'Chưa có lịch'.
+    const isBye = (obj) => {
+      if (!obj || typeof obj !== 'object') return false;
+      if (obj.is_bye || obj.bye || obj.walkover || obj.isWalkover) return true;
+      if (obj.result_type === 'BYE' || obj.result === 'BYE') return true;
+      // if one side is missing and server used teamA as bye team
+      if (!obj.team_b_participant_id && (obj.team_a_participant_id || obj.teamA || obj.team_a_name)) return true;
+      return false;
+    };
+    if (isBye(matchOrStatus)) {
+      return (<span className={`px-2 py-1 rounded-full text-xs font-medium border bg-amber-300/20 text-amber-300 border-amber-300/30`}>Miễn thi đấu</span>);
+    }
+
     // If there's no scheduled time or scheduled time is in the future, show 'Chưa diễn ra'
     if (!matchTime) {
       return (<span className={`px-2 py-1 rounded-full text-xs font-medium border bg-gray-700/10 text-gray-300 border-gray-700/20`}>Chưa diễn ra</span>);
@@ -210,9 +203,9 @@ export const TournamentDetail = () => {
       // PENDING: treat as ongoing and editable
       PENDING: { bg: 'bg-gray-500/20', text: 'text-gray-300', border: 'border-gray-500/30', label: 'Đang diễn ra' },
       // COMPLETED: finished but still editable (allow result edits)
-      COMPLETED: { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', label: 'Đã kết thúc' },
+      COMPLETED: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', label: 'Đã kết thúc' },
       // DONE: finished and locked (no edits allowed)
-      DONE: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', label: 'Đã kết thúc (LOCKED)' }
+      DONE: { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', label: 'Đã kết thúc' },
     };
     const badge = badges[status] || badges.PENDING;
     return (
@@ -220,6 +213,43 @@ export const TournamentDetail = () => {
         {badge.label}
       </span>
     );
+  };
+
+  const isByeMatch = (obj) => {
+    if (!obj || typeof obj !== 'object') return false;
+    if (obj.is_bye || obj.bye || obj.walkover || obj.isWalkover) return true;
+    if (obj.result_type === 'BYE' || obj.result === 'BYE') return true;
+    if (!obj.team_b_participant_id && (obj.team_a_participant_id || obj.teamA || obj.team_a_name)) return true;
+    return false;
+  };
+
+  const getTeamDisplayName = (matchObj, side = 'a') => {
+    if (!matchObj || typeof matchObj !== 'object') return (side === 'a' ? 'TBD' : 'TBD');
+    const s = side === 'a' ? 'a' : 'b';
+    // try flat names first
+    if (s === 'a') {
+      if (matchObj.team_a_name) return matchObj.team_a_name;
+    } else {
+      if (matchObj.team_b_name) return matchObj.team_b_name;
+    }
+
+    // try nested teamA/teamB objects
+    const teamObj = (s === 'a' ? (matchObj.teamA ?? matchObj.team_a ?? matchObj.team_a_team) : (matchObj.teamB ?? matchObj.team_b ?? matchObj.team_b_team));
+    if (teamObj) {
+      return teamObj.team_name || teamObj.name || teamObj.teamName || teamObj.displayName || teamObj.username || teamObj.fullName || teamObj.name_en || teamObj.title || 'TBD';
+    }
+
+    // try generic fallbacks
+    if (matchObj["team_" + s + "_name"]) return matchObj["team_" + s + "_name"];
+    if (matchObj["team" + s.toUpperCase() + "_name"]) return matchObj["team" + s.toUpperCase() + "_name"];
+
+    // BYE detection
+    if (isByeMatch(matchObj) && s === 'a') {
+      // BYE often carried in teamA
+      return matchObj.team_a_name || matchObj.teamA?.team_name || matchObj.teamA?.name || 'BYE';
+    }
+
+    return (s === 'a' ? 'TBD' : 'TBD');
   };
 
   const groupMatchesByRound = () => {
@@ -261,27 +291,6 @@ export const TournamentDetail = () => {
     return null;
   };
 
-  const handleOpenScoreModal = (match) => {
-    setSelectedMatch(match);
-    // prefill scores if available
-    setScoreA(match?.score_team_a ?? match?.score_a ?? match?.score1 ?? '');
-    setScoreB(match?.score_team_b ?? match?.score_b ?? match?.score2 ?? '');
-    setIsUpdateScoreModalOpen(true);
-  };
-
-  const handleOpenTimeModal = (match) => {
-    setSelectedMatch(match);
-    setIsUpdateTimeModalOpen(true);
-  };
-
-  const handleCloseModals = () => {
-    setSelectedMatch(null);
-    setIsUpdateScoreModalOpen(false);
-    setIsUpdateTimeModalOpen(false);
-    setScoreA('');
-    setScoreB('');
-  };
-
   const handleUpdateScore = async (matchId, sA, sB) => {
     try {
       const a = Number(sA ?? 0);
@@ -303,7 +312,10 @@ export const TournamentDetail = () => {
         // Use returned match from server when available to keep state canonical
         const returnedMatch = wrapper?.data?.match ?? wrapper?.match ?? null;
         if (returnedMatch) {
-          setMatches(prev => prev.map(m => m.id === matchId ? ({ ...m, ...normalizeMatch(returnedMatch) }) : m));
+          // Merge server match directly into local state. Avoid calling missing helpers.
+          const scheduledMs = returnedMatch.match_time ? new Date(returnedMatch.match_time).getTime() : null;
+          const reached = scheduledMs !== null && !Number.isNaN(scheduledMs) && scheduledMs <= Date.now();
+          setMatches(prev => prev.map(m => m.id === matchId ? ({ ...m, ...returnedMatch, __scheduledReached: reached }) : m));
         } else {
           // Fallback optimistic update if server doesn't return match
           setMatches(prev => prev.map(m => {
@@ -334,7 +346,7 @@ export const TournamentDetail = () => {
   const handleUpdateTime = async (matchId, scheduledTime) => {
     try {
       const payload = { match_time: new Date(scheduledTime).toISOString() };
-      console.debug('Updating match schedule', { matchId, payload, status: selectedMatch?.status });
+      console.debug('Updating match schedule', { matchId, payload });
       const response = await tournamentService.updateMatchSchedule(matchId, payload);
       console.debug('updateMatchSchedule response raw:', response);
       let wrapper;
@@ -401,15 +413,7 @@ export const TournamentDetail = () => {
     }
   };
 
-  // Modal state for creating next round (replace window.confirm)
-  const [showCreateRoundModal, setShowCreateRoundModal] = useState(false);
-  const openCreateRoundModal = () => setShowCreateRoundModal(true);
-  const closeCreateRoundModal = () => setShowCreateRoundModal(false);
-
-  const confirmCreateRound = async () => {
-    closeCreateRoundModal();
-    await handleStartNewRound();
-  };
+  // Modal state moved into TournamentMatches component
 
   const handleRecordRanking = async () => {
     try {
@@ -478,30 +482,7 @@ export const TournamentDetail = () => {
   const allMatches = matches || [];
   const allRoundsDone = allMatches.length > 0 && allMatches.every(m => (m?.status || '').toString().toUpperCase() === 'DONE');
 
-  // Normalize leaderboard rows from API response to match LeaderboardTable component
-  // API returns: { rank, wallet, score, userId, username, avatar, teamName, wins, losses, draws, totalMatches, buchholzScore }
-  const normalizedLeaderboard = (Array.isArray(leaderboard) ? leaderboard : []).map((row) => {
-    // Return data directly as API structure matches LeaderboardTable expectations
-    return {
-      rank: row?.rank ?? 0,
-      wallet: row?.wallet ?? '',
-      score: row?.score ?? 0,
-      userId: row?.userId ?? null,
-      username: row?.username ?? '',
-      avatar: row?.avatar ?? null,
-      teamName: row?.teamName ?? row?.username ?? '',
-      wins: row?.wins ?? 0,
-      losses: row?.losses ?? 0,
-      draws: row?.draws ?? 0,
-      totalMatches: row?.totalMatches ?? 0,
-      buchholzScore: row?.buchholzScore ?? 0,
-      // Keep team object for backward compatibility with old LeaderboardTable
-      team: {
-        logo: row?.avatar ?? null,
-        name: row?.teamName ?? row?.username ?? '',
-      }
-    };
-  });
+  // Leaderboard normalization moved into `LeaderboardTable` for clarity.
 
   return (
     <div className="min-h-screen bg-dark-400 p-6">
@@ -545,12 +526,10 @@ export const TournamentDetail = () => {
           teamsLength={teams.length}
           matchesLength={matches.length}
           normalizedRewards={normalizedRewards}
-          getStatusBadge={getStatusBadge}
           formatDateTime={(d) => (d ? new Date(d).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '')}
           isTeamView={isTeamManager}
           isAdmin={isAdmin}
           handleStartNewRound={handleStartNewRound}
-          openCreateRoundModal={openCreateRoundModal}
           creatingRound={creatingRound}
           teams={teams}
         />
@@ -612,7 +591,6 @@ export const TournamentDetail = () => {
         {activeTab === 'teams' && (
           <TournamentTeams
             teams={teams}
-            getStatusBadge={getStatusBadge}
             findTeamLogo={findTeamLogo}
           />
         )}
@@ -627,11 +605,10 @@ export const TournamentDetail = () => {
             isTeamView={false}
             isAdmin={isAdmin}
             getMatchStatusBadge={getMatchStatusBadge}
-            handleOpenTimeModal={handleOpenTimeModal}
-            handleOpenScoreModal={handleOpenScoreModal}
+            handleUpdateTime={handleUpdateTime}
+            handleUpdateScore={handleUpdateScore}
             findTeamLogo={findTeamLogo}
             handleStartNewRound={handleStartNewRound}
-            openCreateRoundModal={openCreateRoundModal}
             creatingRound={creatingRound}
             handleRecordRanking={handleRecordRanking}
             isRecording={isRecording}
@@ -640,149 +617,11 @@ export const TournamentDetail = () => {
 
         {/* Tab Content - Leaderboard */}
         {activeTab === 'leaderboard' && (
-          <LeaderboardTable data={normalizedLeaderboard} loading={leaderboardLoading} />
+          <LeaderboardTable data={leaderboard} loading={leaderboardLoading} />
         )}
       </div>
 
-      {/* Modals */}
-      {showCreateRoundModal && (
-        <div className="fixed inset-0 bg-gray-900/70 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
-            <div className="p-6 space-y-4">
-              <h2 className="text-xl font-bold text-white">Xác nhận tạo vòng tiếp theo</h2>
-              <p className="text-gray-300">Sau khi tạo vòng tiếp theo, kết quả các trận ở vòng trước sẽ không thể sửa. Bạn có chắc muốn tiếp tục?</p>
-              <div className="flex gap-3 pt-4">
-                <Button variant="secondary" className="flex-1" onClick={closeCreateRoundModal}>Hủy</Button>
-                <Button variant="primary" className="flex-1" onClick={confirmCreateRound} disabled={creatingRound}>{creatingRound ? 'Đang tạo...' : 'Xác nhận'}</Button>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
-      {isUpdateTimeModalOpen && selectedMatch && (
-  <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-    <Card className="w-full max-w-md">
-      <div className="p-6 space-y-4">
-        <h2 className="text-xl font-bold text-white">
-          <svg className="w-6 h-6 inline mr-2 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Cập nhật thời gian thi đấu
-        </h2>
-
-        {/* Match Info */}
-        <div className="bg-gradient-to-r from-primary-500/10 to-purple-500/10 rounded-lg p-3 border border-primary-500/30 text-center">
-          <span className="text-white font-semibold">
-            {selectedMatch.team_a_name || 'TBD'} VS {selectedMatch.team_b_name || 'TBD'}
-          </span>
-        </div>
-
-        {/* Scheduled Time */}
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Chọn ngày & giờ thi đấu
-          </label>
-          <input
-            type="datetime-local"
-            defaultValue={selectedMatch.match_time ? new Date(selectedMatch.match_time).toISOString().slice(0, 16) : ''}
-            className="w-full px-3 py-2 bg-white border border-primary-700/30 rounded-lg text-gray-900 focus:outline-none focus:border-primary-500"
-            id="scheduledTime"
-            disabled={selectedMatch.status === 'DONE'}
-          />
-        </div>
-
-        <div className="flex gap-3 pt-4">
-          <Button
-            variant="secondary"
-            className="flex-1"
-            onClick={handleCloseModals}
-          >
-            Hủy
-          </Button>
-          <Button
-            variant="primary"
-            className="flex-1"
-            onClick={() => {
-              if (selectedMatch.status === 'DONE') {
-                showError('Không thể gán lịch cho trận đấu đã bị khoá và không thể sửa.');
-                return;
-              }
-              const scheduledTime = document.getElementById('scheduledTime').value;
-              if (!scheduledTime) {
-                showError('Vui lòng chọn thời gian');
-                return;
-              }
-              handleUpdateTime(selectedMatch.id, scheduledTime);
-            }}
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            Cập nhật
-          </Button>
-        </div>
-      </div>
-    </Card>
-  </div>
-)}
-      {isUpdateScoreModalOpen && selectedMatch && (
-        <div className="fixed inset-0 bg-gray-900/70 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
-            <div className="p-6 space-y-4">
-              <h2 className="text-xl font-bold text-white">Cập nhật kết quả</h2>
-
-              <div className="bg-gradient-to-r from-primary-500/10 to-purple-500/10 rounded-lg p-3 border border-primary-500/30 text-center">
-                <span className="text-white font-semibold">
-                  {selectedMatch.team_a_name || 'Team A'} VS {selectedMatch.team_b_name || 'Team B'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Điểm {selectedMatch.team_a_name || 'A'}</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={scoreA}
-                    onChange={(e) => setScoreA(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-primary-700/30 rounded-lg text-gray-900 focus:outline-none focus:border-primary-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Điểm {selectedMatch.team_b_name || 'B'}</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={scoreB}
-                    onChange={(e) => setScoreB(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-primary-700/30 rounded-lg text-gray-900 focus:outline-none focus:border-primary-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <Button variant="secondary" className="flex-1" onClick={handleCloseModals}>Hủy</Button>
-                <Button
-                  variant="primary"
-                  className="flex-1"
-                  disabled={scoreA === '' || scoreB === '' || Number(scoreA) === Number(scoreB) || selectedMatch.status === 'DONE'}
-                  onClick={() => {
-                    if (selectedMatch.status === 'DONE') {
-                      showError('Trận đấu đã bị khoá, không thể sửa kết quả.');
-                      return;
-                    }
-                    const a = scoreA === '' ? 0 : Number(scoreA);
-                    const b = scoreB === '' ? 0 : Number(scoreB);
-                    handleUpdateScore(selectedMatch.id, a, b);
-                  }}
-                >
-                  Xác nhận kết quả
-                </Button>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
+      {/* Modals moved into `TournamentMatches` to keep this container focused on data and tabs */}
 
     </div>
   );

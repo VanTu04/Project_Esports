@@ -22,16 +22,33 @@ export const BlockchainTransactions = () => {
     try {
       // ---- GET BALANCE ----
       const balResp = await blockchainService.getMyWalletBalance();
-      const balanceEth = balResp?.data?.data?.balanceEth ?? null;
-      setBalance(balanceEth);
+      const balanceEth = balResp?.data?.data?.balanceEth ?? balResp?.data?.balanceEth ?? balResp?.balanceEth ?? null;
+      const balError = balResp?._error || balResp?.data?._error || balResp?.data?.data?._error;
+      if (balError) {
+        showError(balError?.message || balError || 'Lỗi khi lấy số dư ví');
+        setBalance(null);
+      } else {
+        setBalance(balanceEth);
+      }
 
       // ---- GET TRANSACTION HISTORY ----
       const txResp = await blockchainService.getMyWalletTransactions();
-      const transactions = txResp?.data?.data ?? [];
-      setWalletTransactions(transactions);
-      // Try to capture current user id from returned transactions (fallback)
-      const possibleId = transactions?.[0]?.user_id ?? transactions?.[0]?.user?.id ?? null;
-      setCurrentUserId(possibleId);
+      const transactions = txResp?.data?.data ?? txResp?.data ?? txResp ?? [];
+      const txError = txResp?._error || txResp?.data?._error || txResp?.data?.data?._error;
+      const isStale = txResp?._stale === true;
+      if (txError && !isStale) {
+        showError(txError?.message || txError || 'Lỗi khi tải lịch sử giao dịch');
+        setWalletTransactions([]);
+        setCurrentUserId(null);
+      } else {
+        if (isStale) {
+          showError('Không thể tải dữ liệu mới, đang hiển thị dữ liệu đã lưu (cũ).');
+        }
+        setWalletTransactions(Array.isArray(transactions) ? transactions : []);
+        // Try to capture current user id from returned transactions (fallback)
+        const possibleId = (Array.isArray(transactions) ? transactions[0] : transactions)?.user_id ?? (Array.isArray(transactions) ? transactions[0]?.user?.id : transactions?.user?.id) ?? null;
+        setCurrentUserId(possibleId);
+      }
 
     } catch (err) {
       console.error(err);
@@ -45,7 +62,7 @@ export const BlockchainTransactions = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-white">Ví Blockchain của Team</h1>
+      <h1 className="text-3xl font-bold text-white">Ví Blockchain</h1>
 
       <div className="p-4 bg-dark-300 rounded-md border border-primary-700/20">
         <div className="flex items-center justify-between">
