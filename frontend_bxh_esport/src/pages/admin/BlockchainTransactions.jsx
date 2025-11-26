@@ -10,14 +10,19 @@ export const BlockchainTransactions = () => {
   const [walletTransactions, setWalletTransactions] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [walletLoading, setWalletLoading] = useState(true);
+  const [totalTransactions, setTotalTransactions] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const { showError } = useNotification();
 
   useEffect(() => {
-    loadWalletData();
+    loadWalletData(1, 5);
   }, []);
 
-  const loadWalletData = async () => {
+  const loadWalletData = async (page = 1, size = 10) => {
     setWalletLoading(true);
+    setCurrentPage(page);
+    setPageSize(size);
 
     try {
       // ---- GET BALANCE ----
@@ -26,9 +31,13 @@ export const BlockchainTransactions = () => {
       setBalance(balanceEth);
 
       // ---- GET TRANSACTION HISTORY ----
-      const txResp = await blockchainService.getMyWalletTransactions();
+      const txResp = await blockchainService.getMyWalletTransactions({ page, size });
+      console.log('Transaction response:', txResp);
       const transactions = txResp?.data?.data ?? [];
+      const total = txResp?.data?.totalItems ?? txResp?.data?.total ?? txResp?.data?.pagination?.total ?? transactions?.length ?? 0;
       setWalletTransactions(transactions);
+      setTotalTransactions(total);
+      console.log('Total transactions:', total, 'Current page:', page, 'Page size:', size, 'Total pages:', txResp?.data?.totalPages);
       // Try to capture current user id from returned transactions (fallback)
       const possibleId = transactions?.[0]?.user_id ?? transactions?.[0]?.user?.id ?? null;
       setCurrentUserId(possibleId);
@@ -38,6 +47,7 @@ export const BlockchainTransactions = () => {
       showError(err?.response?.data?.message || err?.message || 'Không thể tải dữ liệu ví');
       setBalance(null);
       setWalletTransactions([]);
+      setTotalTransactions(0);
     } finally {
       setWalletLoading(false);
     }
@@ -63,7 +73,16 @@ export const BlockchainTransactions = () => {
         </div>
       </div>
 
-      <TransactionHistory transactions={walletTransactions} loading={walletLoading} view="admin" currentUserId={currentUserId} />
+      <TransactionHistory 
+        transactions={walletTransactions} 
+        loading={walletLoading} 
+        view="admin" 
+        currentUserId={currentUserId}
+        total={totalTransactions}
+        currentPage={currentPage}
+        pageSize={pageSize}
+        onPageChange={(page, size) => loadWalletData(page, size)}
+      />
     </div>
   );
 };

@@ -41,12 +41,12 @@ export const getTransactionsController = async (req, res) => {
     const { id } = req.user;
     if (!id) throw new Error("User chưa đăng nhập");
 
-    let { page = 1, limit = 10 } = req.query;
+    let { page = 1, size = 10 } = req.query;
 
     page = parseInt(page);
-    limit = parseInt(limit);
+    size = parseInt(size);
 
-    const result = await walletService.getUserTransactions(id, page, limit);
+    const result = await walletService.getUserTransactions(id, page, size);
 
     return res.status(200).json({
       success: true,
