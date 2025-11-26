@@ -12,7 +12,7 @@ const toastConfig = {
   },
   success: {
     iconTheme: {
-      primary: '#C89B3C',
+      primary: '#059669',
       secondary: '#fff',
     },
   },
@@ -76,7 +76,7 @@ export const NotificationProvider = ({ children }) => {
   return (
     <NotificationContext.Provider value={value}>
       <Toaster
-        position="bottom-right"
+        position="top-right"
         // limit visible to 2 to avoid spam
         limit={2}
         toastOptions={toastConfig}

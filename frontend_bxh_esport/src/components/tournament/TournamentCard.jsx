@@ -98,7 +98,7 @@ export const TournamentCard = ({ tournament, compact = false }) => {
 
             <div className="mt-3">
               {isRegisterOpen ? (
-                <Button size="sm" variant="success" onClick={handleRegisterClick}>
+                <Button size="sm" variant="primary" onClick={handleRegisterClick}>
                   Đăng ký
                 </Button>
               ) : (
@@ -110,69 +110,55 @@ export const TournamentCard = ({ tournament, compact = false }) => {
           </div>
         </div>
       ) : (
-        /* Full layout */
-        <>
-          {/* Banner */}
-          <div className="h-32 bg-gradient-gold relative overflow-hidden">
-            {tournament.banner && (
-              <img
-                src={tournament.banner}
-                alt={tournament.name}
-                className="w-full h-full object-cover"
-              />
-            )}
-            <div className="absolute top-2 right-2">
-                <div className="flex flex-col items-end gap-2">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${badgeClass}`}>{badgeText}</span>
+        /* Full layout: match TournamentRegistration card style */
+        <div className="p-6 space-y-4">
+          <div>
+            <h3 className="text-xl font-bold text-white mb-2">{tournament.tournament_name || tournament.name}</h3>
+          </div>
 
-                  {tournament.registration && (
-                    <span className="px-2 py-1 rounded-full text-xs bg-dark-600 text-gray-200">{tournament.registration.label}</span>
-                  )}
-                </div>
+          <div className="space-y-2 text-sm text-gray-300">
+            <div className="flex items-center">
+              <CalendarIcon className="w-4 h-4 mr-2 text-green-400" />
+              <span>Bắt đầu: {formatDate(startDate || tournament.startDate || tournament.start_date, 'dd/MM/yyyy')}</span>
+            </div>
+
+            <div className="flex items-center">
+              <CalendarIcon className="w-4 h-4 mr-2 text-red-400" />
+              <span>Kết thúc: {formatDate(endDate || tournament.endDate || tournament.end_date, 'dd/MM/yyyy')}</span>
+            </div>
+
+            <div className="flex items-center text-yellow-400 font-semibold">
+              <TrophyIcon className="w-4 h-4 mr-2" />
+              <span>
+                Phí đăng ký: {tournament.registration_fee != null ? `${tournament.registration_fee} ETH` : formatCurrency(prize)}
+              </span>
             </div>
           </div>
 
-          <div className="p-4">
-            <h3 className="text-lg font-bold text-white mb-2">{tournament.name}</h3>
-            <p className="text-sm text-gray-400 mb-4 line-clamp-2">
-              {tournament.description}
-            </p>
-
-            <div className="space-y-2 mb-4">
-              <div className="flex items-center gap-2 text-sm text-gray-300">
-                <CalendarIcon className="h-4 w-4" />
-                <span>{formatDate(startDate || tournament.startDate || tournament.start_date, 'dd/MM/yyyy')}{endDate || tournament.endDate || tournament.end_date ? ` — ${formatDate(endDate || tournament.endDate || tournament.end_date, 'dd/MM/yyyy')}` : ''}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-300">
-                <div className="p-1 rounded-md bg-primary-600/10">
-                  <TrophyIcon className="h-4 w-4 text-yellow-400" />
-                </div>
-                <span className="font-medium">{formatCurrency(prize ?? tournament.prize ?? tournament.prize_pool ?? 0, 'VND')}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-300">
-                <div className="p-1 rounded-md bg-primary-600/10">
-                  <UsersIcon className="h-4 w-4 text-yellow-400" />
-                </div>
-                <span className="font-medium">{participantsCount ?? tournament.participantsCount ?? tournament.participants_count ?? 0} đội</span>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              {isRegisterOpen ? (
-                <Button fullWidth size="md" variant="success" onClick={handleRegisterClick}>
-                  Đăng ký
-                </Button>
+          <div className="pt-4 border-t border-gray-700">
+            <div className="mb-4">
+              {tournament.status === 'ACTIVE' ? (
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-300 border border-red-500/30">Đang diễn ra</span>
+              ) : tournament.status === 'COMPLETED' ? (
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-500/20 text-gray-300 border border-gray-500/30">Đã kết thúc</span>
               ) : (
-                <Link
-                  to={`/tournaments/${tournament.id}`}
-                  className="flex-1 py-2 text-center bg-primary-500 hover:bg-primary-600 text-white rounded-md transition-colors"
-                >
-                  Xem chi tiết
-                </Link>
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30">Đang mở đăng ký</span>
               )}
             </div>
+
+            <div className="flex flex-col items-stretch gap-3">
+              <Button onClick={() => {
+                if (user && Number(user.role) === USER_ROLES.TEAM_MANAGER) return navigate(`/team-managers/tournaments/${tournament.id}`);
+                if (user && Number(user.role) === USER_ROLES.ADMIN) return navigate(`/admin/tournaments/${tournament.id}`);
+                return navigate(`/tournaments/${tournament.id}`);
+              }} className="px-4 py-3 w-full text-center" variant="secondary">Xem chi tiết</Button>
+
+              {isRegisterOpen ? (
+                <Button onClick={handleRegisterClick} variant="primary" className="px-4 py-3 w-full text-center">Đăng ký ngay</Button>
+              ) : null}
+            </div>
           </div>
-        </>
+        </div>
       )}
     </Card>
   );

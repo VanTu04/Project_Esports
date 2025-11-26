@@ -115,7 +115,7 @@ const Home = () => {
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary-500/20 rounded-full text-primary-300 text-sm mb-4">
                 <span className="font-medium">Nền tảng Esport #1 Việt Nam</span>
               </div>
-              <h1 className="text-4xl font-bold mb-4">Chinh phục <span className="bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent">đỉnh cao</span> Esport</h1>
+            <h1 className="text-4xl font-bold mb-4">Chinh phục <span className="bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent">đỉnh cao</span> Esport</h1>
               <p className="text-gray-400 mb-6">Tham gia các giải đấu chuyên nghiệp, kết nối với cộng đồng game thủ.</p>
               <div className="flex gap-3">
                 <a href="/tournaments" className="px-6 py-2.5 bg-gradient-to-r from-primary-600 to-primary-500 rounded-lg font-medium hover:opacity-90 flex items-center gap-2">Xem giải đấu</a>
