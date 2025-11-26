@@ -17,8 +17,10 @@ const RegistrationButton = ({ tournament, isTeamView = true }) => {
     try {
       setRegistering(tournamentId);
 
-      if (!window.ethereum) {
-        showError('MetaMask chưa được cài đặt');
+      // Kiểm tra MetaMask với retry
+      if (typeof window.ethereum === 'undefined') {
+        showError('MetaMask chưa được cài đặt hoặc chưa sẵn sàng. Vui lòng tải lại trang.');
+        setRegistering(null);
         return;
       }
 
