@@ -241,7 +241,7 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
         <div className="p-6">
           {isMaxReached && (
             <div className="mb-4 p-3 rounded-md bg-orange-600/10 border border-orange-600/20 text-orange-300">
-              Đã đủ số đội dự kiến ({currentApproved}/{totalTeam}). Không thể duyệt thêm đội.
+              Đã đủ số đội dự kiến ({approvedCount}/{totalTeam}). Không thể duyệt thêm đội.
             </div>
           )}
 

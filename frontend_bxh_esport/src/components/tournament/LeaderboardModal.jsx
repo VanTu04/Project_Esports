@@ -166,7 +166,8 @@ export const LeaderboardModal = ({
         });
         setDistributionsMap(dMap);
 
-        // Reload distributions done above; no contract-balance UI here
+        // Close modal after successful distribution
+        onClose();
       } else {
         const errorMsg = resp?.message || resp?.data?.message || 'Phân phối thất bại';
         showError(errorMsg);
@@ -206,8 +207,8 @@ export const LeaderboardModal = ({
               console.debug('Failed to reload distributions after fallback:', e);
             }
 
-              // No contract-balance UI to refresh here
-
+            // Close modal after successful fallback distribution
+            onClose();
           } else {
             const fwErr = fwResp?.message || fwResp?.data?.message || 'Fallback thất bại';
             showError(fwErr);
