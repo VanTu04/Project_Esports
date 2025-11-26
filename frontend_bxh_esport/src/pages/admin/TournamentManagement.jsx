@@ -650,105 +650,10 @@ export const TournamentManagement = () => {
     }
   };
 
-  // Duyệt đội
-  const handleApproveTeam = async (teamId) => {
-    setProcessingTeamId(teamId);
-    
-    try {
-      // Get tournament info with total_team from backend
-      const tournament = tournaments.find(t => t.id === selectedTournamentForApproval?.id);
-      const current = tournament?.teams?.current || 0;
-      const totalTeamFromBackend = tournament?.teams?.total_team || tournament?.total_team || null;
-      
-      // If total_team is set, check if we've reached the limit
-      if (totalTeamFromBackend && current >= totalTeamFromBackend) {
-        showError(`Đã đủ số đội dự kiến (${current}/${totalTeamFromBackend}). Không thể duyệt thêm đội.`);
-        setProcessingTeamId(null);
-        return;
-      }
-      
-      // Call real API to approve
-      await tournamentService.approveParticipant(teamId);
-      
-      // Remove team from pending list
-      setPendingTeams(prev => prev.filter(t => t.id !== teamId));
-      
-      // Compute updated counts based on current state (do not perform side-effects inside the state updater)
-      const targetTournament = tournaments.find(t => t.id === selectedTournamentForApproval?.id);
-      const prevPending = targetTournament?.teams?.pending || 0;
-      const prevCurrent = targetTournament?.teams?.current || 0;
-      const newPending = Math.max(0, prevPending - 1);
-      const newCurrent = prevCurrent + 1;
-      const totalTeamLocal = targetTournament?.teams?.total_team || targetTournament?.total_team || null;
-
-      // Update state (pure update)
-      setTournaments(prev => prev.map(t => {
-        if (t.id === selectedTournamentForApproval?.id) {
-          return {
-            ...t,
-            teams: {
-              ...t.teams,
-              pending: newPending,
-              current: newCurrent,
-            }
-          };
-        }
-        return t;
-      }));
-
-      // Notify once based on computed values
-      if (totalTeamLocal) {
-        if (newCurrent >= totalTeamLocal) {
-          showSuccess(`Đã duyệt đội thành công! Hiện tại đã có đủ số đội (${newCurrent}/${totalTeamLocal}).`);
-        } else {
-          const need = Math.max(0, totalTeamLocal - newCurrent);
-          showWarning(`Đã duyệt đội thành công. Hiện tại: ${newCurrent}/${totalTeamLocal} đội. Còn thiếu ${need} đội.`);
-        }
-      } else {
-        showSuccess(`Đã duyệt đội thành công! Hiện tại đã có ${newCurrent} đội.`);
-      }
-    } catch (error) {
-      console.error('❌ Failed to approve team:', error);
-      showError('Không thể duyệt đội. Vui lòng thử lại!');
-    } finally {
-      setProcessingTeamId(null);
-    }
-  };
-
-  // Từ chối đội
-  const handleRejectTeam = async (teamId) => {
-    setProcessingTeamId(teamId);
-    
-    try {
-      // Call real API to reject
-      const reason = prompt('Lý do từ chối (tùy chọn):', 'Không đáp ứng yêu cầu') || null;
-      await tournamentService.rejectParticipant(teamId, reason);
-      
-      // Remove team from pending list
-      setPendingTeams(prev => prev.filter(t => t.id !== teamId));
-      
-      // Update tournament pending count
-      setTournaments(prev => prev.map(t => {
-        if (t.id === selectedTournamentForApproval?.id) {
-          return {
-            ...t,
-            teams: {
-              ...t.teams,
-              pending: Math.max(0, (t.teams?.pending || 0) - 1),
-            }
-          };
-        }
-        return t;
-      }));
-      
-      showWarning('Đã từ chối đội!');
-    } catch (error) {
-      console.error('❌ Failed to reject team:', error);
-      showError('Không thể từ chối đội. Vui lòng thử lại!');
-    } finally {
-      setProcessingTeamId(null);
-    }
-  };
+  // Approve/reject logic moved to `TeamApprovalModal`.
+  // The modal performs approve/reject API calls and should call `onActionComplete` (passed below)
+  // to notify this parent to reload tournaments. Keeping `processingTeamId` state available
+  // as a prop for the modal if needed.
 
   // Bắt đầu giải đấu
   const handleStartTournament = async (tournamentId) => {
@@ -1239,8 +1144,7 @@ export const TournamentManagement = () => {
         tournament={selectedTournamentForApproval}
         pendingTeams={pendingTeams}
         processingTeamId={processingTeamId}
-        onApprove={handleApproveTeam}
-        onReject={handleRejectTeam}
+        onActionComplete={loadTournaments}
       />
 
       {/* Confirm Start Tournament Modal */}

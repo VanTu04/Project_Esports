@@ -135,10 +135,11 @@ export const distributeTournamentRewards = async (req, res) => {
         // Đợi 500ms để tránh nonce conflict
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Cập nhật tx_hash vào TournamentReward
+        // Cập nhật hash (tên cột trong DB là `hash`) vào TournamentReward
         await reward.update({ 
-          tx_hash: txResult.txHash,
-          distributed_at: new Date()
+          hash: txResult.txHash,
+          distributed_at: new Date(),
+          blockNumber: txResult.blockNumber
         }, { transaction: t });
 
         // Lưu 1 bản ghi TransactionHistory cho user (thu tiền từ contract)
@@ -202,18 +203,40 @@ export const distributeTournamentRewards = async (req, res) => {
  * POST /api/admin/fund-contract
  */
 export const fundContract = async (req, res) => {
+  const t = await models.sequelize.transaction();
   try {
     const { amount } = req.body;
+    const { id: admin_id } = req.user; // Lấy ID admin từ token
 
     if (!amount || amount <= 0) {
+      await t.rollback();
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Số tiền phải lớn hơn 0'));
     }
 
+    // gọi hàm nạp tiền vào contract (external call)
     const result = await fundContractForRewards(amount);
+
+    // Ghi lại transaction admin nạp tiền (chi tiền ra) trong DB transaction
+    await models.TransactionHistory.create({
+      tournament_id: null,
+      participant_id: null,
+      user_id: admin_id,
+      from_user_id: admin_id,
+      to_user_id: null, // Nạp vào contract, không có người nhận cụ thể
+      actor: 'ADMIN',
+      type: 'FUND_CONTRACT',
+      tx_hash: result.txHash,
+      amount: amount,
+      status: 'SUCCESS',
+      description: `Admin nạp ${amount} ETH vào contract để phân phối giải thưởng`
+    }, { transaction: t });
+
+    await t.commit();
 
     return res.json(responseSuccess(result, `Đã nạp ${amount} ETH vào contract thành công`));
 
   } catch (error) {
+    try { await t.rollback(); } catch (e) { /* ignore rollback error */ }
     console.error('fundContract error', error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }

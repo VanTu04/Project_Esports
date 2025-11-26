@@ -26,11 +26,11 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
   const [endDateObj, setEndDateObj] = useState(form.end_date ? new Date(form.end_date) : null);
 
   useEffect(() => {
-    setStartDateObj(form.start_date ? new Date(form.start_date) : null);
+    setStartDateObj(form.start_date ? (function parseISOToLocal(d){ const p = String(d).split('-').map(Number); return p.length===3 ? new Date(p[0], p[1]-1, p[2]) : new Date(d); })(form.start_date) : null);
   }, [form.start_date]);
 
   useEffect(() => {
-    setEndDateObj(form.end_date ? new Date(form.end_date) : null);
+    setEndDateObj(form.end_date ? (function parseISOToLocal(d){ const p = String(d).split('-').map(Number); return p.length===3 ? new Date(p[0], p[1]-1, p[2]) : new Date(d); })(form.end_date) : null);
   }, [form.end_date]);
 
   const handleChange = (e) => {
@@ -366,7 +366,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
               selected={startDateObj}
               onChange={(date) => {
                 setStartDateObj(date);
-                const iso = date ? date.toISOString().slice(0, 10) : '';
+                const iso = date ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}` : '';
                 setForm(prev => ({ ...prev, start_date: iso }));
                 // If current end date is before newly chosen start date, clear end date
                 if (date && endDateObj && endDateObj < date) {
@@ -392,7 +392,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
               selected={endDateObj}
               onChange={(date) => {
                 setEndDateObj(date);
-                const iso = date ? date.toISOString().slice(0, 10) : '';
+                const iso = date ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}` : '';
                 setForm(prev => ({ ...prev, end_date: iso }));
                 if (errors.end_date) {
                   setErrors(prev => { const c = { ...prev }; delete c.end_date; return c; });

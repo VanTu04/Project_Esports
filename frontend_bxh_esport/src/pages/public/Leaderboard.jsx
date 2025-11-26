@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import tournamentService from '../../services/tournamentService';
 import LeaderboardTable from '../../components/tournament/LeaderboardTable';
+import rewardService from '../../services/rewardService';
 import { MatchSchedule } from '../../components/tournament/MatchSchedule';
 import Header from '../../components/layout/Header';
 import Footer from '../../components/layout/Footer';
@@ -11,6 +12,7 @@ export const Leaderboard = ({ tournamentId: initialTournamentId }) => {
   const [loading, setLoading] = useState(true);
   const [tournaments, setTournaments] = useState([]);
   const [apiLeaderboards, setApiLeaderboards] = useState({});
+  const [rewardsMap, setRewardsMap] = useState({});
   const [selectedTournamentId, setSelectedTournamentId] = useState(initialTournamentId || null);
 
   // Load tournaments
@@ -125,6 +127,21 @@ export const Leaderboard = ({ tournamentId: initialTournamentId }) => {
           console.debug('No API leaderboard, using computed standings', e);
         }
       }
+        // Fetch rewards for this tournament to show in the table if available
+        try {
+          const rResp = await rewardService.getTournamentRewards(tId);
+          const wrapperR = rResp?.data ?? rResp;
+          const payloadR = wrapperR?.data ?? wrapperR;
+          let rewardsArray = Array.isArray(payloadR) ? payloadR : (Array.isArray(wrapperR?.rewards) ? wrapperR.rewards : []);
+          const map = {};
+          rewardsArray.forEach(r => {
+            const rk = Number(r.rank ?? r.position ?? r.place ?? NaN);
+            if (!Number.isNaN(rk)) map[rk] = Number(r.reward_amount ?? r.reward ?? r.amount ?? 0) || 0;
+          });
+          setRewardsMap(map);
+        } catch (e) {
+          setRewardsMap({});
+        }
     } catch (err) {
       console.error(err);
       setMatchesByRound([]);
@@ -240,7 +257,7 @@ export const Leaderboard = ({ tournamentId: initialTournamentId }) => {
                     <MatchSchedule matches={matches} loading={loading} />
                   </Card>
                   <Card>
-                    <LeaderboardTable data={standings} loading={loading} showTime />
+                    <LeaderboardTable data={standings} loading={loading} rewards={rewardsMap} showTime />
                   </Card>
                 </div>
               })}

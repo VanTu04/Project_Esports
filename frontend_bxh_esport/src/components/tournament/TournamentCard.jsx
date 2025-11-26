@@ -11,8 +11,17 @@ import tournamentService from '../../services/tournamentService';
 export const TournamentCard = ({ tournament, compact = false }) => {
   const [startDate, setStartDate] = useState(tournament?.startDate ?? tournament?.start_date ?? tournament?.start_time ?? null);
   const [endDate, setEndDate] = useState(tournament?.endDate ?? tournament?.end_date ?? tournament?.end_time ?? null);
-  const [participantsCount, setParticipantsCount] = useState((tournament?.participantsCount ?? tournament?.participants_count ?? tournament?.participants) || 0);
-  const [prize, setPrize] = useState(tournament?.prize ?? tournament?.prize_pool ?? tournament?.prizePool ?? null);
+  const normalizeParticipants = (p) => {
+    if (Array.isArray(p)) return p.length;
+    const n = Number(p);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const normalizePrize = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const [participantsCount, setParticipantsCount] = useState(() => normalizeParticipants(tournament?.participantsCount ?? tournament?.participants_count ?? tournament?.participants));
+  const [prize, setPrize] = useState(() => normalizePrize(tournament?.prize ?? tournament?.prize_pool ?? tournament?.prizePool ?? 0));
 
   // Determine if registration is open: pending status, explicit registration flag, or isReady/is_ready flag
   const statusUpper = (tournament?.status || '').toString().toUpperCase();
@@ -48,8 +57,8 @@ export const TournamentCard = ({ tournament, compact = false }) => {
         if (!mounted || !data) return;
         setStartDate(prev => prev ?? (data.startDate ?? data.start_date ?? data.start_time ?? null));
         setEndDate(prev => prev ?? (data.endDate ?? data.end_date ?? data.end_time ?? null));
-        setParticipantsCount(prev => (prev || prev === 0) ? prev : ((data.participantsCount ?? data.participants_count ?? data.participants) || 0));
-        setPrize(prev => (prev || prev === 0) ? prev : (data.prize ?? data.prize_pool ?? data.prizePool ?? null));
+        setParticipantsCount(prev => (prev || prev === 0) ? prev : normalizeParticipants(data.participantsCount ?? data.participants_count ?? data.participants));
+        setPrize(prev => (prev || prev === 0) ? prev : normalizePrize(data.prize ?? data.prize_pool ?? data.prizePool ?? 0));
       } catch (err) {
         // silent fallback — card will show the best available data from prop
         console.debug('TournamentCard: failed to fetch details', err?.message || err);
@@ -74,12 +83,16 @@ export const TournamentCard = ({ tournament, compact = false }) => {
                 <span>{formatDate(startDate || tournament.startDate || tournament.start_date, 'dd/MM/yyyy')}{endDate || tournament.endDate || tournament.end_date ? ` — ${formatDate(endDate || tournament.endDate || tournament.end_date, 'dd/MM/yyyy')}` : ''}</span>
               </div>
               <div className="flex items-center gap-2">
-                <TrophyIcon className="w-4 h-4 text-gray-400" />
-                <span>{formatCurrency(prize ?? tournament.prize ?? tournament.prize_pool ?? 0, 'VND')}</span>
+                <div className="p-1 rounded-md bg-primary-600/10">
+                  <TrophyIcon className="w-4 h-4 text-yellow-400" />
+                </div>
+                <span className="font-medium">{formatCurrency(prize ?? tournament.prize ?? tournament.prize_pool ?? 0, 'VND')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <UsersIcon className="w-4 h-4 text-gray-400" />
-                <span>{participantsCount ?? tournament.participantsCount ?? tournament.participants_count ?? 0} đội</span>
+                <div className="p-1 rounded-md bg-primary-600/10">
+                  <UsersIcon className="w-4 h-4 text-yellow-400" />
+                </div>
+                <span className="font-medium">{participantsCount ?? tournament.participantsCount ?? tournament.participants_count ?? 0} đội</span>
               </div>
             </div>
 
@@ -131,12 +144,16 @@ export const TournamentCard = ({ tournament, compact = false }) => {
                 <span>{formatDate(startDate || tournament.startDate || tournament.start_date, 'dd/MM/yyyy')}{endDate || tournament.endDate || tournament.end_date ? ` — ${formatDate(endDate || tournament.endDate || tournament.end_date, 'dd/MM/yyyy')}` : ''}</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-300">
-                <TrophyIcon className="h-4 w-4" />
-                <span>{formatCurrency(prize ?? tournament.prize ?? tournament.prize_pool ?? 0, 'VND')}</span>
+                <div className="p-1 rounded-md bg-primary-600/10">
+                  <TrophyIcon className="h-4 w-4 text-yellow-400" />
+                </div>
+                <span className="font-medium">{formatCurrency(prize ?? tournament.prize ?? tournament.prize_pool ?? 0, 'VND')}</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-300">
-                <UsersIcon className="h-4 w-4" />
-                <span>{participantsCount ?? tournament.participantsCount ?? tournament.participants_count ?? 0} đội</span>
+                <div className="p-1 rounded-md bg-primary-600/10">
+                  <UsersIcon className="h-4 w-4 text-yellow-400" />
+                </div>
+                <span className="font-medium">{participantsCount ?? tournament.participantsCount ?? tournament.participants_count ?? 0} đội</span>
               </div>
             </div>
 

@@ -307,7 +307,6 @@ export const TournamentDetail = () => {
 
       if (wrapper?.code === 0) {
         showSuccess(wrapper?.message || 'Cập nhật kết quả thành công!');
-        handleCloseModals();
 
         // Use returned match from server when available to keep state canonical
         const returnedMatch = wrapper?.data?.match ?? wrapper?.match ?? null;
@@ -334,12 +333,15 @@ export const TournamentDetail = () => {
             return m;
           }));
         }
+        return true;
       } else {
         showError(wrapper?.message || 'Không thể cập nhật kết quả');
+        return false;
       }
     } catch (error) {
       console.error('handleUpdateScore error', error);
       showError(error?.response?.data?.message || error?.message || 'Không thể cập nhật kết quả');
+      return false;
     }
   };
 
@@ -357,22 +359,24 @@ export const TournamentDetail = () => {
 
       if (wrapper?.code === 0) {
         showSuccess(wrapper?.message || 'Cập nhật thời gian thành công!');
-        handleCloseModals();
         // Update match time locally without reloading everything
         const scheduledMs = new Date(payload.match_time).getTime();
         const reached = !Number.isNaN(scheduledMs) && scheduledMs <= Date.now();
         setMatches(prev => prev.map(m => m.id === matchId ? { ...m, match_time: payload.match_time, __scheduledReached: reached } : m));
+        return true;
       } else {
         // Try multiple locations for server message and fall back to generic text
         const serverMsg = wrapper?.message || wrapper?.data?.message || wrapper?.error || 'Không thể cập nhật thời gian';
         console.warn('updateMatchSchedule non-OK response wrapper:', wrapper, 'raw response:', response);
         showError(serverMsg);
+        return false;
       }
     } catch (error) {
       // Log full error for debugging and show best available message to user
       console.error('handleUpdateTime error (full):', error);
       const serverMsg = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Không thể cập nhật thời gian';
       showError(serverMsg);
+      return false;
     }
   };
 
@@ -450,6 +454,28 @@ export const TournamentDetail = () => {
   const normalizedRewards = (Array.isArray(rewards) && rewards.length > 0)
     ? rewards
     : (tournament && (Array.isArray(tournament.rewards) ? tournament.rewards : (Array.isArray(tournament.prizes) ? tournament.prizes : []))) || [];
+
+  // Expose debug payload to window without rendering it as a React child
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.__TOURNAMENT_DEBUG = { tournament, normalizedRewards };
+        console.debug && console.debug('TournamentDetail: tournament payload', { tournament, normalizedRewards });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [tournament, normalizedRewards]);
+
+  // Build a mapping rank -> reward amount (number) for easy lookup by LeaderboardTable
+  const rewardsMap = (Array.isArray(normalizedRewards) ? normalizedRewards : []).reduce((map, r) => {
+    const rank = Number(r?.rank ?? r?.position ?? r?.place ?? r?.rank_number ?? NaN);
+    if (!Number.isNaN(rank)) {
+      const amount = Number(r?.reward_amount ?? r?.amount ?? r?.reward ?? r?.value ?? 0) || 0;
+      map[rank] = amount;
+    }
+    return map;
+  }, {});
 
   if (loading) {
     return (
@@ -617,7 +643,7 @@ export const TournamentDetail = () => {
 
         {/* Tab Content - Leaderboard */}
         {activeTab === 'leaderboard' && (
-          <LeaderboardTable data={leaderboard} loading={leaderboardLoading} />
+          <LeaderboardTable data={leaderboard} loading={leaderboardLoading} rewards={rewardsMap} showRewardColumn={false} />
         )}
       </div>
 

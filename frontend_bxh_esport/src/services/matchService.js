@@ -163,6 +163,16 @@ const matchService = {
     }
   },
 
+  // Get matches for the currently authenticated user's team(s)
+  // Backend route: GET /api/matches/my-team
+  getMyTeamMatches: async (params = {}) => {
+    try {
+      return await apiClient.get(`${API_ENDPOINTS.MATCHES}/my-team`, { params });
+    } catch (error) {
+      throw error;
+    }
+  },
+
   getMatchesByTournament: async (tournamentId, params = {}) => {
     try {
       return await apiClient.get(`${API_ENDPOINTS.MATCHES}/tournament/${tournamentId}`, { params });

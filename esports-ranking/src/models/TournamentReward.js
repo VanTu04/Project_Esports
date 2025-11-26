@@ -31,6 +31,15 @@ export default (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true,
       comment: 'Hash giao dịch phân phối giải thưởng'
+    },
+    distributed_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Thời gian phân phối giải thưởng'
+    },
+    blockNumber: {
+      type: DataTypes.INTEGER,
+      comment: 'Số block khi giao dịch được xác nhận'
     }
   }, {
     tableName: 'tournament_rewards',

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Header from "../../components/layout/Header";
 import Footer from "../../components/layout/Footer";
 import Card from "../../components/common/Card";
+import { TrophyIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { TournamentList } from '../../components/tournament/TournamentList';
 import { TournamentCard } from '../../components/tournament/TournamentCard';
 import tournamentService from '../../services/tournamentService';
@@ -108,17 +109,17 @@ const Home = () => {
       <main className="flex-1 mt-20">
         {/* Hero */}
         <section className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-900/50 via-gray-900 to-pink-900/30"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-primary-700/50 via-gray-900 to-primary-600/30"></div>
           <div className="relative max-w-7xl mx-auto px-4 py-16">
             <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/20 rounded-full text-purple-300 text-sm mb-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary-500/20 rounded-full text-primary-300 text-sm mb-4">
                 <span className="font-medium">Nền tảng Esport #1 Việt Nam</span>
               </div>
-              <h1 className="text-4xl font-bold mb-4">Chinh phục <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">đỉnh cao</span> Esport</h1>
+              <h1 className="text-4xl font-bold mb-4">Chinh phục <span className="bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent">đỉnh cao</span> Esport</h1>
               <p className="text-gray-400 mb-6">Tham gia các giải đấu chuyên nghiệp, kết nối với cộng đồng game thủ.</p>
               <div className="flex gap-3">
-                <a href="/tournaments" className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-medium hover:opacity-90 flex items-center gap-2">Xem giải đấu</a>
-                <a href="/tournaments" className="px-6 py-2.5 border border-purple-500/50 rounded-lg hover:bg-purple-500/20">Đăng ký</a>
+                <a href="/tournaments" className="px-6 py-2.5 bg-gradient-to-r from-primary-600 to-primary-500 rounded-lg font-medium hover:opacity-90 flex items-center gap-2">Xem giải đấu</a>
+                <a href="/tournaments" className="px-6 py-2.5 border border-primary-500/50 rounded-lg hover:bg-primary-500/20">Đăng ký</a>
               </div>
             </div>
           </div>
@@ -128,7 +129,7 @@ const Home = () => {
         <section className="max-w-7xl mx-auto px-4 py-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">Trận đấu hôm nay</h2>
-            <a href="/schedule" className="text-purple-400 hover:text-purple-300 text-sm">Xem lịch</a>
+            <a href="/schedule" className="font-semibold text-yellow-400 hover:text-yellow-300 text-sm">Xem lịch</a>
           </div>
           {matchesToday.length === 0 ? (
             <div className="text-gray-400">Không có trận đấu nào hôm nay.</div>
@@ -154,34 +155,8 @@ const Home = () => {
         <section className="max-w-7xl mx-auto px-4 py-12">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold flex items-center gap-2">Giải đấu nổi bật</h2>
-            <a href="/tournaments" className="text-purple-400 hover:text-purple-300 text-sm">Xem tất cả</a>
+            <a href="/tournaments" className="font-semibold text-yellow-400 hover:text-yellow-300 text-sm">Xem tất cả</a>
           </div>
-
-          {/* Totals for displayed featured tournaments */}
-          {(() => {
-            const parsePrize = (v) => {
-              if (v == null) return 0;
-              if (typeof v === 'number') return v;
-              const n = Number(String(v).replace(/[^0-9.-]+/g, ''));
-              return Number.isFinite(n) ? n : 0;
-            };
-
-            const totalPrize = featured.reduce((s, t) => s + parsePrize(t.prize ?? t.total_prize ?? t.prize_pool ?? 0), 0);
-            const totalTeams = featured.reduce((s, t) => s + Number(t.participantsCount ?? t.participants?.length ?? t.participants_count ?? 0), 0);
-
-            return (
-              <div className="max-w-7xl mx-auto px-4 mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="md:col-span-3">
-                    <div className="bg-gray-800/60 border border-purple-500/10 rounded-xl p-4 flex items-center justify-between text-sm text-gray-300">
-                      <div>Tổng giải thưởng: <span className="text-white font-semibold">{formatCurrency(totalPrize, 'VND')}</span></div>
-                      <div>Tổng đội tham gia: <span className="text-white font-semibold">{totalTeams} đội</span></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
 
           {loadingTournaments ? (
             <div className="text-gray-400">Đang tải...</div>
@@ -206,14 +181,16 @@ const Home = () => {
                 picks.push(...pick(completed, 2));
 
                 // If we don't have 6, fill from featured pool (prioritize ongoing then pending then completed)
-                const all = featured.slice();
+                // If `featured` doesn't contain enough items, also consider the main
+                // `tournaments` list (ongoing) to fill remaining slots so we show up to 6.
+                const all = [...featured, ...(tournaments || [])];
                 for (let i = picks.length; i < 6 && all.length > 0; i++) {
                   const candidate = all.shift();
                   if (!picks.find(p => p.id === candidate.id)) picks.push(candidate);
                 }
 
                 return picks.slice(0, 6).map(t => (
-                  <div key={t.id} className="bg-gray-800/50 rounded-xl overflow-hidden border border-purple-500/10 hover:border-purple-500/30 transition">
+                  <div key={t.id} className="bg-gray-800/50 rounded-xl overflow-hidden border border-primary-500/10 hover:border-primary-500/30 transition">
                     <TournamentCard compact tournament={{
                       id: t.id,
                       name: t.tournament_name || t.name,

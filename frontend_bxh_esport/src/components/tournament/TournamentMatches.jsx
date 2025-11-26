@@ -409,7 +409,7 @@
                   <Button
                     variant="primary"
                     className="flex-1"
-                    onClick={() => {
+                    onClick={async () => {
                       const s = (selectedMatch?.status || '').toString().toUpperCase();
                       if (s === 'DONE' || s === 'COMPLETED') {
                         showError('Không thể gán lịch cho trận đấu đã có kết quả hoặc đã bị khoá.');
@@ -441,7 +441,8 @@
                           return;
                         }
                       }
-                      handleUpdateTime(selectedMatch.id, scheduled);
+                      const ok = await handleUpdateTime(selectedMatch.id, scheduled);
+                      if (ok) handleCloseModals();
                     }}
                   >
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -504,7 +505,7 @@
                         })()
                       )
                     }
-                    onClick={() => {
+                    onClick={async () => {
                       if (selectedMatch?.status === 'DONE') {
                         showError('Trận đấu đã bị khoá, không thể sửa kết quả.');
                         return;
@@ -518,7 +519,8 @@
                       }
                       const a = scoreA === '' ? 0 : Number(scoreA);
                       const b = scoreB === '' ? 0 : Number(scoreB);
-                      handleUpdateScore(selectedMatch.id, a, b);
+                      const ok = await handleUpdateScore(selectedMatch.id, a, b);
+                      if (ok) handleCloseModals();
                     }}
                   >
                     Xác nhận kết quả

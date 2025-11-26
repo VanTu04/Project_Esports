@@ -17,10 +17,13 @@ export const TransactionHistory = ({ transactions, loading, view = 'team', curre
     const t = String(type).toUpperCase();
     switch (t) {
       case 'REGISTER': return 'Đăng ký';
-      case 'REWARD': return 'Phần thưởng';
-      case 'TRANSFER': return 'Chuyển tiền';
+      case 'FUND_CONTRACT': return 'Nạp tiền vào contract';
       case 'PAYOUT': return 'Thanh toán';
       case 'RECEIVE_REFUND': return 'Hoàn tiền';
+      case 'APPROVE': return 'Phê duyệt';
+      case 'REJECT': return 'Từ chối';
+      case 'RECEIVE_REWARD': return 'Nhận giải thưởng';
+      
       default: return type;
     }
   };
@@ -84,6 +87,40 @@ export const TransactionHistory = ({ transactions, loading, view = 'team', curre
       header: 'Thời gian',
       accessor: 'created_at',
       render: (_, row) => <span>{formatDate(row.created_at)}</span>,
+    },
+    {
+      header: 'Ghi chú',
+      accessor: 'description',
+      cellClassName: '!whitespace-normal',
+      render: (_, row) => {
+        const t = String(row.type ?? '').toUpperCase();
+        let note = '';
+
+        // FUND_CONTRACT or RECEIVE_REWARD -> show description
+        if (t === 'FUND_CONTRACT' || t === 'RECEIVE_REWARD'||t === 'RECEIVE_REFUND') {
+          note = row.description ;
+        } 
+          note = row.description;
+      
+
+        return (
+          <span
+            className="text-sm text-gray-300"
+            title={typeof note === 'string' ? note : ''}
+            style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 4,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                wordBreak: 'break-word',
+                whiteSpace: 'normal',
+                width: '70%'
+              }}
+          >
+            {note}
+          </span>
+        );
+      }
     },
   ];
 

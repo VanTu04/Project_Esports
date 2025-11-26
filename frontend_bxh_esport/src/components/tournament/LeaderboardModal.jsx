@@ -6,22 +6,15 @@ import rewardService from '../../services/rewardService';
 import { apiClient } from '../../services/api';
 import { API_ENDPOINTS } from '../../utils/constants';
 import { useNotification } from '../../context/NotificationContext';
-import { TrophyIcon } from '@heroicons/react/24/solid';
+import { /*TrophyIcon*/ } from '@heroicons/react/24/solid';
 import { resolveTeamLogo } from '../../utils/imageHelpers';
+import LeaderboardTable from './LeaderboardTable';
 
-/**
- * Modal xem và chỉnh sửa bảng xếp hạng
- */
 export const LeaderboardModal = ({
   show,
   onClose,
   tournamentId,
   leaderboard,
-  status,
-  saving,
-  onStatusChange,
-  onFieldChange,
-  onSave
 }) => {
   const { showError, showSuccess } = useNotification();
   const [localLeaderboard, setLocalLeaderboard] = useState(leaderboard || []);
@@ -29,57 +22,56 @@ export const LeaderboardModal = ({
   const [rewardsMap, setRewardsMap] = useState({});
   const [distributing, setDistributing] = useState(false);
   const [distributionsMap, setDistributionsMap] = useState({});
+  const [totalRewardNeeded, setTotalRewardNeeded] = useState(0);
+  const [isDistributed, setIsDistributed] = useState(false);
+
+  // no contract-balance UI in modal anymore
 
   useEffect(() => {
-    // When modal opens, fetch final leaderboard from blockchain endpoint
     const fetchFinalLeaderboard = async () => {
       if (!show || !tournamentId) return;
       setLoading(true);
       try {
         const resp = await tournamentService.getFinalLeaderboard(tournamentId);
-
-        // Backend returns: { code:0, status:200, message, data: { tournamentId, leaderboard: [...] } }
-        // Normalize many possible shapes into an array `dataArr`
         let dataArr = [];
-
         if (resp?.code === 0 && resp?.data?.leaderboard && Array.isArray(resp.data.leaderboard)) {
           dataArr = resp.data.leaderboard;
         } else if (resp?.data && Array.isArray(resp.data)) {
-          // some endpoints might return array directly in data
           dataArr = resp.data;
         } else if (Array.isArray(resp)) {
-          // apiClient may already return the raw array
           dataArr = resp;
         } else if (resp?.leaderboard && Array.isArray(resp.leaderboard)) {
           dataArr = resp.leaderboard;
         }
 
-        // Try to fetch reward tiers for this tournament (optional)
-        let rMap = undefined;
+        // Fetch rewards
+        let rMap = {};
+        let totalReward = 0;
         try {
           const rResp = await rewardService.getTournamentRewards(tournamentId);
           let rData = [];
           if (rResp?.code === 0 && Array.isArray(rResp.data)) rData = rResp.data;
           else if (Array.isArray(rResp)) rData = rResp;
-          // build map rank -> reward_amount
-          rMap = {};
+
           rData.forEach(r => {
-            if (r.rank != null) rMap[Number(r.rank)] = r.reward_amount;
+            if (r.rank != null) {
+              rMap[Number(r.rank)] = r.reward_amount;
+              totalReward += parseFloat(r.reward_amount || 0);
+            }
           });
           setRewardsMap(rMap);
+          setTotalRewardNeeded(totalReward);
         } catch (e) {
-          // ignore if reward fetch fails
-          console.debug('No rewards for tournament or failed to fetch:', e?.message || e);
+          console.debug('No rewards or failed fetch:', e);
         }
 
-        // Try to fetch distribution history (latest per rank)
+        // Fetch distributions
         try {
           const dResp = await tournamentService.getDistributions(tournamentId);
           let dData = [];
           if (dResp?.code === 0 && Array.isArray(dResp.data)) dData = dResp.data;
           else if (Array.isArray(dResp)) dData = dResp;
 
-          // backend returns ordered by createdAt DESC; keep first occurrence per rank
           const dMap = {};
           (dData || []).forEach(d => {
             const rk = Number(d.rank);
@@ -87,29 +79,48 @@ export const LeaderboardModal = ({
           });
           setDistributionsMap(dMap);
         } catch (e) {
-          console.debug('Failed to fetch distributions:', e?.message || e);
+          console.debug('Failed to fetch distributions:', e);
         }
 
-        // normalize to array of {id,name,logo,wins,losses,points}
-        const normalized = (dataArr || []).map((item, idx) => ({
-          // prefer userId as stable id, fallback to wallet or other ids
-          id: item.userId ?? item.wallet ?? item.id ?? item.team_id ?? `t${idx}`,
-          // visible name: username (from chain) or fallback to other fields
-          name: item.username ?? item.fullname ?? item.name ?? item.team_name ?? `Team ${idx + 1}`,
-          // preserve wallet and userId for rendering
-          wallet: item.wallet ?? null,
-          userId: item.userId ?? null,
-          // avatar if available: resolve and normalize various possible keys
-          logo: resolveTeamLogo(item) || null,
-          // editable fields
-          wins: item.wins ?? item.wins_count ?? 0,
-          losses: item.losses ?? 0,
-          // ensure numeric points from chain 'score' field
-          points: Number(item.score ?? item.points ?? 0),
-          reward: null,
-        }));
+        // Fetch tournament details to check whether rewards already distributed
+        try {
+          const tResp = await tournamentService.getTournamentById(tournamentId);
+          const payload = tResp?.data ?? tResp;
+          const distributedFlag = payload?.reward_distributed ?? payload?.data?.reward_distributed ?? null;
+          setIsDistributed(Number(distributedFlag) === 1);
+        } catch (e) {
+          console.debug('Failed to fetch tournament details:', e);
+        }
 
-        // Attach reward amount from fetched rewardsMap (if available)
+        // Normalize leaderboard — provide fields expected by LeaderboardTable
+        const normalized = (dataArr || []).map((item, idx) => {
+          const teamName = item.team_name ?? item.name ?? item.username ?? item.fullname ?? `Team ${idx + 1}`;
+          const avatar = item.avatar ?? resolveTeamLogo(item) ?? null;
+          const totalMatches = item.totalMatches ?? item.total_matches ?? item.total_match ?? item.matches ?? item.total ?? 0;
+          const buchholzScore = item.buchholzScore ?? item.buchholz_score ?? item.buchholz ?? 0;
+
+          return {
+            id: item.userId ?? item.wallet ?? item.id ?? item.team_id ?? `t${idx}`,
+            name: teamName,
+            username: item.username ?? item.userName ?? null,
+            wallet: item.wallet ?? null,
+            userId: item.userId ?? null,
+            avatar,
+            // keep legacy `logo` for other components
+            logo: avatar,
+            wins: item.wins ?? item.wins_count ?? 0,
+            losses: item.losses ?? 0,
+            // normalize score field expected by LeaderboardTable
+            points: Number(item.score ?? item.points ?? 0),
+            score: Number(item.score ?? item.points ?? 0),
+            reward: (rMap ? rMap[idx + 1] : null),
+            totalMatches: Number(totalMatches || 0),
+            buchholzScore: Number(buchholzScore || 0),
+            team: { logo: avatar, name: teamName }
+          };
+        });
+
+        // Attach reward
         const withRewards = normalized.map((row, i) => ({
           ...row,
           reward: (rMap ? rMap[i + 1] : (rewardsMap[i + 1] ?? row.reward)) ?? null
@@ -117,9 +128,8 @@ export const LeaderboardModal = ({
 
         setLocalLeaderboard(withRewards);
       } catch (err) {
-        console.error('Failed to fetch final leaderboard:', err);
+        console.error('Failed to fetch leaderboard:', err);
         showError('Không thể tải bảng xếp hạng từ blockchain.');
-        // fallback to provided leaderboard prop
         setLocalLeaderboard(leaderboard || []);
       } finally {
         setLoading(false);
@@ -129,161 +139,134 @@ export const LeaderboardModal = ({
     fetchFinalLeaderboard();
   }, [show, tournamentId]);
 
+  // Handle distribute & auto-fund
+  const handleDistributeRewards = async () => {
+    if (!tournamentId) return showError('Thiếu tournamentId');
+    setDistributing(true);
+
+    try {
+      // Directly call distribute endpoint. Backend will auto-fund if needed
+      // and create TransactionHistory for FUND_CONTRACT inside the distribution flow.
+      const resp = await apiClient.post(API_ENDPOINTS.DISTRIBUTE_REWARDS, { tournament_id: Number(tournamentId) });
+      if (resp?.code === 0 || resp?.data?.code === 0) {
+        const data = resp?.data?.data || resp?.data || resp;
+        const distributionsCount = data?.total_distributed || data?.distributions?.length || 0;
+        showSuccess(`Phân phối thành công ${distributionsCount} giải thưởng!`);
+
+        // Reload distributions
+        const dResp = await tournamentService.getDistributions(tournamentId);
+        let dData = [];
+        if (dResp?.code === 0 && Array.isArray(dResp.data)) dData = dResp.data;
+        else if (Array.isArray(dResp)) dData = dResp;
+
+        const dMap = {};
+        (dData || []).forEach(d => {
+          const rk = Number(d.rank);
+          if (!dMap[rk]) dMap[rk] = d;
+        });
+        setDistributionsMap(dMap);
+
+        // Reload distributions done above; no contract-balance UI here
+      } else {
+        const errorMsg = resp?.message || resp?.data?.message || 'Phân phối thất bại';
+        showError(errorMsg);
+      }
+
+    } catch (err) {
+      console.error('Distribute error', err);
+      const errorMsg = err?.response?.data?.message || err?.message || 'Phân phối thất bại';
+
+      // Detect owner-only on-chain revert (CALL_EXCEPTION / require)
+      const msgLower = String(errorMsg).toLowerCase();
+      const isOwnerRevert = msgLower.includes('call_exception') || msgLower.includes('require(false)') || msgLower.includes('revert') || msgLower.includes('require');
+
+      if (isOwnerRevert) {
+        // Attempt server-wallet fallback endpoint
+        try {
+          showError('Phân phối on-chain thất bại (có thể do yêu cầu owner-only). Đang thử phân phối bằng ví server (fallback)...');
+          const fwResp = await apiClient.post(`${API_ENDPOINTS.WALLET}/distribute-rewards`, { idTournament: Number(tournamentId) });
+
+          if (fwResp?.code === 0 || fwResp?.data?.code === 0) {
+            showSuccess('Phân phối bằng ví server thành công (fallback).');
+
+            // Reload distributions
+            try {
+              const dResp = await tournamentService.getDistributions(tournamentId);
+              let dData = [];
+              if (dResp?.code === 0 && Array.isArray(dResp.data)) dData = dResp.data;
+              else if (Array.isArray(dResp)) dData = dResp;
+
+              const dMap = {};
+              (dData || []).forEach(d => {
+                const rk = Number(d.rank);
+                if (!dMap[rk]) dMap[rk] = d;
+              });
+              setDistributionsMap(dMap);
+            } catch (e) {
+              console.debug('Failed to reload distributions after fallback:', e);
+            }
+
+              // No contract-balance UI to refresh here
+
+          } else {
+            const fwErr = fwResp?.message || fwResp?.data?.message || 'Fallback thất bại';
+            showError(fwErr);
+          }
+        } catch (fe) {
+          console.error('Fallback error', fe);
+          const fwMsg = fe?.response?.data?.message || fe?.message || 'Fallback phân phối thất bại';
+          showError(fwMsg);
+        }
+      } else {
+        showError(errorMsg);
+      }
+
+    } finally {
+      setDistributing(false);
+    }
+  };
+
   if (!show) return null;
+
+  // contract-balance removed from modal UI
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <Card className="relative max-w-[1200px] w-[95vw] max-h-[calc(100vh-4rem)] overflow-y-auto">
         <div className="p-6 border-b border-primary-700/20 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-white">
-            Bảng xếp hạng Giải {tournamentId}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white text-2xl transition-colors"
-          >
-            ×
-          </button>
+          <h2 className="text-2xl font-bold text-white">Bảng xếp hạng Giải {tournamentId}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl transition-colors">×</button>
         </div>
 
-        <div className="p-6 space-y-6">
+          <div className="p-6 space-y-6 pb-6">
+          {/* If rewards already distributed, show a banner */}
+          {isDistributed && (
+            <div className="bg-dark-300 rounded-lg p-4 border border-primary-700/20">
+              <div className="text-sm text-emerald-400 font-semibold">✓ Đã phân phối giải thưởng</div>
+            </div>
+          )}
 
-          {/* Bảng đội */}
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-primary-700/20">
-              <thead className="bg-dark-300">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-400">#</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-400">Đội</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-400">Phần thưởng</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-400">Giao dịch</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-400">Điểm</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-primary-700/20">
-                      {(!loading && localLeaderboard.length === 0) && (
-                        <tr>
-                          <td colSpan="5" className="text-center py-6 text-gray-400">
-                            Không có dữ liệu bảng xếp hạng
-                          </td>
-                        </tr>
-                      )}
-                      {(localLeaderboard || leaderboard || []).map((team, index) => (
-                  <tr key={team.id} className="hover:bg-dark-300/50 transition-colors">
-                    <td className="px-4 py-3 text-gray-300">
-                      {index + 1 <= 3 ? (
-                        <div className="flex items-center">
-                          <TrophyIcon className={`w-5 h-5 mr-2 ${index + 1 === 1 ? 'text-yellow-400' : index + 1 === 2 ? 'text-slate-400' : 'text-amber-700'}`} />
-                          <span>{index + 1}</span>
-                        </div>
-                      ) : (
-                        <div>{index + 1}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 flex items-center gap-3">
-                      {team.logo ? (
-                        <img
-                          src={team.logo}
-                          className="w-8 h-8 rounded-full object-cover"
-                          alt={team.name || team.team || 'team'}
-                          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = 'none'; }}
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-primary-700/20" />
-                      )}
-                      <div className="flex flex-col">
-                        <span className="text-white font-medium">
-                          {team.name || team.team || 'Không rõ tên'}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          {team.wallet
-                            ? `${team.wallet.slice(0, 8)}...${team.wallet.slice(-6)}`
-                            : `id:${team.userId ?? '-'}`}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-300">
-                      {(() => {
-                        // Prefer reward already attached to team (from normalization),
-                        // fallback to rewardsMap (DB) by rank (index+1), otherwise '-'
-                        const rFromTeam = team.reward;
-                        const rFromDb = (rewardsMap && rewardsMap[index + 1] != null) ? rewardsMap[index + 1] : null;
-                        const value = (rFromTeam != null && rFromTeam !== '') ? rFromTeam : rFromDb;
-                        if (value == null || value === '') return '-';
-                        const n = Number(value);
-                        if (!isNaN(n)) return new Intl.NumberFormat().format(n);
-                        return value;
-                      })()}
-                    </td>
-                    <td className="px-4 py-3 text-center text-sm text-gray-300">
-                      {(() => {
-                        const d = distributionsMap[index + 1];
-                        if (!d) return '-';
-                        // show status and shortened tx
-                        const tx = d.tx_hash || d.txHash || null;
-                        const status = d.status || (d.tx_hash ? 'SUCCESS' : (d.error_message ? 'FAILED' : 'PENDING'));
-                        return (
-                          <div className="flex flex-col items-center text-xs">
-                            <span className="font-medium">{status}</span>
-                            {tx ? (
-                              <a href={`https://etherscan.io/tx/${tx}`} target="_blank" rel="noreferrer" className="text-amber-300 underline mt-1">{tx.slice(0, 8)}...{tx.slice(-6)}</a>
-                            ) : null}
-                          </div>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-4 py-3 text-center text-white">
-                      <div className="w-20 text-center">{team.points ?? 0}</div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Use shared LeaderboardTable for consistent display */}
+          <div>
+            <LeaderboardTable data={localLeaderboard} loading={loading} rewards={distributionsMap} />
           </div>
 
-          {/* Nút lưu */}
+          {/* Action buttons */}
           <div className="flex justify-between items-center border-t border-primary-700/20 pt-4 gap-3">
-            <div>
+            {!isDistributed && (
               <button
-                onClick={async () => {
-                  // Call wallet distribute endpoint: POST /wallet/distribute-rewards with body { idTournament }
-                  if (!tournamentId) return showError('Thiếu tournamentId');
-                  setDistributing(true);
-                    try {
-                    const endpoint = `${API_ENDPOINTS.WALLET}/distribute-rewards`;
-                    const resp = await apiClient.post(endpoint, { idTournament: Number(tournamentId) });
-                    showSuccess('Đã gửi yêu cầu phân phối. Kiểm tra log để biết trạng thái.');
-                    console.debug('distribute response:', resp);
-                  } catch (err) {
-                    console.error('Distribute error', err);
-                    showError(err?.message || 'Phân phối thất bại');
-                  } finally {
-                    setDistributing(false);
-                  }
-                }}
-                className="bg-amber-600 text-black px-3 py-2 rounded font-semibold hover:opacity-90"
+                onClick={handleDistributeRewards}
+                className={`px-4 py-2 rounded font-semibold transition-colors bg-amber-600 text-black hover:bg-amber-700`}
                 disabled={distributing}
               >
-                {distributing ? 'Đang phân phối...' : 'Phân phối'}
+                {distributing ? 'Đang xử lý...' : '🏆 Phân phối giải thưởng'}
               </button>
-            </div>
-            <div className="flex items-center gap-3">
-            <Button
-              variant="secondary"
-              onClick={onClose}
-            >
-              Hủy
-            </Button>
-            <Button
-              variant="primary"
-              onClick={onSave}
-              disabled={saving}
-              loading={saving}
-            >
-              Lưu bảng xếp hạng
-            </Button>
-            </div>
+            )}
+            {/* If distribute button is visible, show Close in footer aligned right; otherwise keep floating Close at bottom-right */}
+            <Button variant="secondary" onClick={onClose}>Đóng</Button>
           </div>
+
+          {/* Floating Close button removed per request */}
         </div>
       </Card>
     </div>

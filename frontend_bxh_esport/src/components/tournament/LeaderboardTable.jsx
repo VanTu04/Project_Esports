@@ -3,39 +3,58 @@ import { formatRank } from '../../utils/formatters';
 import { resolveTeamLogo, normalizeImageUrl } from '../../utils/imageHelpers';
 import { TrophyIcon } from '@heroicons/react/24/solid';
 
-const LeaderboardTable = ({ data, loading }) => {
+const LeaderboardTable = ({ data, loading, rewards, showRewardColumn = true }) => {
   // Accept raw leaderboard payload and normalize here so caller is simpler
-  const rows = (Array.isArray(data) ? data : []).map((row) => ({
-    rank: row?.rank ?? 0,
-    wallet: row?.wallet ?? '',
-    score: row?.score ?? 0,
-    userId: row?.userId ?? null,
-    username: row?.username ?? '',
-    avatar: row?.avatar ?? null,
-    teamName: row?.teamName ?? row?.username ?? '',
-    wins: row?.wins ?? 0,
-    losses: row?.losses ?? 0,
-    draws: row?.draws ?? 0,
-    totalMatches: row?.totalMatches ?? 0,
-    buchholzScore: row?.buchholzScore ?? 0,
-    team: { logo: row?.avatar ?? null, name: row?.teamName ?? row?.username ?? '' }
-  }));
+  const rows = (Array.isArray(data) ? data : []).map((row, idx) => {
+    // some leaderboard payloads don't include `rank` — fall back to index+1
+    const rank = row?.rank ?? row?.position ?? (Number(idx) + 1);
+    // reward priority: explicit row.reward > rewards prop mapping by rank
+    const rewardValue = row?.reward ?? (rewards && (rewards[Number(rank)] ?? rewards[String(Number(rank))])) ?? null;
+    return {
+      rank,
+      wallet: row?.wallet ?? '',
+      score: row?.score ?? 0,
+      reward: rewardValue,
+      userId: row?.userId ?? null,
+      username: row?.username ?? '',
+      avatar: row?.avatar ?? null,
+      teamName: row?.teamName ?? row?.username ?? '',
+      wins: row?.wins ?? 0,
+      losses: row?.losses ?? 0,
+      draws: row?.draws ?? 0,
+      totalMatches: row?.totalMatches ?? 0,
+      buchholzScore: row?.buchholzScore ?? 0,
+      team: { logo: row?.avatar ?? null, name: row?.teamName ?? row?.username ?? '' }
+    };
+  });
+
+  // Dev helper: log when rewards prop is present but rows appear empty — helps debug detail vs modal differences
+  if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV !== 'production') {
+    try {
+      console.debug('LeaderboardTable debug:', { sampleRow: rows[0] ?? null, rewardsProp: rewards });
+    } catch (e) {}
+  }
 
   const columns = [
     {
       header: 'Hạng',
       accessor: 'rank',
-      render: (value) => {
+      headerClassName: 'sticky left-0 bg-dark-500 z-20',
+      cellClassName: 'sticky left-0 bg-dark-400 z-10',
+      render: (value, row) => {
         const rank = Number(value) || 0;
         const colorClass = rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-400' : rank === 3 ? 'text-amber-700' : 'text-gray-400';
         return (
-          <div className="flex items-center">
-            <TrophyIcon className={`w-5 h-5 mr-2 ${colorClass}`} />
-            <span className="text-xl">{formatRank(value)}</span>
-          </div>
+          <div className="flex flex-col items-start">
+            <div className="flex items-center">
+              <TrophyIcon className={`w-5 h-5 mr-2 ${colorClass}`} />
+              <span className="text-xl">{formatRank(value)}</span>
+            </div>
+              </div>
         );
       },
     },
+
     {
       header: 'Logo',
       accessor: 'avatar',
@@ -81,6 +100,7 @@ const LeaderboardTable = ({ data, loading }) => {
       accessor: 'score',
       render: (value) => <span className="font-bold text-primary-500 text-lg">{value ?? 0}</span>,
     },
+    
     {
       header: 'Thắng/Thua/Hòa',
       accessor: 'wins',
@@ -108,6 +128,25 @@ const LeaderboardTable = ({ data, loading }) => {
         </span>
       ),
     },
+    ...(showRewardColumn ? [
+      {
+        header: 'Phần thưởng (ETH)',
+        accessor: 'reward',
+        headerClassName: 'sticky left-20 bg-dark-500 z-20 text-white',
+        cellClassName: 'sticky left-20 bg-dark-400 z-10 font-medium',
+        render: (value, row) => {
+          const rank = Number(row?.rank) || 0;
+          const colorClass = rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-400' : rank === 3 ? 'text-amber-700' : 'text-gray-200';
+          return (
+            value != null && value !== '' ? (
+              <span className={`text-sm font-medium ${colorClass}`}>{Number(value).toFixed(4)}</span>
+            ) : (
+              <span className="text-gray-400">-</span>
+            )
+          );
+        }
+      }
+    ] : []),
   ];
 
   return <Table columns={columns} data={rows} loading={loading} />;

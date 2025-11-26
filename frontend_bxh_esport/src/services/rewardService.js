@@ -120,10 +120,10 @@ const rewardService = {
    */
   executeRewardDistribution: async (tournamentId) => {
     try {
-      // Backend provides tournament-level distribution endpoint: POST /tournaments/:tournament_id/distribute-rewards
-      const endpoint = API_ENDPOINTS.TOURNAMENTS + `/${tournamentId}/distribute-rewards`;
-      const response = await apiClient.post(endpoint);
-      return response;
+      // Call admin controller route that runs the smart-contract distribution flow
+      // Backend mounts this at POST /api/distribute-rewards
+      const response = await apiClient.post('/distribute-rewards', { tournament_id: Number(tournamentId) });
+      return response?.data ?? response;
     } catch (error) {
       throw error;
     }

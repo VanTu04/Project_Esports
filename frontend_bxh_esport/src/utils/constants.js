@@ -127,6 +127,8 @@ export const API_ENDPOINTS = {
   BLOCKCHAIN_STORE_MATCH_RESULT: '/blockchain/store-match-result',
   BLOCKCHAIN_VERIFY_MATCH_RESULT: '/blockchain/verify-match-result',
   BLOCKCHAIN_REWARDS: '/blockchain/rewards',
+  // Admin distribution endpoints (mounted at /api/distribute-rewards)
+  DISTRIBUTE_REWARDS: '/distribute-rewards',
   BLOCKCHAIN_VERIFY_WALLET: '/blockchain/verify-wallet',
   BLOCKCHAIN_STATS: '/blockchain/stats',
   BLOCKCHAIN_TX_PENDING: '/blockchain/transactions/pending',

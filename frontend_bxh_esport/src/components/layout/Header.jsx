@@ -60,7 +60,6 @@ const Header = ({ onMenuClick }) => {
           <Link to="/tournaments" className="hover:text-white transition px-2 py-1 rounded">Giải đấu</Link>
           <Link to="/teams" className="hover:text-white transition px-2 py-1 rounded">Đội tuyển</Link>
           <Link to="/schedule" className="hover:text-white transition px-2 py-1 rounded">Lịch thi đấu</Link>
-          <Link to="/news" className="hover:text-white transition px-2 py-1 rounded">Tin tức</Link>
           <Link to="/leaderboard" className="hover:text-white transition px-2 py-1 rounded">Xếp hạng</Link>
         </nav>
 
