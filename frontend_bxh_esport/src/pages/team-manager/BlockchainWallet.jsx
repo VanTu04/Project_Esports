@@ -59,7 +59,7 @@ export const BlockchainWallet = () => {
       <div className="p-4 bg-dark-300 rounded-md border border-primary-700/20">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold text-white">Thông tin ví</h2>
-          <Button variant="ghost" onClick={loadWalletData} disabled={walletLoading}>
+          <Button variant="ghost" onClick={() => loadWalletData(currentPage, pageSize)} disabled={walletLoading}>
             {walletLoading ? 'Đang tải...' : 'Làm mới'}
           </Button>
         </div>
