@@ -7,13 +7,12 @@ import { Loading } from '../../components/common/Loading';
 import Button from '../../components/common/Button';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../hooks/useAuth';
-import { ethers } from 'ethers';
-import LeaderboardABI from '../../contracts/Leaderboard.json';
+// registration is handled by RegistrationButton component
+import RegistrationButton from '../../components/tournament/RegistrationButton';
 
 export const TournamentRegistration = () => {
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [registering, setRegistering] = useState(null); // ID của tournament đang đăng ký
   const [registrationStatus, setRegistrationStatus] = useState({}); // {tournamentId: {status: 'PENDING'|'APPROVED'|'REJECTED'}}
   const [activeTab, setActiveTab] = useState('available'); // available, participating, completed
   const { showSuccess, showError, showWarning } = useNotification();
@@ -163,144 +162,7 @@ export const TournamentRegistration = () => {
     setRegistrationStatus(statusMap);
   };
 
-  const handleRegister = async (tournament) => {
-    const tournamentId = tournament?.id;
-    try {
-      console.log("🔹 Bắt đầu đăng ký giải đấu:", tournamentId);
-      setRegistering(tournamentId);
-
-      if (!window.ethereum) {
-        showError("MetaMask chưa được cài đặt");
-        return;
-      }
-
-      const TARGET_CHAIN_ID = "0x539"; // 31337
-      const currentChain = await window.ethereum.request({ method: "eth_chainId" });
-
-      // Chuyển chain nếu chưa đúng
-      if (currentChain !== TARGET_CHAIN_ID) {
-        try {
-          await window.ethereum.request({
-            method: "wallet_switchEthereumChain",
-            params: [{ chainId: TARGET_CHAIN_ID }]
-          });
-        } catch (switchError) {
-          if (switchError.code === 4902) {
-            await window.ethereum.request({
-              method: "wallet_addEthereumChain",
-              params: [{
-                chainId: TARGET_CHAIN_ID,
-                chainName: "MyCustomChain",
-                nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-                rpcUrls: ["http://183.81.33.178:8545"],
-              }],
-            });
-          } else {
-            throw switchError;
-          }
-        }
-      }
-
-      // Mở popup chọn ví
-      await window.ethereum.request({
-        method: "wallet_requestPermissions",
-        params: [{ eth_accounts: {} }],
-      });
-
-      // Lấy ví user chọn
-      const accounts = await window.ethereum.request({ method: "eth_accounts" });
-      if (!accounts || accounts.length === 0) {
-        showError("Không có tài khoản MetaMask nào được cấp phép");
-        return;
-      }
-
-      const currentWalletAddress = accounts[0];
-      console.log("🔹 Ví MetaMask đang dùng:", currentWalletAddress);
-
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner(currentWalletAddress);
-
-      // 1️⃣ Lấy data từ backend
-      console.log("🔹 Đang gọi API requestJoinTournament...");
-      let apiResponse = await tournamentService.requestJoinTournament(tournamentId);
-      console.log("🔹 Backend response:", apiResponse);
-      
-      // Check wrapper response
-      if (!apiResponse || apiResponse.code !== 0) {
-        console.error("❌ API call failed:", apiResponse);
-        showError(apiResponse?.message || "Không thể lấy thông tin đăng ký");
-        return;
-      }
-
-      const responseData = apiResponse.data;
-      console.log("🔹 Response data:", responseData);
-
-      if (!responseData) {
-        console.error("❌ Response data is empty");
-        showError("Không nhận được dữ liệu từ backend");
-        return;
-      }
-
-      const { contractAddress, wallet_address, amountInWei: backendAmount, signature, participant_id } = responseData;
-      console.log("🔹 Data từ backend:", { contractAddress, wallet_address, backendAmount, signature, participant_id });
-
-      // 2️⃣ So sánh ví MetaMask với wallet_address backend trả về
-      if (wallet_address.toLowerCase() !== currentWalletAddress.toLowerCase()) {
-        console.error("❌ Ví không khớp:", { backend: wallet_address, current: currentWalletAddress });
-        showError(
-          `Vui lòng dùng đúng ví để đăng ký!\n` +
-          `Ví backend trả về: ${wallet_address}\n` +
-          `Ví hiện tại: ${currentWalletAddress}`
-        );
-        return;
-      }
-
-      // 3️⃣ Kiểm tra balance
-      const balanceWei = await provider.getBalance(currentWalletAddress);
-      console.log("🔹 Balance:", ethers.formatEther(balanceWei), "ETH | Cần:", ethers.formatEther(backendAmount), "ETH");
-      if (balanceWei < backendAmount) {
-        showError(`Không đủ số dư: cần ${ethers.formatEther(backendAmount)} ETH`);
-        return;
-      }
-
-      // 4️⃣ Gửi giao dịch lên blockchain
-      console.log("🔹 Đang gửi transaction lên blockchain...");
-      const contract = new ethers.Contract(contractAddress, LeaderboardABI.abi, signer);
-      const tx = await contract.register(tournamentId, backendAmount, signature, { value: backendAmount });
-      console.log("✅ Transaction sent:", tx.hash);
-
-      showSuccess("Giao dịch đã gửi, chờ xác nhận...");
-      const receipt = await tx.wait();
-
-      if (receipt.status === 1) {
-        showSuccess("Đăng ký giải đấu thành công!");
-
-        // Xác nhận backend
-        const confirmRes = await tournamentService.confirmBlockchainRegistration(participant_id, tx.hash);
-        setRegistrationStatus(prev => ({
-          ...prev,
-          [tournamentId]: {
-            status: confirmRes?.data?.participant?.status || "WAITING_APPROVAL",
-            participantId: participant_id
-          }
-        }));
-      } else {
-        showError("Giao dịch thất bại trên blockchain");
-      }
-
-    } catch (error) {
-      console.error("❌ Lỗi khi đăng ký:", error);
-      if (error.code === 4001) {
-        showWarning("Người dùng từ chối giao dịch MetaMask");
-      } else {
-        showError(error?.message || "Lỗi khi gửi giao dịch");
-      }
-
-    } finally {
-      setRegistering(null);
-      console.log("🔹 Kết thúc handleRegister");
-    }
-  };
+  // Registration is handled by the RegistrationButton component
 
 
 
@@ -457,8 +319,7 @@ export const TournamentRegistration = () => {
 
                 {/* Tournament Info */}
                 <div className="space-y-2 text-sm">
-             
-
+            
                   <div className="flex items-center text-gray-300">
                     <svg className="w-4 h-4 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -511,80 +372,7 @@ export const TournamentRegistration = () => {
                   }} className="w-full mb-3" variant="secondary">
                   Xem chi tiết
                 </Button>
-                {(() => {
-                  const status = registrationStatus[tournament.id];
-                  
-                  // Nếu tournament đã bắt đầu hoặc kết thúc
-                  if (tournament.status === 'ACTIVE' || tournament.status === 'COMPLETED') {
-                    return (
-                      <Button disabled className="w-full bg-gray-500/20 border-gray-500/50 text-gray-300 cursor-not-allowed">
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        Đã đóng đăng ký
-                      </Button>
-                    );
-                  }
-                  
-                  if (registering === tournament.id) {
-                    return (
-                      <Button disabled className="w-full" variant="primary">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Đang gửi...
-                      </Button>
-                    );
-                  }
-                  
-                  if (status?.status === 'PENDING' || status?.status === 'WAITING_APPROVAL') {
-                    return (
-                      <Button disabled className="w-full bg-yellow-500/20 border-yellow-500/50 text-yellow-300 cursor-not-allowed">
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Đã đăng ký
-                      </Button>
-                    );
-                  }
-                  
-                  if (status?.status === 'APPROVED') {
-                    return (
-                      <Button disabled className="w-full bg-green-500/20 border-green-500/50 text-green-300 cursor-not-allowed">
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Đang tham gia
-                      </Button>
-                    );
-                  }
-                  
-                  if (status?.status === 'REJECTED') {
-                    return (
-                      <Button disabled className="w-full bg-red-500/20 border-red-500/50 text-red-300 cursor-not-allowed">
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Đã bị từ chối
-                      </Button>
-                    );
-                  }
-                  
-                  // Chưa đăng ký
-                  return (
-                    <Button
-                      onClick={() => handleRegister(tournament)}
-                      className="w-full"
-                      variant="primary"
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Đăng ký tham gia
-                    </Button>
-                  );
-                })()}
+                <RegistrationButton tournament={tournament} isTeamView={user && Number(user.role) === USER_ROLES.TEAM_MANAGER} />
               </div>
             </Card>
           ))}

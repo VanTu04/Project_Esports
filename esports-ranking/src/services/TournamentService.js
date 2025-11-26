@@ -119,7 +119,7 @@ export const findAllByAdmin = async (status, page = 1, limit = 10) => {
       {
         model: models.TournamentReward,
         as: 'rewards',
-        attributes: ['id', 'rank', 'reward_amount'],
+        attributes: ['id', 'rank', 'reward_amount', 'hash', 'distributed_at', 'blockNumber'],
         required: false // nếu giải đấu chưa có reward vẫn trả về
       }
     ],
@@ -162,7 +162,7 @@ export const findAll = async (status, page = 1, limit = 10) => {
       {
         model: models.TournamentReward,
         as: 'rewards',
-        attributes: ['id', 'rank', 'reward_amount'],
+        attributes: ['id', 'rank', 'reward_amount', 'hash', 'distributed_at', 'blockNumber'],
         required: false // nếu giải đấu chưa có reward vẫn trả về
       }
     ],

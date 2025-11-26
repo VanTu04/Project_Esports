@@ -1,4 +1,5 @@
 import { apiClient } from './api';
+import { API_ENDPOINTS } from '../utils/constants';
 
 const blockchainService = {
   /**
@@ -6,7 +7,7 @@ const blockchainService = {
    */
   getAllTransactions: async (params = {}) => {
     try {
-      const response = await apiClient.get('/blockchain/transactions', { params });
+      const response = await apiClient.get(API_ENDPOINTS.BLOCKCHAIN_TRANSACTIONS || '/blockchain/transactions', { params });
       return response;
     } catch (error) {
       throw error;
@@ -30,7 +31,7 @@ const blockchainService = {
    */
   storeMatchResult: async (matchId) => {
     try {
-      const response = await apiClient.post('/blockchain/store-match-result', { matchId });
+      const response = await apiClient.post(API_ENDPOINTS.BLOCKCHAIN_STORE_MATCH_RESULT, { matchId });
       return response;
     } catch (error) {
       throw error;
@@ -42,7 +43,7 @@ const blockchainService = {
    */
   verifyMatchResult: async (matchId, txHash) => {
     try {
-      const response = await apiClient.post('/blockchain/verify-match-result', {
+      const response = await apiClient.post(API_ENDPOINTS.BLOCKCHAIN_VERIFY_MATCH_RESULT, {
         matchId,
         txHash,
       });
@@ -58,7 +59,8 @@ const blockchainService = {
   distributeRewards: async (tournamentId, distributionData) => {
     try {
       // Backend exposes tournament-level distribute endpoint: POST /api/tournaments/:tournament_id/distribute-rewards
-      const response = await apiClient.post(`/tournaments/${tournamentId}/distribute-rewards`, {
+      const endpoint = API_ENDPOINTS.TOURNAMENTS + `/${tournamentId}/distribute-rewards`;
+      const response = await apiClient.post(endpoint, {
         ...distributionData,
       });
       return response;
@@ -72,7 +74,7 @@ const blockchainService = {
    */
   getRewardHistory: async (params = {}) => {
     try {
-      const response = await apiClient.get('/blockchain/rewards', { params });
+      const response = await apiClient.get(API_ENDPOINTS.BLOCKCHAIN_REWARDS, { params });
       return response;
     } catch (error) {
       throw error;
@@ -85,7 +87,7 @@ const blockchainService = {
   // Authenticated: get current user's wallet transactions
   getMyWalletTransactions: async (params = {}) => {
     try {
-      const response = await apiClient.get('/wallet/transactions', { params });
+      const response = await apiClient.get(`${API_ENDPOINTS.WALLET}/transactions`, { params });
       return response;
     } catch (error) {
       throw error;
@@ -95,7 +97,7 @@ const blockchainService = {
   // Team-scoped: backend will resolve team from auth context
   getTeamWalletTransactions: async (params = {}) => {
     try {
-      const response = await apiClient.get('/wallet/transactions', { params });
+      const response = await apiClient.get(`${API_ENDPOINTS.WALLET}/transactions`, { params });
       return response;
     } catch (error) {
       throw error;
@@ -108,7 +110,7 @@ const blockchainService = {
   // Authenticated: get current user's wallet balance
   getMyWalletBalance: async () => {
     try {
-      const response = await apiClient.get('/wallet/balance');
+      const response = await apiClient.get(`${API_ENDPOINTS.WALLET}/balance`);
       return response;
     } catch (error) {
       throw error;
@@ -118,7 +120,7 @@ const blockchainService = {
   // Team-scoped: backend will resolve team from auth context
   getTeamWalletBalance: async () => {
     try {
-      const response = await apiClient.get('/wallet/balance');
+      const response = await apiClient.get(`${API_ENDPOINTS.WALLET}/balance`);
       return response;
     } catch (error) {
       throw error;
@@ -130,7 +132,7 @@ const blockchainService = {
    */
   verifyWalletOwnership: async (walletAddress, signature, message) => {
     try {
-      const response = await apiClient.post('/blockchain/verify-wallet', {
+      const response = await apiClient.post(API_ENDPOINTS.BLOCKCHAIN_VERIFY_WALLET, {
         walletAddress,
         signature,
         message,
@@ -146,7 +148,7 @@ const blockchainService = {
    */
   getBlockchainStats: async () => {
     try {
-      const response = await apiClient.get('/blockchain/stats');
+      const response = await apiClient.get(API_ENDPOINTS.BLOCKCHAIN_STATS);
       return response;
     } catch (error) {
       throw error;
@@ -158,7 +160,7 @@ const blockchainService = {
    */
   getPendingTransactions: async () => {
     try {
-      const response = await apiClient.get('/blockchain/transactions/pending');
+      const response = await apiClient.get(API_ENDPOINTS.BLOCKCHAIN_TX_PENDING);
       return response;
     } catch (error) {
       throw error;
@@ -170,7 +172,7 @@ const blockchainService = {
    */
   getFailedTransactions: async (params = {}) => {
     try {
-      const response = await apiClient.get('/blockchain/transactions/failed', { params });
+      const response = await apiClient.get(API_ENDPOINTS.BLOCKCHAIN_TX_FAILED, { params });
       return response;
     } catch (error) {
       throw error;
@@ -194,7 +196,7 @@ const blockchainService = {
    */
   getGasPriceEstimation: async () => {
     try {
-      const response = await apiClient.get('/blockchain/gas-price');
+      const response = await apiClient.get(API_ENDPOINTS.BLOCKCHAIN_GAS_PRICE);
       return response;
     } catch (error) {
       throw error;
@@ -206,7 +208,7 @@ const blockchainService = {
    */
   storeTournamentData: async (tournamentId) => {
     try {
-      const response = await apiClient.post('/blockchain/store-tournament', { tournamentId });
+      const response = await apiClient.post(API_ENDPOINTS.BLOCKCHAIN_STORE_TOURNAMENT, { tournamentId });
       return response;
     } catch (error) {
       throw error;
@@ -218,7 +220,8 @@ const blockchainService = {
    */
   getTournamentDataFromBlockchain: async (tournamentId) => {
     try {
-      const response = await apiClient.get(`/blockchain/tournaments/${tournamentId}`);
+      const endpoint = API_ENDPOINTS.BLOCKCHAIN_TOURNAMENTS.replace(':id', tournamentId);
+      const response = await apiClient.get(endpoint);
       return response;
     } catch (error) {
       throw error;

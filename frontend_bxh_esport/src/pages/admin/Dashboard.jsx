@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { UsersIcon, UserGroupIcon, TrophyIcon, WalletIcon } from '@heroicons/react/24/outline';
 import Card from '../../components/common/Card';
 import { apiClient } from '../../services/api';
-import { API_BACKEND } from '../../utils/constants';
+import { API_BACKEND, API_ENDPOINTS } from '../../utils/constants';
 
 export const AdminDashboard = () => {
   const [stats, setStats] = useState({
@@ -17,9 +17,9 @@ export const AdminDashboard = () => {
       // Prefer internal endpoints that already exist to compute counts and avoid calling a non-existent /admin/stats
       try {
         const [usersRes, teamsRes, tournamentsRes] = await Promise.all([
-          apiClient.get('/users', { params: { limit: 1, page: 1 } }),
-          apiClient.get('/teams', { params: { limit: 1, page: 1 } }),
-          apiClient.get('/tournaments/admin', { params: { limit: 1, page: 1 } }),
+          apiClient.get(API_ENDPOINTS.USERS, { params: { limit: 1, page: 1 } }),
+          apiClient.get(API_ENDPOINTS.TEAMS, { params: { limit: 1, page: 1 } }),
+          apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/admin`, { params: { limit: 1, page: 1 } }),
         ]);
 
         const safeTotal = (resp) => {

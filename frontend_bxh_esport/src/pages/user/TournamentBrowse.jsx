@@ -29,18 +29,13 @@ export const TournamentBrowse = () => {
     }
   };
 
-  const openQuickView = (tournament) => {
-    if (!tournament?.id) return;
-    navigate(`/tournaments/${tournament.id}`);
-  };
-
-  const closeQuickView = () => {};
+  // navigation to detail handled by TournamentCard link
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-white">Khám phá giải đấu</h1>
 
-      <TournamentList tournaments={tournaments} loading={loading} onQuickView={openQuickView} />
+      <TournamentList tournaments={tournaments} loading={loading} />
 
       {/* Pagination */}
       <div className="flex items-center justify-center mt-6">

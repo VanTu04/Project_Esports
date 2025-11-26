@@ -2,243 +2,212 @@ import React, { useState, useEffect } from "react";
 import Header from "../../components/layout/Header";
 import Footer from "../../components/layout/Footer";
 import Card from "../../components/common/Card";
-import LeaderboardTable from '../../components/tournament/LeaderboardTable';
-import { apiClient } from '../../services/api';
-import { API_ENDPOINTS } from '../../utils/constants';
+import { TrophyIcon, UsersIcon } from '@heroicons/react/24/outline';
+import { TournamentList } from '../../components/tournament/TournamentList';
+import { TournamentCard } from '../../components/tournament/TournamentCard';
 import tournamentService from '../../services/tournamentService';
+import { formatCurrency } from '../../utils/helpers';
 
 const Home = () => {
-  const [games, setGames] = useState([]);
-  const [loadingGames, setLoadingGames] = useState(true);
-
-  const [selectedGameId, setSelectedGameId] = useState(null);
-  const [selectedGameName, setSelectedGameName] = useState(null);
-
-  const [selectedSeasonId, setSelectedSeasonId] = useState(null);
-  const [selectedSeasonName, setSelectedSeasonName] = useState(null);
-  const [selectedSeasonObj, setSelectedSeasonObj] = useState(null);
-
   const [tournaments, setTournaments] = useState([]);
   const [loadingTournaments, setLoadingTournaments] = useState(true);
+  const [featured, setFeatured] = useState([]);
+  const [matchesToday, setMatchesToday] = useState([]);
 
-  const [selectedTournamentId, setSelectedTournamentId] = useState(null);
-  const [selectedTournament, setSelectedTournament] = useState(null);
-  const [leaderboardRows, setLeaderboardRows] = useState([]);
-  const [loadingTournamentLeaderboard, setLoadingTournamentLeaderboard] = useState(false);
-
-  // Load games & seasons
   useEffect(() => {
-    const loadGames = async () => {
-      setLoadingGames(true);
-      try {
-        const res = await apiClient.get(API_ENDPOINTS.GAMES);
-        const gamesData = res?.data?.data ?? res?.data ?? [];
-
-        // Load seasons for each game
-        const gamesWithSeasons = await Promise.all(
-          gamesData.map(async game => {
-            try {
-              const seasonsRes = await apiClient.get(`${API_ENDPOINTS.SEASONS}/game/${game.id}`);
-              const seasonsData = seasonsRes?.data?.data ?? seasonsRes?.data ?? [];
-              const formattedSeasons = seasonsData.map(s => ({
-                id: s.id,
-                name: s.season_name || s.name,
-                start_date: s.start_date,
-                end_date: s.end_date,
-                isCurrent: s.status === 'ONGOING' || s.is_current === true || s.is_current === 1
-              }));
-              return { id: game.id, name: game.game_name || game.name, seasons: formattedSeasons };
-            } catch {
-              return { id: game.id, name: game.game_name || game.name, seasons: [] };
-            }
-          })
-        );
-
-        setGames(gamesWithSeasons);
-
-        if (gamesWithSeasons.length > 0) {
-          const firstGame = gamesWithSeasons[0];
-          setSelectedGameId(firstGame.id);
-          setSelectedGameName(firstGame.name);
-
-          const currentSeason = firstGame.seasons.find(s => s.isCurrent) || firstGame.seasons[0];
-          if (currentSeason) {
-            setSelectedSeasonId(currentSeason.id);
-            setSelectedSeasonName(currentSeason.name);
-            setSelectedSeasonObj(currentSeason);
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingGames(false);
-      }
-    };
-
-    loadGames();
-  }, []);
-
-  // Load tournaments
-  useEffect(() => {
-    const loadTournaments = async () => {
+    let mounted = true;
+    const load = async () => {
       setLoadingTournaments(true);
       try {
-        const resp = await tournamentService.getAllTournaments();
-        console.log('Tournaments response:', resp);
+        const resp = await tournamentService.getAllTournaments({ status: 'ongoing' });
+        const payload = resp?.data ?? resp;
+        let arr = [];
+        if (Array.isArray(payload)) arr = payload;
+        else if (Array.isArray(payload.tournaments)) arr = payload.tournaments;
+        else if (Array.isArray(payload.data)) arr = payload.data;
 
-        const data = resp?.data?.data ?? resp?.data ?? [];
-        // Không filter theo season để chắc chắn hiện tất cả
-        const formattedTournaments = data.map(t => ({
-          id: t.id,
-          name: t.tournament_name || t.name || 'Unknown',
-          status: t.status || 'unknown',
-          startDate: t.start_date || t.startDate,
-          endDate: t.end_date || t.endDate,
-          description: t.description || ''
-        }));
+        if (!mounted) return;
+        setTournaments(arr);
 
-        setTournaments(formattedTournaments);
+        // Build featured list: prefer tournaments that are open for registration
+        try {
+          // `arr` contains the ongoing tournaments fetched above (status=ongoing)
+          const ongoingArr = arr;
 
-        if (formattedTournaments.length > 0 && !selectedTournamentId) {
-          setSelectedTournamentId(formattedTournaments[0].id);
-          setSelectedTournament(formattedTournaments[0]);
+          // Fetch pending tournaments that are ready (isReady = 1)
+          const respPending = await tournamentService.getAllTournaments({ status: 'pending', isReady: 1 });
+          const pPayload = respPending?.data ?? respPending;
+          const pendingArr = Array.isArray(pPayload) ? pPayload : (pPayload?.data || pPayload?.tournaments || []);
+
+          if (Array.isArray(pendingArr) && pendingArr.length >= 6) {
+            setFeatured(pendingArr.slice(0, 6));
+          } else {
+            // Fill remaining slots with ongoing and completed tournaments
+            const respCompleted = await tournamentService.getAllTournaments({ status: 'completed' });
+            const cPayload = respCompleted?.data ?? respCompleted;
+            const completedArr = Array.isArray(cPayload) ? cPayload : (cPayload?.data || cPayload?.tournaments || []);
+
+            const pool = [...pendingArr, ...ongoingArr, ...completedArr];
+            // shuffle
+            for (let i = pool.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [pool[i], pool[j]] = [pool[j], pool[i]];
+            }
+            setFeatured(pool.slice(0, 6));
+          }
+
+          // Find matches scheduled for today from ongoing tournaments (use current_round)
+          const todayMatches = [];
+          const today = new Date();
+          const isSameDay = (d1, d2) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
+
+          for (const t of ongoingArr) {
+            const round = t.current_round || 1;
+            try {
+              const mResp = await tournamentService.getTournamentMatches(t.id, { round_number: round });
+              const mPayload = mResp?.data?.matches ?? mResp?.matches ?? mResp?.data ?? mResp;
+              const matchesArr = Array.isArray(mPayload) ? mPayload : (mPayload?.matches || mPayload?.data || []);
+              for (const m of matchesArr) {
+                const mt = m.match_time ? new Date(m.match_time) : (m.matchTime ? new Date(m.matchTime) : null);
+                if (mt && isSameDay(mt, today)) {
+                  todayMatches.push({
+                    ...m,
+                    tournamentName: t.tournament_name || t.name
+                  });
+                }
+              }
+            } catch (err) {
+              // continue silently per-tournament
+            }
+          }
+
+          setMatchesToday(todayMatches);
+        } catch (e) {
+          // fallback: use first 6 tournaments from arr
+          setFeatured(arr.slice(0, 6));
         }
       } catch (err) {
         console.error('Load tournaments error:', err);
         setTournaments([]);
       } finally {
-        setLoadingTournaments(false);
+        if (mounted) setLoadingTournaments(false);
       }
     };
 
-    loadTournaments();
-  }, [selectedSeasonId]);
+    load();
+    return () => { mounted = false; };
+  }, []);
 
-  // Update selectedTournament when selectedTournamentId changes
-  useEffect(() => {
-    if (selectedTournamentId && tournaments.length > 0) {
-      const t = tournaments.find(t => t.id === selectedTournamentId);
-      setSelectedTournament(t || null);
-    }
-  }, [selectedTournamentId, tournaments]);
-
-  // Load leaderboard for selected tournament
-  useEffect(() => {
-    const loadLeaderboard = async () => {
-      if (!selectedTournamentId) return;
-      setLoadingTournamentLeaderboard(true);
-      try {
-        const resp = await tournamentService.getFinalLeaderboard(selectedTournamentId);
-        // Backend returns { code, status, message, data: { tournamentId, leaderboard } }
-        let raw = [];
-        if (resp?.code === 0 && resp?.data?.leaderboard) raw = resp.data.leaderboard;
-        else if (resp?.data && Array.isArray(resp.data.leaderboard)) raw = resp.data.leaderboard;
-        else if (Array.isArray(resp)) raw = resp;
-        else if (resp?.leaderboard) raw = resp.leaderboard;
-
-        const rows = (raw || []).map((r, idx) => ({
-          rank: idx + 1,
-          team: { name: r.fullname || r.username || r.team_name || r.wallet || 'Unknown', logo: r.avatar || r.logo || null },
-          wins: r.wins ?? 0,
-          losses: r.losses ?? 0,
-          points: r.score ?? r.points ?? r.total_points ?? 0
-        }));
-
-        setLeaderboardRows(rows);
-      } catch (err) {
-        console.error('Failed to load leaderboard:', err);
-        setLeaderboardRows([]);
-      } finally {
-        setLoadingTournamentLeaderboard(false);
-      }
-    };
-
-    loadLeaderboard();
-  }, [selectedTournamentId]);
-    const STATUS_MAP = {
-  COMPLETED: { label: 'Đã kết thúc', color: 'bg-gray-600 text-white' },
-  PENDING: { label: 'Sắp diễn ra', color: 'bg-yellow-500 text-white' },
-  ACTIVE: { label: 'Đang diễn ra', color: 'bg-gray-400 text-white' }
-};
+  
+    
 
 
   return (
     <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
       <Header />
 
-      <main className="flex flex-1 mt-20">
-        {/* Danh sách giải đấu */}
-        <aside className="w-1/4 border-r border-gray-800 p-6 bg-gradient-to-br from-[#031014] via-[#071018] to-[#081216]">
-          <h2 className="text-lg font-semibold mb-4 text-cyan-400">Danh sách giải đấu</h2>
-          {loadingTournaments ? (
-            <div className="text-center py-8 text-gray-400">Đang tải...</div>
-          ) : tournaments.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">Chưa có giải đấu</div>
-          ) : (
-                  <div className="space-y-3">
-        {tournaments.map((t) => {
-            const isSelected = selectedTournamentId === t.id;
-            const tournamentNameClass = 'text-gray-200';
-
-            return (
-              <div
-                key={t.id}
-                onClick={() => setSelectedTournamentId(t.id)}
-                className={`p-3 rounded-lg cursor-pointer border ${isSelected ? 'border-cyan-500 bg-[#041f3c]' : 'border-transparent hover:border-neutral-700/40'}`}
-              >
-                <div className={`text-md font-semibold truncate ${tournamentNameClass}`}>
-                  {t.name}
-                </div>
-                {t.registration && (
-                  <div className="mt-1">
-                    <span className="text-xs px-2 py-0.5 rounded bg-dark-600 text-gray-200">{t.registration.label}</span>
-                  </div>
-                )}
-                <div className="text-sm text-gray-300">
-                  {t.startDate ? new Date(t.startDate).toLocaleDateString('vi-VN') : 'Chưa có lịch'} 
-                  {t.endDate && ` - ${new Date(t.endDate).toLocaleDateString('vi-VN')}`}
-                </div>
-                
+      <main className="flex-1 mt-20">
+        {/* Hero */}
+        <section className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary-700/50 via-gray-900 to-primary-600/30"></div>
+          <div className="relative max-w-7xl mx-auto px-4 py-16">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary-500/20 rounded-full text-primary-300 text-sm mb-4">
+                <span className="font-medium">Nền tảng Esport #1 Việt Nam</span>
               </div>
-            );
-          })}
-      </div>
-
-          )}
-        </aside>
-
-        {/* BXH giải đấu */}
-        <section className="w-1/2 p-8 space-y-10">
-          <div>
-            <h1 className="text-2xl font-bold">
-              {selectedTournamentId ? `BXH giải đấu: ${selectedTournament ? selectedTournament.name : `#${selectedTournamentId}`}` : 'Chọn giải đấu để xem BXH'}
-            </h1>
+              <h1 className="text-4xl font-bold mb-4">Chinh phục <span className="bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent">đỉnh cao</span> Esport</h1>
+              <p className="text-gray-400 mb-6">Tham gia các giải đấu chuyên nghiệp, kết nối với cộng đồng game thủ.</p>
+              <div className="flex gap-3">
+                <a href="/tournaments" className="px-6 py-2.5 bg-gradient-to-r from-primary-600 to-primary-500 rounded-lg font-medium hover:opacity-90 flex items-center gap-2">Xem giải đấu</a>
+                <a href="/tournaments" className="px-6 py-2.5 border border-primary-500/50 rounded-lg hover:bg-primary-500/20">Đăng ký</a>
+              </div>
+            </div>
           </div>
-          <Card>
-            <LeaderboardTable data={leaderboardRows} loading={loadingTournamentLeaderboard} />
-          </Card>
         </section>
 
-        <aside className="w-1/4 border-l border-gray-800 p-6 bg-gradient-to-br from-[#031014] via-[#071018] to-[#081216]">
-          <h2 className="text-lg font-semibold mb-4 text-cyan-400">Chi tiết giải đấu</h2>
-          {selectedTournament ? (
-            <div className="space-y-2">
-              <p>Tên: {selectedTournament.name}</p>
-              {selectedTournament.startDate && <p>Thời gian: {new Date(selectedTournament.startDate).toLocaleDateString('vi-VN')} - {selectedTournament.endDate ? new Date(selectedTournament.endDate).toLocaleDateString('vi-VN') : '...'} </p>}
-              <p>
-                Trạng thái: 
-                <span className={`ml-2 px-2 py-0.5 rounded-full ${
-                  (STATUS_MAP[selectedTournament.status] || STATUS_MAP.unknown).color
-                }`}>
-                  {(STATUS_MAP[selectedTournament.status] || STATUS_MAP.unknown).label}
-                </span>
-              </p>
-
-            </div>
+        {/* Matches Today */}
+        <section className="max-w-7xl mx-auto px-4 py-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">Trận đấu hôm nay</h2>
+            <a href="/schedule" className="font-semibold text-yellow-400 hover:text-yellow-300 text-sm">Xem lịch</a>
+          </div>
+          {matchesToday.length === 0 ? (
+            <div className="text-gray-400">Không có trận đấu nào hôm nay.</div>
           ) : (
-            <p className="text-gray-400">Chưa chọn giải đấu</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {matchesToday.map((m) => (
+                <Card key={m.id}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm text-gray-400">{m.tournamentName}</div>
+                      <div className="text-lg font-semibold">{m.teamA?.team_name || m.team_a_name || 'TBD'} vs {m.teamB?.team_name || m.team_b_name || 'TBD'}</div>
+                      <div className="text-sm text-gray-400">{m.match_time ? new Date(m.match_time).toLocaleString('vi-VN') : (m.matchTime ? new Date(m.matchTime).toLocaleString('vi-VN') : 'Thời gian chưa được đặt')}</div>
+                    </div>
+                    <div className="text-sm text-gray-300">{m.status}</div>
+                  </div>
+                </Card>
+              ))}
+            </div>
           )}
-        </aside>
+        </section>
+
+        {/* Featured tournaments (6 small cards: 2 register, 2 ongoing, 2 finished) */}
+        <section className="max-w-7xl mx-auto px-4 py-12">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold flex items-center gap-2">Giải đấu nổi bật</h2>
+            <a href="/tournaments" className="font-semibold text-yellow-400 hover:text-yellow-300 text-sm">Xem tất cả</a>
+          </div>
+
+          {loadingTournaments ? (
+            <div className="text-gray-400">Đang tải...</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+              {/** We'll pick 2 pending/register, 2 ongoing, 2 completed **/}
+              {(() => {
+                const pending = featured.filter(f => ((f.status || '').toString().toUpperCase() === 'PENDING' || (f.status || '').toString().toUpperCase() === 'REGISTRATION' || f.registration)) || [];
+                const ongoing = featured.filter(f => ((f.status || '').toString().toUpperCase() === 'ACTIVE' || (f.status || '').toString().toUpperCase() === 'ONGOING')) || [];
+                const completed = featured.filter(f => ((f.status || '').toString().toUpperCase() === 'COMPLETED' || (f.status || '').toString().toUpperCase() === 'DONE' || (f.status || '').toString().toUpperCase() === 'FINISHED')) || [];
+
+                const pick = (arr, n) => {
+                  if (!arr || arr.length === 0) return [];
+                  if (arr.length <= n) return arr.slice(0, n);
+                  // prefer those with registration flag for pending
+                  return arr.slice(0, n);
+                };
+
+                const picks = [];
+                picks.push(...pick(pending, 2));
+                picks.push(...pick(ongoing, 2));
+                picks.push(...pick(completed, 2));
+
+                // If we don't have 6, fill from featured pool (prioritize ongoing then pending then completed)
+                // If `featured` doesn't contain enough items, also consider the main
+                // `tournaments` list (ongoing) to fill remaining slots so we show up to 6.
+                const all = [...featured, ...(tournaments || [])];
+                for (let i = picks.length; i < 6 && all.length > 0; i++) {
+                  const candidate = all.shift();
+                  if (!picks.find(p => p.id === candidate.id)) picks.push(candidate);
+                }
+
+                return picks.slice(0, 6).map(t => (
+                  <div key={t.id} className="bg-gray-800/50 rounded-xl overflow-hidden border border-primary-500/10 hover:border-primary-500/30 transition">
+                    <TournamentCard compact tournament={{
+                      id: t.id,
+                      name: t.tournament_name || t.name,
+                      description: t.description || t.desc || '',
+                      startDate: t.start_date || t.startDate,
+                      endDate: t.end_date || t.endDate,
+                      banner: t.banner || t.image || null,
+                      prize: t.prize || t.total_prize || null,
+                      participantsCount: t.participantsCount || t.participants?.length || 0,
+                      status: t.status || t.state
+                    }} />
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
+        </section>
       </main>
 
       <Footer />

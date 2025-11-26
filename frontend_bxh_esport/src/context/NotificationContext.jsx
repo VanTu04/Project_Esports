@@ -5,7 +5,6 @@ const NotificationContext = createContext(null);
 
 const toastConfig = {
   duration: 4000,
-  position: 'top-right',
   style: {
     background: '#1C2128',
     color: '#fff',
@@ -76,7 +75,12 @@ export const NotificationProvider = ({ children }) => {
 
   return (
     <NotificationContext.Provider value={value}>
-      <Toaster />
+      <Toaster
+        position="bottom-right"
+        // limit visible to 2 to avoid spam
+        limit={2}
+        toastOptions={toastConfig}
+      />
       {children}
     </NotificationContext.Provider>
   );

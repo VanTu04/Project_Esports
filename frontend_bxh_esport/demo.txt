@@ -1,0 +1,381 @@
+import { useState } from 'react';
+import { Trophy, Users, Calendar, ChevronDown, Search, Bell, Facebook, Youtube, MessageCircle, Mail, Phone, MapPin, ArrowRight, Flame, Star, Clock, Medal, ChevronLeft, ChevronRight, Eye, Filter, Crown, Target, Swords } from 'lucide-react';
+
+export default function EsportPlatform() {
+  const [currentPage, setCurrentPage] = useState('home');
+  const [activeDropdown, setActiveDropdown] = useState(null);
+
+  const tournaments = [
+    { id: 1, name: 'VALORANT Champions 2025', game: 'Valorant', prize: '500,000,000 VNĐ', date: '15/12/2025', status: 'Đang mở', teams: 32, registered: 24, img: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&h=250&fit=crop' },
+    { id: 2, name: 'League of Legends Pro League', game: 'LoL', prize: '1,000,000,000 VNĐ', date: '20/12/2025', status: 'Sắp diễn ra', teams: 16, registered: 16, img: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=400&h=250&fit=crop' },
+    { id: 3, name: 'CS2 Major Vietnam', game: 'CS2', prize: '300,000,000 VNĐ', date: '01/01/2026', status: 'Đang mở', teams: 24, registered: 18, img: 'https://images.unsplash.com/photo-1493711662062-fa541f7f3d24?w=400&h=250&fit=crop' },
+    { id: 4, name: 'PUBG Mobile Pro Series', game: 'PUBG Mobile', prize: '200,000,000 VNĐ', date: '10/01/2026', status: 'Đang mở', teams: 20, registered: 12, img: 'https://images.unsplash.com/photo-1542751110-97427bbecf20?w=400&h=250&fit=crop' },
+    { id: 5, name: 'FIFA Online 4 Championship', game: 'FIFA', prize: '150,000,000 VNĐ', date: '15/01/2026', status: 'Sắp diễn ra', teams: 32, registered: 28, img: 'https://images.unsplash.com/photo-1493711662062-fa541f7f3d24?w=400&h=250&fit=crop' },
+  ];
+
+  const teams = [
+    { id: 1, name: 'Team Flash', game: 'Valorant', members: 5, wins: 45, rank: 1, logo: '⚡' },
+    { id: 2, name: 'GAM Esports', game: 'LoL', members: 6, wins: 38, rank: 2, logo: '🦁' },
+    { id: 3, name: 'SBTC Esports', game: 'Valorant', members: 5, wins: 32, rank: 3, logo: '🔥' },
+    { id: 4, name: 'Cerberus', game: 'CS2', members: 5, wins: 28, rank: 4, logo: '🐺' },
+    { id: 5, name: 'Divine Esports', game: 'PUBG', members: 4, wins: 25, rank: 5, logo: '👑' },
+    { id: 6, name: 'Team NKT', game: 'LoL', members: 6, wins: 22, rank: 6, logo: '🎯' },
+  ];
+
+  const schedule = [
+    { id: 1, match: 'Team Flash vs GAM Esports', tournament: 'VALORANT Champions 2025', date: '25/11/2025', time: '19:00', status: 'Sắp diễn ra' },
+    { id: 2, match: 'SBTC vs Cerberus', tournament: 'CS2 Major Vietnam', date: '25/11/2025', time: '20:30', status: 'Sắp diễn ra' },
+    { id: 3, match: 'Divine vs Team NKT', tournament: 'PUBG Mobile Pro Series', date: '26/11/2025', time: '18:00', status: 'Sắp diễn ra' },
+    { id: 4, match: 'Team Flash vs SBTC', tournament: 'VALORANT Champions 2025', date: '26/11/2025', time: '20:00', status: 'Sắp diễn ra' },
+    { id: 5, match: 'GAM vs Cerberus', tournament: 'League of Legends Pro', date: '27/11/2025', time: '19:30', status: 'Sắp diễn ra' },
+  ];
+
+  const news = [
+    { id: 1, title: 'Team Flash vô địch giải mùa hè với thành tích ấn tượng', date: '20/11/2025', category: 'Tin tức', desc: 'Đội tuyển Team Flash đã xuất sắc giành chức vô địch với tỷ số 3-1 trước GAM Esports...', img: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&h=200&fit=crop' },
+    { id: 2, title: 'Lịch thi đấu tháng 12 chính thức được công bố', date: '18/11/2025', category: 'Thông báo', desc: 'Ban tổ chức vừa công bố lịch thi đấu chính thức cho tháng 12 với nhiều trận đấu hấp dẫn...', img: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=400&h=200&fit=crop' },
+    { id: 3, title: 'Hướng dẫn đăng ký đội tuyển tham gia giải đấu', date: '15/11/2025', category: 'Hướng dẫn', desc: 'Bài viết chi tiết hướng dẫn các bước đăng ký đội tuyển tham gia các giải đấu trên nền tảng...', img: 'https://images.unsplash.com/photo-1493711662062-fa541f7f3d24?w=400&h=200&fit=crop' },
+    { id: 4, title: 'Giải thưởng VALORANT Champions tăng lên 500 triệu', date: '12/11/2025', category: 'Tin tức', desc: 'Nhà tài trợ chính thức công bố tăng giải thưởng lên mức kỷ lục 500 triệu đồng...', img: 'https://images.unsplash.com/photo-1542751110-97427bbecf20?w=400&h=200&fit=crop' },
+  ];
+
+  const rankings = [
+    { rank: 1, name: 'Team Flash', points: 2850, wins: 45, losses: 5, winrate: '90%' },
+    { rank: 2, name: 'GAM Esports', points: 2650, wins: 38, losses: 8, winrate: '83%' },
+    { rank: 3, name: 'SBTC Esports', points: 2400, wins: 32, losses: 12, winrate: '73%' },
+    { rank: 4, name: 'Cerberus', points: 2200, wins: 28, losses: 15, winrate: '65%' },
+    { rank: 5, name: 'Divine Esports', points: 2000, wins: 25, losses: 18, winrate: '58%' },
+    { rank: 6, name: 'Team NKT', points: 1850, wins: 22, losses: 20, winrate: '52%' },
+    { rank: 7, name: 'Vikings Gaming', points: 1700, wins: 20, losses: 22, winrate: '48%' },
+    { rank: 8, name: 'Burst Esports', points: 1550, wins: 18, losses: 25, winrate: '42%' },
+  ];
+
+  const Header = () => (
+    <header className="bg-gray-950/95 backdrop-blur-md sticky top-0 z-50 border-b border-purple-500/20">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex items-center justify-between h-14">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setCurrentPage('home')}>
+            <div className="w-9 h-9 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+              <Trophy className="w-5 h-5" />
+            </div>
+            <span className="text-lg font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">VNESPORT</span>
+          </div>
+
+          <nav className="flex items-center gap-1">
+            <button onClick={() => setCurrentPage('home')} className={`px-3 py-1.5 rounded-lg transition text-sm flex items-center gap-1 ${currentPage === 'home' ? 'bg-purple-500/30 text-purple-300' : 'hover:bg-purple-500/20'}`}>
+              <Flame className="w-4 h-4" /> Trang chủ
+            </button>
+            
+            <div className="relative" onMouseEnter={() => setActiveDropdown('tournaments')} onMouseLeave={() => setActiveDropdown(null)}>
+              <button onClick={() => setCurrentPage('tournaments')} className={`px-3 py-1.5 rounded-lg transition text-sm flex items-center gap-1 ${currentPage === 'tournaments' ? 'bg-purple-500/30 text-purple-300' : 'hover:bg-purple-500/20'}`}>
+                <Trophy className="w-4 h-4" /> Giải đấu <ChevronDown className="w-3 h-3" />
+              </button>
+              {activeDropdown === 'tournaments' && (
+                <div className="absolute top-full left-0 mt-1 w-44 bg-gray-800 rounded-lg shadow-xl border border-purple-500/20 py-2 text-sm">
+                  <a href="#" className="block px-4 py-2 hover:bg-purple-500/20">Đang diễn ra</a>
+                  <a href="#" className="block px-4 py-2 hover:bg-purple-500/20">Sắp tới</a>
+                  <a href="#" className="block px-4 py-2 hover:bg-purple-500/20">Đã kết thúc</a>
+                </div>
+              )}
+            </div>
+
+            <button onClick={() => setCurrentPage('teams')} className={`px-3 py-1.5 rounded-lg transition text-sm flex items-center gap-1 ${currentPage === 'teams' ? 'bg-purple-500/30 text-purple-300' : 'hover:bg-purple-500/20'}`}>
+              <Users className="w-4 h-4" /> Đội tuyển
+            </button>
+            <button onClick={() => setCurrentPage('schedule')} className={`px-3 py-1.5 rounded-lg transition text-sm flex items-center gap-1 ${currentPage === 'schedule' ? 'bg-purple-500/30 text-purple-300' : 'hover:bg-purple-500/20'}`}>
+              <Calendar className="w-4 h-4" /> Lịch thi đấu
+            </button>
+            <button onClick={() => setCurrentPage('news')} className={`px-3 py-1.5 rounded-lg transition text-sm flex items-center gap-1 ${currentPage === 'news' ? 'bg-purple-500/30 text-purple-300' : 'hover:bg-purple-500/20'}`}>
+              <Star className="w-4 h-4" /> Tin tức
+            </button>
+            <button onClick={() => setCurrentPage('rankings')} className={`px-3 py-1.5 rounded-lg transition text-sm flex items-center gap-1 ${currentPage === 'rankings' ? 'bg-purple-500/30 text-purple-300' : 'hover:bg-purple-500/20'}`}>
+              <Medal className="w-4 h-4" /> Xếp hạng
+            </button>
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <button className="p-2 hover:bg-purple-500/20 rounded-lg transition"><Search className="w-4 h-4" /></button>
+            <button className="p-2 hover:bg-purple-500/20 rounded-lg transition relative">
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-pink-500 rounded-full"></span>
+            </button>
+            <button className="px-3 py-1.5 border border-purple-500 text-purple-400 rounded-lg hover:bg-purple-500/20 transition text-sm">Đăng nhập</button>
+            <button className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg hover:opacity-90 transition text-sm font-medium">Đăng ký</button>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+
+  const Footer = () => (
+    <footer className="bg-gray-950 border-t border-purple-500/10">
+      <div className="max-w-7xl mx-auto px-4 py-10">
+        <div className="grid grid-cols-4 gap-8 mb-8">
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-9 h-9 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                <Trophy className="w-5 h-5" />
+              </div>
+              <span className="text-lg font-bold">VNESPORT</span>
+            </div>
+            <p className="text-gray-400 text-sm mb-4">Nền tảng tổ chức giải đấu Esport chuyên nghiệp hàng đầu Việt Nam.</p>
+            <div className="flex gap-2">
+              <a href="#" className="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-purple-600 transition"><Facebook className="w-4 h-4" /></a>
+              <a href="#" className="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-red-600 transition"><Youtube className="w-4 h-4" /></a>
+              <a href="#" className="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-purple-600 transition"><MessageCircle className="w-4 h-4" /></a>
+            </div>
+          </div>
+          <div>
+            <h4 className="font-semibold mb-4 text-sm">Giải đấu</h4>
+            <ul className="space-y-2 text-gray-400 text-sm">
+              <li><a href="#" className="hover:text-purple-400">Đang diễn ra</a></li>
+              <li><a href="#" className="hover:text-purple-400">Sắp tới</a></li>
+              <li><a href="#" className="hover:text-purple-400">Tạo giải đấu</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-semibold mb-4 text-sm">Hỗ trợ</h4>
+            <ul className="space-y-2 text-gray-400 text-sm">
+              <li><a href="#" className="hover:text-purple-400">Hướng dẫn</a></li>
+              <li><a href="#" className="hover:text-purple-400">FAQ</a></li>
+              <li><a href="#" className="hover:text-purple-400">Điều khoản</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-semibold mb-4 text-sm">Liên hệ</h4>
+            <ul className="space-y-2 text-gray-400 text-sm">
+              <li className="flex items-center gap-2"><Mail className="w-4 h-4 text-purple-400" /> contact@vnesport.vn</li>
+              <li className="flex items-center gap-2"><Phone className="w-4 h-4 text-purple-400" /> 1900 xxxx</li>
+            </ul>
+          </div>
+        </div>
+        <div className="border-t border-gray-800 pt-6 text-center text-sm text-gray-500">
+          © 2025 VNESPORT. All rights reserved.
+        </div>
+      </div>
+    </footer>
+  );
+
+  const HomePage = () => (
+    <>
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/50 via-gray-900 to-pink-900/30"></div>
+        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1920')] bg-cover bg-center opacity-20"></div>
+        <div className="relative max-w-7xl mx-auto px-4 py-16">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/20 rounded-full text-purple-300 text-sm mb-4">
+              <Flame className="w-4 h-4" /> Nền tảng Esport #1 Việt Nam
+            </div>
+            <h1 className="text-4xl font-bold mb-4">Chinh phục <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">đỉnh cao</span> Esport</h1>
+            <p className="text-gray-400 mb-6">Tham gia các giải đấu chuyên nghiệp, kết nối với cộng đồng game thủ.</p>
+            <div className="flex gap-3">
+              <button className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-medium hover:opacity-90 flex items-center gap-2">
+                Đăng ký thi đấu <ArrowRight className="w-4 h-4" />
+              </button>
+              <button onClick={() => setCurrentPage('tournaments')} className="px-6 py-2.5 border border-purple-500/50 rounded-lg hover:bg-purple-500/20">Xem giải đấu</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-gray-800/50 border-y border-purple-500/10">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="grid grid-cols-4 gap-6 text-center">
+            <div><div className="text-2xl font-bold text-purple-400">500+</div><div className="text-gray-400 text-sm">Giải đấu</div></div>
+            <div><div className="text-2xl font-bold text-pink-400">10,000+</div><div className="text-gray-400 text-sm">Đội tuyển</div></div>
+            <div><div className="text-2xl font-bold text-purple-400">50,000+</div><div className="text-gray-400 text-sm">Game thủ</div></div>
+            <div><div className="text-2xl font-bold text-pink-400">5 Tỷ+</div><div className="text-gray-400 text-sm">Giải thưởng</div></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="max-w-7xl mx-auto px-4 py-12">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="w-6 h-6 text-purple-400" /> Giải đấu nổi bật</h2>
+          <button onClick={() => setCurrentPage('tournaments')} className="text-purple-400 hover:text-purple-300 flex items-center gap-1 text-sm">Xem tất cả <ArrowRight className="w-4 h-4" /></button>
+        </div>
+        <div className="grid grid-cols-3 gap-5">
+          {tournaments.slice(0, 3).map(t => (
+            <div key={t.id} className="bg-gray-800/50 rounded-xl overflow-hidden border border-purple-500/10 hover:border-purple-500/30 transition group">
+              <div className="relative h-36 overflow-hidden">
+                <img src={t.img} alt={t.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                <div className={`absolute top-2 right-2 px-2 py-1 text-xs font-medium rounded-full ${t.status === 'Đang mở' ? 'bg-green-500/90' : 'bg-yellow-500/90'}`}>{t.status}</div>
+              </div>
+              <div className="p-4">
+                <div className="text-xs text-purple-400 mb-1">{t.game}</div>
+                <h3 className="font-bold mb-2">{t.name}</h3>
+                <div className="flex items-center gap-3 text-xs text-gray-400 mb-3">
+                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {t.date}</span>
+                  <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {t.teams} đội</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-pink-400 font-semibold text-sm">{t.prize}</div>
+                  <button className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs">Đăng ký</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+
+  const TournamentsPage = () => (
+    <section className="max-w-7xl mx-auto px-4 py-8">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold flex items-center gap-2"><Trophy className="w-7 h-7 text-purple-400" /> Tất cả giải đấu</h1>
+        <div className="flex gap-2">
+          <button className="px-4 py-2 bg-purple-600 rounded-lg text-sm">Tất cả</button>
+          <button className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm">Đang mở</button>
+          <button className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm">Sắp diễn ra</button>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-5">
+        {tournaments.map(t => (
+          <div key={t.id} className="bg-gray-800/50 rounded-xl overflow-hidden border border-purple-500/10 hover:border-purple-500/30 transition flex">
+            <div className="w-48 h-40 overflow-hidden flex-shrink-0">
+              <img src={t.img} alt={t.name} className="w-full h-full object-cover" />
+            </div>
+            <div className="p-4 flex-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-purple-400">{t.game}</span>
+                <span className={`px-2 py-0.5 text-xs rounded-full ${t.status === 'Đang mở' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{t.status}</span>
+              </div>
+              <h3 className="font-bold mb-2">{t.name}</h3>
+              <div className="text-xs text-gray-400 space-y-1 mb-3">
+                <div className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {t.date}</div>
+                <div className="flex items-center gap-1"><Users className="w-3 h-3" /> {t.registered}/{t.teams} đội đã đăng ký</div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="text-pink-400 font-semibold">{t.prize}</div>
+                <button className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm">Xem chi tiết</button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+
+  const TeamsPage = () => (
+    <section className="max-w-7xl mx-auto px-4 py-8">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold flex items-center gap-2"><Users className="w-7 h-7 text-purple-400" /> Đội tuyển</h1>
+        <button className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg text-sm font-medium">+ Tạo đội tuyển</button>
+      </div>
+      <div className="grid grid-cols-3 gap-5">
+        {teams.map(t => (
+          <div key={t.id} className="bg-gray-800/50 rounded-xl p-5 border border-purple-500/10 hover:border-purple-500/30 transition">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center text-2xl">{t.logo}</div>
+              <div>
+                <h3 className="font-bold">{t.name}</h3>
+                <span className="text-xs text-purple-400">{t.game}</span>
+              </div>
+              <div className="ml-auto text-right">
+                <div className="text-xs text-gray-400">Hạng</div>
+                <div className="text-xl font-bold text-yellow-400">#{t.rank}</div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-sm text-gray-400 mb-4">
+              <span><Users className="w-4 h-4 inline mr-1" /> {t.members} thành viên</span>
+              <span><Trophy className="w-4 h-4 inline mr-1" /> {t.wins} trận thắng</span>
+            </div>
+            <button className="w-full py-2 border border-purple-500/50 rounded-lg hover:bg-purple-500/20 text-sm">Xem chi tiết</button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+
+  const SchedulePage = () => (
+    <section className="max-w-7xl mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold flex items-center gap-2 mb-6"><Calendar className="w-7 h-7 text-purple-400" /> Lịch thi đấu</h1>
+      <div className="bg-gray-800/50 rounded-xl border border-purple-500/10 overflow-hidden">
+        <div className="grid grid-cols-5 gap-4 p-4 bg-gray-800 text-sm font-medium text-gray-400">
+          <div>Trận đấu</div>
+          <div>Giải đấu</div>
+          <div>Ngày</div>
+          <div>Giờ</div>
+          <div>Trạng thái</div>
+        </div>
+        {schedule.map(s => (
+          <div key={s.id} className="grid grid-cols-5 gap-4 p-4 border-t border-gray-700/50 items-center hover:bg-purple-500/10 transition">
+            <div className="font-medium flex items-center gap-2"><Swords className="w-4 h-4 text-pink-400" /> {s.match}</div>
+            <div className="text-sm text-gray-400">{s.tournament}</div>
+            <div className="text-sm">{s.date}</div>
+            <div className="text-sm text-purple-400">{s.time}</div>
+            <div><span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full">{s.status}</span></div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+
+  const NewsPage = () => (
+    <section className="max-w-7xl mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold flex items-center gap-2 mb-6"><Star className="w-7 h-7 text-pink-400" /> Tin tức</h1>
+      <div className="grid grid-cols-2 gap-5">
+        {news.map(n => (
+          <div key={n.id} className="bg-gray-800/50 rounded-xl overflow-hidden border border-purple-500/10 hover:border-purple-500/30 transition flex">
+            <div className="w-48 h-36 overflow-hidden flex-shrink-0">
+              <img src={n.img} alt={n.title} className="w-full h-full object-cover" />
+            </div>
+            <div className="p-4 flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded-full">{n.category}</span>
+                <span className="text-xs text-gray-500 flex items-center gap-1"><Clock className="w-3 h-3" /> {n.date}</span>
+              </div>
+              <h3 className="font-bold mb-2">{n.title}</h3>
+              <p className="text-sm text-gray-400 line-clamp-2">{n.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+
+  const RankingsPage = () => (
+    <section className="max-w-7xl mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold flex items-center gap-2 mb-6"><Medal className="w-7 h-7 text-yellow-400" /> Bảng xếp hạng</h1>
+      <div className="bg-gray-800/50 rounded-xl border border-purple-500/10 overflow-hidden">
+        <div className="grid grid-cols-6 gap-4 p-4 bg-gray-800 text-sm font-medium text-gray-400">
+          <div>Hạng</div>
+          <div>Đội tuyển</div>
+          <div>Điểm</div>
+          <div>Thắng</div>
+          <div>Thua</div>
+          <div>Tỷ lệ thắng</div>
+        </div>
+        {rankings.map(r => (
+          <div key={r.rank} className={`grid grid-cols-6 gap-4 p-4 border-t border-gray-700/50 items-center hover:bg-purple-500/10 transition ${r.rank <= 3 ? 'bg-gradient-to-r from-yellow-500/5 to-transparent' : ''}`}>
+            <div className="font-bold text-lg">
+              {r.rank === 1 && <span className="text-yellow-400">🥇</span>}
+              {r.rank === 2 && <span className="text-gray-300">🥈</span>}
+              {r.rank === 3 && <span className="text-orange-400">🥉</span>}
+              {r.rank > 3 && <span className="text-gray-400">#{r.rank}</span>}
+            </div>
+            <div className="font-medium">{r.name}</div>
+            <div className="text-purple-400 font-semibold">{r.points}</div>
+            <div className="text-green-400">{r.wins}</div>
+            <div className="text-red-400">{r.losses}</div>
+            <div>{r.winrate}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white">
+      <Header />
+      <main className="min-h-[70vh]">
+        {currentPage === 'home' && <HomePage />}
+        {currentPage === 'tournaments' && <TournamentsPage />}
+        {currentPage === 'teams' && <TeamsPage />}
+        {currentPage === 'schedule' && <SchedulePage />}
+        {currentPage === 'news' && <NewsPage />}
+        {currentPage === 'rankings' && <RankingsPage />}
+      </main>
+      <Footer />
+    </div>
+  );
+}

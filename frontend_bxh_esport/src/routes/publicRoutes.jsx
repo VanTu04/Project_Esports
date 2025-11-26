@@ -5,6 +5,7 @@ import Schedule from '../pages/public/Schedule';
 import { TeamPublicView } from '../pages/public/TeamPublicView';
 import Wallet from '../pages/public/Wallet';
 import TournamentDetailPage from '../pages/public/TournamentDetailPage';
+import News from '../pages/public/News';
 
 export const publicRoutes = [
   { path: '/', element: <Home /> },
@@ -12,6 +13,7 @@ export const publicRoutes = [
   { path: '/tournaments/:tournamentId', element: <TournamentDetailPage /> },
   { path: '/schedule', element: <Schedule /> },
   { path: '/wallet', element: <Wallet /> },
+  { path: '/news', element: <News /> },
   { path: '/leaderboard', element: <Leaderboard /> },
   { path: '/teams', element: <TeamPublicView /> },
 ];

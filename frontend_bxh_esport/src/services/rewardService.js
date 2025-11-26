@@ -1,4 +1,5 @@
 import { apiClient } from './api';
+import { API_ENDPOINTS } from '../utils/constants';
 
 const rewardService = {
   /**
@@ -6,7 +7,7 @@ const rewardService = {
    */
   getAllRewards: async (params = {}) => {
     try {
-      const response = await apiClient.get('/rewards', { params });
+      const response = await apiClient.get(API_ENDPOINTS.REWARDS, { params });
       return response;
     } catch (error) {
       throw error;
@@ -30,7 +31,7 @@ const rewardService = {
    */
   createReward: async (rewardData) => {
     try {
-      const response = await apiClient.post('/rewards', rewardData);
+      const response = await apiClient.post(API_ENDPOINTS.REWARDS, rewardData);
       return response;
     } catch (error) {
       throw error;
@@ -42,7 +43,7 @@ const rewardService = {
    */
   updateReward: async (rewardId, rewardData) => {
     try {
-      const response = await apiClient.put(`/rewards/${rewardId}`, rewardData);
+      const response = await apiClient.put(`${API_ENDPOINTS.REWARDS}/${rewardId}`, rewardData);
       return response;
     } catch (error) {
       throw error;
@@ -54,7 +55,7 @@ const rewardService = {
    */
   deleteReward: async (rewardId) => {
     try {
-      const response = await apiClient.delete(`/rewards/${rewardId}`);
+      const response = await apiClient.delete(`${API_ENDPOINTS.REWARDS}/${rewardId}`);
       return response;
     } catch (error) {
       throw error;
@@ -67,7 +68,8 @@ const rewardService = {
   getTournamentRewards: async (tournamentId) => {
     try {
       // Backend route: GET /api/tournaments/:tournament_id/rewards
-      const response = await apiClient.get(`/tournaments/${tournamentId}/rewards`);
+      const endpoint = API_ENDPOINTS.TOURNAMENT_REWARDS.replace(':id', tournamentId);
+      const response = await apiClient.get(endpoint);
       return response?.data ?? response;
     } catch (error) {
       throw error;
@@ -79,9 +81,8 @@ const rewardService = {
    */
   configureTournamentRewards: async (tournamentId, rewardsConfig) => {
     try {
-      const response = await apiClient.post(`/rewards/tournament/${tournamentId}/configure`, 
-        rewardsConfig
-      );
+      const endpoint = `${API_ENDPOINTS.REWARDS}/tournament/${tournamentId}/configure`;
+      const response = await apiClient.post(endpoint, rewardsConfig);
       return response;
     } catch (error) {
       throw error;
@@ -93,7 +94,8 @@ const rewardService = {
    */
   getRewardDistributionList: async (tournamentId) => {
     try {
-      const response = await apiClient.get(`/rewards/tournament/${tournamentId}/distribution`);
+      const endpoint = `${API_ENDPOINTS.REWARDS}/tournament/${tournamentId}/distribution`;
+      const response = await apiClient.get(endpoint);
       return response;
     } catch (error) {
       throw error;
@@ -105,7 +107,8 @@ const rewardService = {
    */
   approveRewardDistribution: async (tournamentId) => {
     try {
-      const response = await apiClient.post(`/rewards/tournament/${tournamentId}/approve`);
+      const endpoint = `${API_ENDPOINTS.REWARDS}/tournament/${tournamentId}/approve`;
+      const response = await apiClient.post(endpoint);
       return response;
     } catch (error) {
       throw error;
@@ -117,9 +120,10 @@ const rewardService = {
    */
   executeRewardDistribution: async (tournamentId) => {
     try {
-      // Backend provides tournament-level distribution endpoint: POST /tournaments/:tournament_id/distribute-rewards
-      const response = await apiClient.post(`/tournaments/${tournamentId}/distribute-rewards`);
-      return response;
+      // Call admin controller route that runs the smart-contract distribution flow
+      // Backend mounts this at POST /api/distribute-rewards
+      const response = await apiClient.post('/distribute-rewards', { tournament_id: Number(tournamentId) });
+      return response?.data ?? response;
     } catch (error) {
       throw error;
     }
@@ -130,7 +134,8 @@ const rewardService = {
    */
   getTeamRewards: async (teamId, params = {}) => {
     try {
-      const response = await apiClient.get(`/rewards/team/${teamId}`, { params });
+      const endpoint = `${API_ENDPOINTS.REWARDS}/team/${teamId}`;
+      const response = await apiClient.get(endpoint, { params });
       return response;
     } catch (error) {
       throw error;
@@ -142,7 +147,8 @@ const rewardService = {
    */
   getPlayerRewards: async (playerId, params = {}) => {
     try {
-      const response = await apiClient.get(`/rewards/player/${playerId}`, { params });
+      const endpoint = `${API_ENDPOINTS.REWARDS}/player/${playerId}`;
+      const response = await apiClient.get(endpoint, { params });
       return response;
     } catch (error) {
       throw error;
@@ -154,7 +160,7 @@ const rewardService = {
    */
   claimReward: async (rewardId) => {
     try {
-      const response = await apiClient.post(`/rewards/${rewardId}/claim`);
+      const response = await apiClient.post(`${API_ENDPOINTS.REWARDS}/${rewardId}/claim`);
       return response;
     } catch (error) {
       throw error;
@@ -166,7 +172,7 @@ const rewardService = {
    */
   getClaimHistory: async (params = {}) => {
     try {
-      const response = await apiClient.get('/rewards/claims', { params });
+      const response = await apiClient.get(`${API_ENDPOINTS.REWARDS}/claims`, { params });
       return response;
     } catch (error) {
       throw error;
@@ -178,7 +184,7 @@ const rewardService = {
    */
   getPendingRewards: async (params = {}) => {
     try {
-      const response = await apiClient.get('/rewards/pending', { params });
+      const response = await apiClient.get(`${API_ENDPOINTS.REWARDS}/pending`, { params });
       return response;
     } catch (error) {
       throw error;
@@ -190,7 +196,7 @@ const rewardService = {
    */
   getDistributedRewards: async (params = {}) => {
     try {
-      const response = await apiClient.get('/rewards/distributed', { params });
+      const response = await apiClient.get(`${API_ENDPOINTS.REWARDS}/distributed`, { params });
       return response;
     } catch (error) {
       throw error;
@@ -202,7 +208,7 @@ const rewardService = {
    */
   calculateRewardAmount: async (tournamentId, position) => {
     try {
-      const response = await apiClient.post('/rewards/calculate', {
+      const response = await apiClient.post(`${API_ENDPOINTS.REWARDS}/calculate`, {
         tournamentId,
         position,
       });
@@ -217,7 +223,7 @@ const rewardService = {
    */
   getRewardStats: async (params = {}) => {
     try {
-      const response = await apiClient.get('/rewards/stats', { params });
+      const response = await apiClient.get(`${API_ENDPOINTS.REWARDS}/stats`, { params });
       return response;
     } catch (error) {
       throw error;

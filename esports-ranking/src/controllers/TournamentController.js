@@ -564,6 +564,7 @@ export const rejectJoinRequest = async (req, res) => {
       to_user_id: participant.user_id,
       actor: 'ADMIN',
       type: 'RECEIVE_REFUND',
+      description: `Lý do bị từ chối giải ${participant.tournament_id}: ${participant.rejection_reason || 'Không có lý do'}`,
       tx_hash: result.txHash,
       amount: weiToEth(result.amountRefunded) // Chuyển từ wei sang ETH
     });

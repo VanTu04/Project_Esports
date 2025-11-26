@@ -8,7 +8,6 @@ export default (sequelize) => {
 
     tournament_id: {
       type: DataTypes.INTEGER,
-      allowNull: false,
       references: {
         model: 'tournaments',
         key: 'id'
