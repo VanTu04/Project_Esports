@@ -29,9 +29,15 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
     }
   };
 
-  const currentApproved = tournament?.teams?.current || 0;
+  // Track approved count locally so UI can update immediately when an approval happens
+  const [approvedCount, setApprovedCount] = useState(tournament?.teams?.current || 0);
   const totalTeam = tournament?.teams?.total_team || null;
-  const isMaxReached = totalTeam && currentApproved >= totalTeam;
+  const isMaxReached = totalTeam && approvedCount >= totalTeam;
+
+  // Keep approvedCount in sync when the tournament prop changes
+  useEffect(() => {
+    setApprovedCount(tournament?.teams?.current ?? 0);
+  }, [tournament?.teams?.current, show]);
 
   useEffect(() => {
     if (!show) return;
@@ -117,16 +123,26 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
   }, [show, tournament]);
 
   const handleApprove = async (participantId) => {
-    // If parent provided onApprove, delegate the approve action to parent (so it can update table state)
+    // Optimistic update: remove team and increment approved count immediately,
+    // revert if the API (or delegated handler) fails.
+    const teamObj = pendingTeams.find(t => t.id === participantId);
+    const prevApproved = approvedCount;
+
+    // optimistic local update
+    if (teamObj) setPendingTeams(prev => prev.filter(t => t.id !== participantId));
+    setApprovedCount(prev => prev + 1);
+    setProcessingTeamId(participantId);
+
+    // If parent provided onApprove, delegate the approve action to parent
     if (typeof onApprove === 'function') {
       try {
-        setProcessingTeamId(participantId);
         await onApprove(participantId);
-        // Parent is expected to update pendingTeams via props or you can optimistically remove here
-        setPendingTeams(prev => prev.filter(t => t.id !== participantId));
-        showSuccess('Duyệt thành công');
+        showSuccess(`Duyệt thành công — Đã duyệt ${prevApproved + 1} đội`);
         if (typeof onActionComplete === 'function') onActionComplete();
       } catch (err) {
+        // revert optimistic changes
+        if (teamObj) setPendingTeams(prev => [teamObj, ...prev]);
+        setApprovedCount(prevApproved);
         console.error('Approve delegated error:', err);
         showError(err?.message || 'Duyệt thất bại');
       } finally {
@@ -135,23 +151,22 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
       return;
     }
 
-    setProcessingTeamId(participantId);
     try {
       const res = await tournamentService.approveParticipant(participantId);
-      const participant = res?.data?.participant;
-      const blockchain = res?.data?.blockchain;
-
-      setPendingTeams(prev => prev.filter(t => t.id !== participantId));
       const successMsg = res?.message || res?.data?.message || '';
       const low = String(successMsg || '').toLowerCase();
       if (low.includes('blockchain') || low.includes('đã xử lý') || low.includes('already')) {
+        // keep optimistic removal but show warning
         showWarning(successMsg || 'Trạng thái blockchain không hợp lệ. Có thể đã được xử lý rồi.');
       } else {
-        showSuccess(successMsg || 'Duyệt thành công');
+        showSuccess((successMsg || 'Duyệt thành công') + ` — Đã duyệt ${prevApproved + 1} đội`);
       }
-      if (blockchain) console.log('Blockchain approval info:', blockchain);
+      if (res?.data?.blockchain) console.log('Blockchain approval info:', res.data.blockchain);
       if (typeof onActionComplete === 'function') onActionComplete();
     } catch (err) {
+      // revert optimistic changes on error
+      if (teamObj) setPendingTeams(prev => [teamObj, ...prev]);
+      setApprovedCount(prevApproved);
       console.error('Approve error:', err);
       const serverMsg = err?.response?.data?.message ?? err?.message ?? '';
       const low = String(serverMsg || '').toLowerCase();
@@ -214,6 +229,7 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
           <div>
             <h2 className="text-2xl font-bold text-white">Duyệt Đội Tham Gia</h2>
             <p className="text-sm text-gray-400 mt-1">Giải đấu: {tournament?.name}</p>
+            <div className="text-sm text-gray-300 mt-2">Đã duyệt: <span className="font-semibold text-white">{approvedCount}</span>{totalTeam ? <span className="text-gray-400">/{totalTeam}</span> : null}</div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-primary-700/20 rounded-lg transition-colors text-gray-400 hover:text-white">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

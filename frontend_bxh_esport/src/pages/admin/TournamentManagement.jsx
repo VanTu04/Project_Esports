@@ -423,7 +423,6 @@ export const TournamentManagement = () => {
       upcoming: { text: 'Sắp diễn ra', color: 'bg-amber-500/30 text-amber-200 border-2 border-amber-400/50' },
       completed: { text: 'Hoàn thành', color: 'bg-blue-500/30 text-blue-200 border-2 border-blue-400/50' },
       active: { text: 'Đang diễn ra', color: 'bg-green-500/30 text-green-300 border-2 border-green-400/50' },
-      cancelled: { text: 'Đã hủy', color: 'bg-rose-500/30 text-rose-300 border-2 border-rose-400/50' },
       draft: { text: 'Chưa kích hoạt', color: 'bg-gray-500/20 text-gray-300 border-2 border-gray-400/30' }
     };
 
