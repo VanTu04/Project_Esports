@@ -153,15 +153,27 @@ export const LoginForm = () => {
       <div className="flex justify-center">
         <Turnstile
           siteKey={TURNSTILE_SITE_KEY}
-          onSuccess={(token) => setCaptchaToken(token)}
-          onError={() => {
+          onSuccess={(token) => {
+            console.log('✅ Turnstile Success! Token:', token?.substring(0, 20) + '...');
+            setCaptchaToken(token);
+          }}
+          onError={(error) => {
+            console.error('❌ Turnstile Error:', error);
             setCaptchaToken(null);
             showError('Xác thực CAPTCHA thất bại. Vui lòng thử lại.');
           }}
-          onExpire={() => setCaptchaToken(null)}
+          onExpire={() => {
+            console.warn('⏰ Turnstile Expired');
+            setCaptchaToken(null);
+          }}
+          onLoad={() => {
+            console.log('📦 Turnstile Loaded. Site Key:', TURNSTILE_SITE_KEY);
+          }}
           theme="dark"
         />
       </div>
+      
+      
 
       <Button type="submit" fullWidth loading={loading}>
         Đăng nhập

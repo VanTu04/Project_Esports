@@ -68,8 +68,11 @@ const authService = {
   login: async (credentials) => {
     const payload = {
       account: credentials.email,  
-      password: credentials.password
+      password: credentials.password,
+      captchaToken: credentials.captchaToken  // Include CAPTCHA token
     };
+    
+    console.log('🔐 Login payload:', { ...payload, password: '***' });
     
     const res = await api.post("/users/login", payload);
     
