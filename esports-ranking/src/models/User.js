@@ -30,6 +30,19 @@ export default (sequelize) => {
 
     wallet_address: DataTypes.STRING(255),
     private_key: DataTypes.STRING(255),
+    // Two-factor auth flag (email OTP 2FA)
+    two_factor_enabled: { 
+      type: DataTypes.INTEGER(1),
+      defaultValue: 0 
+    },
+    // Email-specific two-factor flag
+    email_two_factor_enabled: {
+      type: DataTypes.INTEGER(1),
+      defaultValue: 0
+    },
+    // TOTP secrets for app-based 2FA
+    totp_temp_secret: DataTypes.STRING(255),
+    totp_secret: DataTypes.STRING(255),
 
     created_date: {
       type: DataTypes.DATE,

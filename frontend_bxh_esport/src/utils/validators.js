@@ -11,7 +11,8 @@ export const validateEmail = (email) => {
  */
 export const validatePassword = (password) => {
   if (!password || password.length < 8) return false;
-  const re = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/;
+  // At least one lowercase, one uppercase, one digit, one special character, minimum 8 chars
+  const re = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
   return re.test(password);
 };
 
@@ -126,7 +127,7 @@ export const validateForm = (values, rules) => {
     
     // Password
     if (fieldRules.password && !validatePassword(value)) {
-      errors[field] = fieldRules.messages?.password || 'Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ và số';
+      errors[field] = fieldRules.messages?.password || 'Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ in hoa, chữ thường, số và ký tự đặc biệt';
       return;
     }
     

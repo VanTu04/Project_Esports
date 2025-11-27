@@ -86,8 +86,23 @@ const authService = {
   },
 
   // Gửi OTP
-  sendOtp: async (email) => {
-    const res = await api.post("/users/send-verification-email", { email });
+  sendOtp: async (email, type) => {
+    const payload = { email };
+    if (type) payload.type = type;
+    const res = await api.post("/users/send-verification-email", payload);
+    return res.data;
+  },
+
+  // Xác thực OTP login (khi 2FA bật)
+  confirmTwoFactorLogin: async (account, otp) => {
+    const res = await api.post('/users/two-factor/email/login-confirm', { account, otp });
+    // Server sets HttpOnly cookies for tokens; just return response data
+    return res.data;
+  },
+
+  // Xác thực TOTP login
+  confirmTotpLogin: async (account, token) => {
+    const res = await api.post('/users/two-factor/totp/login-confirm', { account, token });
     return res.data;
   },
 

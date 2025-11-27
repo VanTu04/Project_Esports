@@ -6,6 +6,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { useUserValidation } from '../../hooks/useUserValidation';
 import { validateForm } from '../../utils/validators';
 import Button from '../common/Button';
+// PasswordRequirements removed per request
 import { API_BASE_URL, TURNSTILE_SITE_KEY } from '../../utils/constants';
 
 export const RegisterForm = () => {
@@ -34,8 +35,14 @@ export const RegisterForm = () => {
 
   const handleEmailBlur = async () => {
     const email = formData.email.trim();
-    if (!email) return;
+    // validate format/required first
+    const validationErrors = validateForm({ email }, { email: { required: true, email: true } });
+    if (validationErrors.email) {
+      setErrors(prev => ({ ...prev, email: validationErrors.email }));
+      return;
+    }
 
+    // only check existence if format is valid
     const errorMessage = await checkEmailExists(email);
     if (errorMessage) {
       setErrors(prev => ({ ...prev, email: errorMessage }));
@@ -46,15 +53,47 @@ export const RegisterForm = () => {
 
   const handleUsernameBlur = async () => {
     const username = formData.username.trim();
-    if (!username) return;
+    // validate required/format first
+    const validationErrors = validateForm({ username }, { username: { required: true, username: true } });
+    if (validationErrors.username) {
+      setErrors(prev => ({ ...prev, username: validationErrors.username }));
+      return;
+    }
 
+    // only check existence if format is valid
     const errorMessage = await checkUsernameExists(username);
     if (errorMessage) {
       setErrors(prev => ({ ...prev, username: errorMessage }));
     } else if (errors.username) {
       setErrors(prev => ({ ...prev, username: '' }));
     }
-  };  const handleSubmit = async (e) => {
+  };
+
+  const handleFullNameBlur = () => {
+    const validationErrors = validateForm({ full_name: formData.full_name }, { full_name: { required: true } });
+    setErrors(prev => ({ ...prev, full_name: validationErrors.full_name || '' }));
+  };
+
+  const handlePasswordBlur = () => {
+    const validationErrors = validateForm({ password: formData.password }, { password: { required: true, password: true } });
+    setErrors(prev => ({ ...prev, password: validationErrors.password || '' }));
+  };
+
+  const handleConfirmPasswordBlur = () => {
+    const validationErrors = validateForm(
+      { password: formData.password, confirmPassword: formData.confirmPassword },
+        { 
+          confirmPassword: { 
+            required: true, 
+            messages: { required: 'Xác nhận mật khẩu là bắt buộc' }, 
+            custom: (value) => (value !== formData.password ? 'Mật khẩu không khớp' : null), 
+          }, 
+        }
+    );
+    setErrors(prev => ({ ...prev, confirmPassword: validationErrors.confirmPassword || '' }));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const validationErrors = validateForm(formData, {
@@ -63,9 +102,10 @@ export const RegisterForm = () => {
       email: { required: true, email: true },
       password: { required: true, password: true },
       confirmPassword: {
-        required: true,
-        custom: (value) =>
-          value !== formData.password ? 'Mật khẩu không khớp' : null,
+          required: true, 
+          messages: { required: 'Xác nhận mật khẩu là bắt buộc' }, 
+          custom: (value) => 
+            value !== formData.password ? 'Mật khẩu không khớp' : null, 
       },
     });
 
@@ -123,6 +163,7 @@ export const RegisterForm = () => {
           name="full_name"
           value={formData.full_name}
           onChange={handleChange}
+          onBlur={handleFullNameBlur}
           className="w-full px-4 py-2 bg-dark-400 border border-primary-700/30 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
         {errors.full_name && (
@@ -212,10 +253,13 @@ export const RegisterForm = () => {
           name="password"
           value={formData.password}
           onChange={handleChange}
+          onBlur={handlePasswordBlur}
           className="w-full px-4 py-2 bg-dark-400 border border-primary-700/30 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
-        {errors.password && (
+        {errors.password ? (
           <p className="mt-1 text-sm text-red-500">{errors.password}</p>
+        ) : (
+          <p className="mt-1 text-xs text-gray-400">Mật khẩu ít nhất 8 ký tự, gồm chữ in hoa, chữ thường, số và ký tự đặc biệt</p>
         )}
       </div>
 
@@ -229,6 +273,7 @@ export const RegisterForm = () => {
           name="confirmPassword"
           value={formData.confirmPassword}
           onChange={handleChange}
+          onBlur={handleConfirmPasswordBlur}
           className="w-full px-4 py-2 bg-dark-400 border border-primary-700/30 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
         {errors.confirmPassword && (
