@@ -3,11 +3,12 @@ import * as usersController from '../controllers/UserController.js';
 import roles from '../constant/roles.js';
 import { checkAccessToken, checkRefreshToken, checkRole } from '../middlewares/jwt_token.js';
 import { uploadAvatar } from '../middlewares/multer.config.js';
+import { verifyCaptcha } from '../middlewares/captcha.js';
 
 const router = express.Router();
 
-router.post("/register", usersController.register);
-router.post("/login", usersController.login);
+router.post("/register", verifyCaptcha, usersController.register);
+router.post("/login", verifyCaptcha, usersController.login);
 router.post('/logout', checkAccessToken, usersController.logout);
 router.post('/refresh-token', checkRefreshToken, usersController.refreshToken);
 

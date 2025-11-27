@@ -3,6 +3,9 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ;
 // External backend (for stats or alternate API). Use VITE_API_BACKEND in .env to override.
 export const API_BACKEND = import.meta.env.VITE_API_BACKEND ;
 
+// Cloudflare Turnstile Site Key
+export const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAAAyourdummysitekey';
+
 // Theme Colors (Esport Style)
 export const THEME_COLORS = {
   primary: '#C89B3C',

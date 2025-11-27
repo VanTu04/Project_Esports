@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Turnstile } from '@marsidev/react-turnstile';
 import { useAuth } from '../../context/AuthContext';
-import { USER_ROLES, ROUTES } from '../../utils/constants';
+import { USER_ROLES, ROUTES, TURNSTILE_SITE_KEY } from '../../utils/constants';
 import { useNotification } from '../../context/NotificationContext';
 import { validateForm } from '../../utils/validators';
 import Button from '../common/Button';
@@ -35,6 +36,7 @@ export const LoginForm = () => {
     password: '',
   });
   const [errors, setErrors] = useState({});
+  const [captchaToken, setCaptchaToken] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -62,9 +64,15 @@ export const LoginForm = () => {
       return;
     }
 
+    // Validate CAPTCHA
+    if (!captchaToken) {
+      showError('Vui lòng xác thực CAPTCHA');
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await login(formData);
+      const response = await login({ ...formData, captchaToken });
       
       // Kiểm tra response thành công
       if (response?.code === 0 && response?.status === 200) {
@@ -139,6 +147,20 @@ export const LoginForm = () => {
         {errors.password && (
           <p className="mt-1 text-sm text-red-500">{errors.password}</p>
         )}
+      </div>
+
+      {/* Cloudflare Turnstile CAPTCHA */}
+      <div className="flex justify-center">
+        <Turnstile
+          siteKey={TURNSTILE_SITE_KEY}
+          onSuccess={(token) => setCaptchaToken(token)}
+          onError={() => {
+            setCaptchaToken(null);
+            showError('Xác thực CAPTCHA thất bại. Vui lòng thử lại.');
+          }}
+          onExpire={() => setCaptchaToken(null)}
+          theme="dark"
+        />
       </div>
 
       <Button type="submit" fullWidth loading={loading}>

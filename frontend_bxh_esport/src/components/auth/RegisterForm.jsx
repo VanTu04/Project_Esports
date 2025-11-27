@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Turnstile } from '@marsidev/react-turnstile';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { useUserValidation } from '../../hooks/useUserValidation';
 import { validateForm } from '../../utils/validators';
 import Button from '../common/Button';
-import { API_BASE_URL } from '../../utils/constants';
+import { API_BASE_URL, TURNSTILE_SITE_KEY } from '../../utils/constants';
 
 export const RegisterForm = () => {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ export const RegisterForm = () => {
     confirmPassword: '',
   });
   const [errors, setErrors] = useState({});
+  const [captchaToken, setCaptchaToken] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -80,9 +82,15 @@ export const RegisterForm = () => {
       return;
     }
 
+    // Validate CAPTCHA
+    if (!captchaToken) {
+      showError('Vui lòng xác thực CAPTCHA');
+      return;
+    }
+
     setLoading(true);
     try {
-  const res = await register(formData);
+  const res = await register({ ...formData, captchaToken });
   showSuccess('Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.');
   // Sau khi đăng ký thành công, chuyển sang trang login để người dùng đăng nhập
   navigate('/login');
@@ -226,6 +234,20 @@ export const RegisterForm = () => {
         {errors.confirmPassword && (
           <p className="mt-1 text-sm text-red-500">{errors.confirmPassword}</p>
         )}
+      </div>
+
+      {/* Cloudflare Turnstile CAPTCHA */}
+      <div className="flex justify-center">
+        <Turnstile
+          siteKey={TURNSTILE_SITE_KEY}
+          onSuccess={(token) => setCaptchaToken(token)}
+          onError={() => {
+            setCaptchaToken(null);
+            showError('Xác thực CAPTCHA thất bại. Vui lòng thử lại.');
+          }}
+          onExpire={() => setCaptchaToken(null)}
+          theme="dark"
+        />
       </div>
 
       <Button 
