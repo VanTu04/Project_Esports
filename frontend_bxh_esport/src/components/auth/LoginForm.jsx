@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Turnstile } from '@marsidev/react-turnstile';
 import { useAuth } from '../../context/AuthContext';
+import authService from '../../services/authService';
+import OtpModal from '../common/OtpModal';
 import { USER_ROLES, ROUTES, TURNSTILE_SITE_KEY } from '../../utils/constants';
 import { useNotification } from '../../context/NotificationContext';
 import { validateForm } from '../../utils/validators';
 import Button from '../common/Button';
+import Modal from '../common/Modal';
 import { API_BASE_URL } from '../../utils/constants';
 
 // Helper function để decode JWT token
@@ -28,7 +31,7 @@ const decodeJWT = (token) => {
 
 export const LoginForm = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, updateUser, markAuthenticated } = useAuth();
   const { showSuccess, showError } = useNotification();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -37,6 +40,14 @@ export const LoginForm = () => {
   });
   const [errors, setErrors] = useState({});
   const [captchaToken, setCaptchaToken] = useState(null);
+  const [showLoginOtpModal, setShowLoginOtpModal] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [showLoginTotpModal, setShowLoginTotpModal] = useState(false);
+  const [totpLoading, setTotpLoading] = useState(false);
+  const [hasTotp, setHasTotp] = useState(false);
+  const [hasEmail, setHasEmail] = useState(false);
+  const [twoFactorEmail, setTwoFactorEmail] = useState('');
+  const [emailFallbackLoading, setEmailFallbackLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -73,8 +84,56 @@ export const LoginForm = () => {
     setLoading(true);
     try {
       const response = await login({ ...formData, captchaToken });
-      
-      // Kiểm tra response thành công
+
+      // detect twoFactorRequired in several possible payload shapes
+      const payload = response?.data || response?.data?.data || response || {};
+      if (payload && payload.twoFactorRequired) {
+        // Determine available methods. Backend may return `method`, or an array `methods`,
+        // or include the user object with flags like `totp_secret` / `email_two_factor_enabled`.
+        const explicitMethod = payload.method;
+        const methods = Array.isArray(payload.methods) ? payload.methods : (Array.isArray(payload.availableMethods) ? payload.availableMethods : []);
+        const userObj = payload.user || (payload.data && payload.data.user) || null;
+
+        const hasTotpDetected = methods.includes('totp') || explicitMethod === 'totp' || Boolean(userObj && userObj.totp_secret) || Boolean(payload.totp);
+        // Consider email 2FA enabled only when explicitly indicated by flags/methods.
+        // Do NOT treat presence of `payload.email` (the user's email) as meaning email-2FA is enabled.
+        const hasEmailDetected = methods.includes('email') || explicitMethod === 'email' || Boolean(userObj && userObj.email_two_factor_enabled) || Boolean(payload.email_two_factor_enabled);
+        // persist detection to state so modals / buttons can use it
+        setHasTotp(!!hasTotpDetected);
+        setHasEmail(!!hasEmailDetected);
+        // store the actual email returned from server (used when user logged in with username)
+        const serverEmail = payload.email || (userObj && userObj.email) || formData.email;
+        setTwoFactorEmail(serverEmail || '');
+
+        // Prefer TOTP when both are available — use detected values
+        const preferTotp = hasTotpDetected && hasEmailDetected ? true : hasTotpDetected;
+
+        if (preferTotp) {
+          // show TOTP modal by default; keep an explicit fallback button to send email
+          setShowLoginTotpModal(true);
+          setLoading(false);
+          return;
+        }
+
+        // Fallback: email OTP
+        // Try to explicitly request an email OTP in case backend didn't send one.
+        try {
+          setOtpLoading(true);
+          // request the server to send a login-specific OTP template
+          await authService.sendOtp(serverEmail || formData.email, 'login');
+          showSuccess('Mã OTP đã được gửi tới email của bạn. Vui lòng kiểm tra email.');
+          setShowLoginOtpModal(true);
+        } catch (err) {
+          console.error('sendOtp error', err);
+          showError('Không thể gửi mã OTP qua email. Vui lòng thử lại hoặc dùng Authenticator.');
+        } finally {
+          setOtpLoading(false);
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Kiểm tra response thành công (không yêu cầu 2FA)
       if (response?.code === 0 && response?.status === 200) {
         showSuccess("Đăng nhập thành công!");
                 
@@ -109,6 +168,66 @@ export const LoginForm = () => {
       showError(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLoginOtpConfirm = async (otp) => {
+    try {
+      setOtpLoading(true);
+      const accountForConfirm = twoFactorEmail || formData.email;
+      const confirmRes = await authService.confirmTwoFactorLogin(accountForConfirm, otp);
+
+      if (confirmRes?.code === 0) {
+        showSuccess('Đăng nhập thành công!');
+        const userInfo = confirmRes.data.user;
+        if (userInfo) {
+          updateUser(userInfo);
+          markAuthenticated();
+        }
+        const role = Number(userInfo?.role || 1);
+        if (role === 4) {
+          navigate(ROUTES.ADMIN_DASHBOARD);
+        } else if (role === 3) {
+          navigate(ROUTES.TEAM_MANAGER_DASHBOARD);
+        } else {
+          navigate(ROUTES.HOME);
+        }
+      } else {
+        showError(confirmRes?.errors || confirmRes?.message || 'Xác thực 2FA thất bại');
+      }
+    } catch (err) {
+      const message = err?.message || err?.response?.data?.message || 'Xác thực 2FA thất bại';
+      showError(message);
+    } finally {
+      setOtpLoading(false);
+      setShowLoginOtpModal(false);
+    }
+  };
+
+  const handleLoginTotpConfirm = async (otp) => {
+    try {
+      setTotpLoading(true);
+      const accountForConfirm = twoFactorEmail || formData.email;
+      const res = await authService.confirmTotpLogin(accountForConfirm, otp);
+      if (res?.code === 0) {
+        showSuccess('Đăng nhập thành công!');
+        const userInfo = res.data.user;
+        if (userInfo) {
+          updateUser(userInfo);
+          markAuthenticated();
+        }
+        const role = Number(userInfo?.role || 1);
+        if (role === 4) navigate(ROUTES.ADMIN_DASHBOARD);
+        else if (role === 3) navigate(ROUTES.TEAM_MANAGER_DASHBOARD);
+        else navigate(ROUTES.HOME);
+      } else {
+        showError(res?.message || 'Xác thực TOTP thất bại');
+      }
+    } catch (err) {
+      showError(err?.message || err?.response?.data?.message || 'Xác thực TOTP thất bại');
+    } finally {
+      setTotpLoading(false);
+      setShowLoginTotpModal(false);
     }
   };
 
@@ -219,6 +338,56 @@ export const LoginForm = () => {
       <div className="flex items-center justify-start text-sm">
         <Link to="/forgot-password" className="text-primary-500 hover:underline">Quên mật khẩu?</Link>
       </div>
+      <OtpModal
+        isOpen={showLoginOtpModal}
+        onClose={() => setShowLoginOtpModal(false)}
+        title="Nhập mã OTP"
+        message="Vui lòng nhập mã OTP đã gửi tới email để hoàn tất đăng nhập"
+        loading={otpLoading}
+        onConfirm={handleLoginOtpConfirm}
+            onResend={async () => {
+          try {
+            setOtpLoading(true);
+            const targetEmail = twoFactorEmail || formData.email;
+            await authService.sendOtp(targetEmail, 'login');
+            showSuccess('OTP đã gửi lại tới email');
+          } catch (e) {
+            console.error('resend email otp error', e);
+            showError('Không thể gửi lại mã OTP qua email');
+          } finally {
+            setOtpLoading(false);
+          }
+        }}
+        resendLabel="Gửi lại email"
+      />
+      <OtpModal
+        isOpen={showLoginTotpModal}
+        onClose={() => setShowLoginTotpModal(false)}
+        title="Nhập mã Authenticator"
+        message="Nhập mã 6 chữ số từ ứng dụng Authenticator của bạn."
+        loading={totpLoading || emailFallbackLoading}
+        onConfirm={handleLoginTotpConfirm}
+        {...(hasEmail
+          ? {
+              onResend: async () => {
+                try {
+                  setEmailFallbackLoading(true);
+                  const targetEmail = twoFactorEmail || formData.email;
+                  await authService.sendOtp(targetEmail, 'login');
+                  showSuccess('OTP đã gửi qua email');
+                  setShowLoginTotpModal(false);
+                  setShowLoginOtpModal(true);
+                } catch (e) {
+                  console.error('sendOtp fallback error', e);
+                  showError('Không thể gửi OTP qua email');
+                } finally {
+                  setEmailFallbackLoading(false);
+                }
+              },
+              resendLabel: 'Xác minh qua email',
+            }
+          : {})}
+      />
     </form>
   );
 };
