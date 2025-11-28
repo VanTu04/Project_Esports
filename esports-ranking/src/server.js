@@ -49,8 +49,7 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 
-// Handle preflight requests
-app.options('*', cors());
+
 
 // 3. Rate Limiting - Prevent brute force attacks
 const limiter = rateLimit({
@@ -78,10 +77,6 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   // Skip OPTIONS requests (CORS preflight)
   skip: (req) => req.method === 'OPTIONS',
-  // Track by IP address
-  keyGenerator: (req) => {
-    return req.ip || req.connection.remoteAddress || 'unknown';
-  },
   handler: (req, res) => {
     res.status(429).json({
       code: 429,

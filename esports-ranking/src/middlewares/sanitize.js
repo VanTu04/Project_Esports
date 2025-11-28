@@ -75,19 +75,9 @@ const sanitizeObject = (obj) => {
  */
 export const sanitizeInput = (req, res, next) => {
   try {
-    // Sanitize body
-    if (req.body) {
+    // Only sanitize body (query and params are read-only in Express 5)
+    if (req.body && typeof req.body === 'object') {
       req.body = sanitizeObject(req.body);
-    }
-    
-    // Sanitize query parameters
-    if (req.query) {
-      req.query = sanitizeObject(req.query);
-    }
-    
-    // Sanitize URL parameters
-    if (req.params) {
-      req.params = sanitizeObject(req.params);
     }
     
     next();
