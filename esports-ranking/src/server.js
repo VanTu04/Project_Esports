@@ -40,13 +40,27 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// 2. Rate Limiting - Prevent brute force attacks
+// 2. CORS Configuration - MUST be before rate limiting
+app.use(cors({
+  origin: true, // Allow all origins (or specify: ['https://vawndev.online', 'http://localhost:5173'])
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204
+}));
+
+// Handle preflight requests
+app.options('*', cors());
+
+// 3. Rate Limiting - Prevent brute force attacks
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip OPTIONS requests (CORS preflight)
+  skip: (req) => req.method === 'OPTIONS',
 });
 app.use('/api/', limiter);
 
@@ -62,6 +76,8 @@ const authLimiter = rateLimit({
   skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip OPTIONS requests (CORS preflight)
+  skip: (req) => req.method === 'OPTIONS',
   // Track by IP address
   keyGenerator: (req) => {
     return req.ip || req.connection.remoteAddress || 'unknown';
@@ -77,17 +93,8 @@ const authLimiter = rateLimit({
 app.use('/api/users/login', authLimiter);
 app.use('/api/users/register', authLimiter);
 
-// 3. Prevent HTTP Parameter Pollution
+// 4. Prevent HTTP Parameter Pollution
 app.use(hpp());
-
-// 5. CORS Configuration
-app.use(cors({
-  origin: true, // Cho phép tất cả origins
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 204
-}));
 
 app.use(cookieParser());
 
