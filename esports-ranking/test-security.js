@@ -5,7 +5,7 @@
 
 import fetch from 'node-fetch';
 
-const API_URL = 'http://localhost:8081/api';
+const API_URL = 'https://api.vawndev.online/api';
 const colors = {
   green: '\x1b[32m',
   red: '\x1b[31m',
@@ -14,11 +14,7 @@ const colors = {
   reset: '\x1b[0m'
 };
 
-console.log(`${colors.blue}
-╔════════════════════════════════════════╗
-║   🛡️  SECURITY TESTING SUITE 🛡️        ║
-╔════════════════════════════════════════╝
-${colors.reset}`);
+console.log(`${colors.blue}SECURITY TESTING SUITE${colors.reset}`);
 
 // Test 1: Check Security Headers (Helmet)
 async function testSecurityHeaders() {
@@ -160,7 +156,7 @@ async function testCORS() {
     const response = await fetch(`${API_URL}/users/login`, {
       method: 'OPTIONS',
       headers: {
-        'Origin': 'http://localhost:5173',
+        'Origin': 'https://vawndev.online',
         'Access-Control-Request-Method': 'POST',
       },
     });
@@ -251,10 +247,7 @@ async function runAllTests() {
   const passed = Object.values(results).filter(Boolean).length;
   const total = Object.keys(results).length;
   
-  console.log(`\n${colors.blue}
-╔════════════════════════════════════════╗
-║           TEST SUMMARY                 ║
-╚════════════════════════════════════════╝${colors.reset}`);
+  console.log(`\n${colors.blue}TEST SUMMARY${colors.reset}`);
   
   console.log(`
   Tests Passed: ${passed}/${total}

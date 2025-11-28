@@ -42,7 +42,8 @@ app.use(helmet({
 
 // 2. CORS Configuration - MUST be before rate limiting
 app.use(cors({
-  origin: true, // Allow all origins (or specify: ['https://vawndev.online', 'http://localhost:5173'])
+  // origin: true, // Allow all origins (or specify: ['https://vawndev.online', 'http://localhost:5173'])
+  origin: ['https://vawndev.online', 'http://localhost:5173'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
