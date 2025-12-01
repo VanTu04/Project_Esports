@@ -6,10 +6,12 @@ import { API_ENDPOINTS } from '../../utils/constants';
 import { useNotification } from '../../context/NotificationContext';
 import Button from '../common/Button';
 import { Loading } from '../common/Loading';
+import { getActiveGames } from '../../services/gameService';
 
 export default function CreateTournamentForm({ onCreated, onCancel }) {
   const [form, setForm] = useState({
     name: '',
+    game_id: '',
     total_rounds: 3,
     expected_teams: '',
     start_date: '',
@@ -21,9 +23,35 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [games, setGames] = useState([]);
   const { showSuccess, showError } = useNotification();
   const [startDateObj, setStartDateObj] = useState(form.start_date ? new Date(form.start_date) : null);
   const [endDateObj, setEndDateObj] = useState(form.end_date ? new Date(form.end_date) : null);
+
+  // Load active games on mount
+  useEffect(() => {
+    const loadGames = async () => {
+      try {
+        const response = await getActiveGames();
+        
+        // Parse response - backend có thể trả về { data: { code: 0, data: [...games] } }
+        let gamesData = [];
+        if (response?.data?.data && Array.isArray(response.data.data)) {
+          gamesData = response.data.data;
+        } else if (Array.isArray(response?.data)) {
+          gamesData = response.data;
+        } else if (Array.isArray(response)) {
+          gamesData = response;
+        }
+        
+        setGames(gamesData);
+      } catch (error) {
+        showError('Không thể tải danh sách game');
+        setGames([]);
+      }
+    };
+    loadGames();
+  }, []);
 
   useEffect(() => {
     setStartDateObj(form.start_date ? (function parseISOToLocal(d){ const p = String(d).split('-').map(Number); return p.length===3 ? new Date(p[0], p[1]-1, p[2]) : new Date(d); })(form.start_date) : null);
@@ -185,6 +213,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
 
       const payload = {
         name: form.name.trim(),
+        game_id: form.game_id ? parseInt(form.game_id) : undefined,
         total_rounds: parseInt(form.total_rounds),
         start_date: form.start_date,
         end_date: form.end_date,
@@ -202,6 +231,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
         showSuccess(response.message || 'Tạo giải đấu thành công!');
         setForm({
           name: '',
+          game_id: '',
           total_rounds: 3,
             expected_teams: '',
             start_date: '',
@@ -237,6 +267,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
   const handleReset = () => {
     setForm({
       name: '',
+      game_id: '',
       total_rounds: 3,
       expected_teams: '',
       start_date: '',
@@ -268,6 +299,28 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
           />
           {errors.name && <p className="text-xs text-rose-400 mt-1">{errors.name}</p>}
           <p className="text-xs text-gray-400 mt-1">{form.name.length}/100 ký tự</p>
+        </div>
+
+        {/* Game */}
+        <div>
+          <label className="block text-sm font-semibold text-white mb-2">
+            Game
+          </label>
+          <select
+            name="game_id"
+            value={form.game_id}
+            onChange={handleChange}
+            className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${
+              errors.game_id ? 'border-rose-500' : 'border-primary-700/30'
+            }`}
+          >
+            <option value="">-- Chọn game --</option>
+            {games.map(game => (
+              <option key={game.id} value={game.id}>{game.game_name}</option>
+            ))}
+          </select>
+          {errors.game_id && <p className="text-xs text-rose-400 mt-1">{errors.game_id}</p>}
+          <p className="text-xs text-gray-400 mt-1">Chọn game cho giải đấu (chỉ hiển thị game đang hoạt động)</p>
         </div>
 
         {/* Phí đăng ký tham gia (ETH) */}

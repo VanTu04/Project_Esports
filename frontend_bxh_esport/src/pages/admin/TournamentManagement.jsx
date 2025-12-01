@@ -89,12 +89,12 @@ export const TournamentManagement = () => {
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
+    notOpen: 0,
     upcoming: 0,
     completed: 0,
     totalTeams: 0,
     totalMatches: 0,
-    totalPrizePool: 0,
-    issues: 0
+    totalPrizePool: 0
   });
   // Track whether we've already loaded stats to avoid changing them on filter changes
   const [statsLoaded, setStatsLoaded] = useState(false);
@@ -121,6 +121,8 @@ export const TournamentManagement = () => {
   useEffect(() => {
     // Load games once on mount
     loadGames();
+    // Load statistics from API
+    loadStatistics();
   }, []);
 
   useEffect(() => {
@@ -143,6 +145,39 @@ export const TournamentManagement = () => {
     }
   };
 
+  // Load statistics from dedicated API endpoint
+  const loadStatistics = async () => {
+    try {
+      const response = await tournamentService.getTournamentStatistics();
+      console.log('📊 Statistics API full response:', JSON.stringify(response, null, 2));
+      
+      const payload = response?.data ?? response;
+      const statsData = payload?.data ?? payload;
+      
+      console.log('📊 totalDistributedMatches:', statsData?.totalDistributedMatches);
+      console.log('📊 totalDistributedPrizePool:', statsData?.totalDistributedPrizePool);
+
+      if (statsData) {
+        const newStats = {
+          total: Number(statsData.total) || 0,
+          active: Number(statsData.active) || 0,
+          notOpen: Number(statsData.notOpen) || 0,
+          upcoming: Number(statsData.upcoming) || 0,
+          completed: Number(statsData.completed) || 0,
+          totalTeams: Number(statsData.totalTeams) || 0,
+          totalMatches: Number(statsData.totalDistributedMatches) || 0,
+          totalPrizePool: Number(statsData.totalDistributedPrizePool) || 0
+        };
+        console.log('📊 Final stats being set:', JSON.stringify(newStats, null, 2));
+        setStats(newStats);
+        setStatsLoaded(true);
+      }
+    } catch (err) {
+      console.error('❌ Failed to load statistics:', err);
+      // Fallback to computing from loaded tournaments if API fails
+    }
+  };
+
   // `forceStats` when true will recompute and replace stats even if they were loaded before.
   const loadTournaments = async (forceStats = false) => {
     try {
@@ -154,13 +189,25 @@ export const TournamentManagement = () => {
       // Map quickFilter to backend status when a quick filter is selected
       if (quickFilter && quickFilter !== 'all') {
         const mapQuickToStatus = {
+          notOpen: 'PENDING',
           live: 'ACTIVE',
           upcoming: 'PENDING',
           completed: 'COMPLETED',
-          cancelled: 'CANCELLED'
+          cancelled: 'CANCELLED',
+          hasRegistrations: null // Special filter - don't set status
         };
         const mapped = mapQuickToStatus[quickFilter];
         if (mapped) params.status = mapped;
+        
+        // CRITICAL: Handle isReady filter for notOpen and upcoming
+        // Send as string to ensure proper backend parsing
+        if (quickFilter === 'notOpen') {
+          params.isReady = '0'; // Chưa mở đăng ký: PENDING + isReady = 0
+        } else if (quickFilter === 'upcoming') {
+          params.isReady = '1'; // Sắp diễn ra: PENDING + isReady = 1
+        } else if (quickFilter === 'hasRegistrations') {
+          params.hasRegistrations = '1'; // Có đội đăng ký
+        }
       } else if (filters.status) {
         // fallback to explicit status filter if set (rare now)
         params.status = filters.status;
@@ -171,7 +218,6 @@ export const TournamentManagement = () => {
 
       // Admin page: use admin endpoint to retrieve all tournaments (including non-ready)
       const response = await tournamentService.getAllTournamentsAdmin(params);
-      console.debug('GET /tournaments response:', response);
 
       // Axios response wrapper -> { code, status, message, data }
       // Normalize into `data` which should contain { tournaments, totalItems, totalPages, currentPage }
@@ -190,39 +236,22 @@ export const TournamentManagement = () => {
         tournamentsData = [];
       }
 
-      // Pagination meta (backend returns totalItems, totalPages, currentPage)
-      const totalItemsFromServer = data?.totalItems ?? data?.meta?.totalItems ?? null;
-      const totalPagesFromServer = data?.totalPages ?? data?.meta?.totalPages ?? null;
-      const currentPageFromServer = data?.currentPage ?? data?.meta?.currentPage ?? null;
-
-      // Derive pagination values safely when server metadata is missing or inconsistent.
-      // Prefer server-provided totals; otherwise fall back to sensible defaults computed
-      // from the returned items and the current UI page size.
-      const derivedTotalItems = (totalItemsFromServer != null)
-        ? Number(totalItemsFromServer)
-        : (Array.isArray(data?.tournaments) ? data.tournaments.length : (Array.isArray(data) ? data.length : (mappedTournaments.length || null)));
-
-      const derivedTotalPages = (totalPagesFromServer != null)
-        ? Math.max(1, Number(totalPagesFromServer))
-        : (derivedTotalItems != null ? Math.max(1, Math.ceil(derivedTotalItems / itemsPerPage)) : Math.max(1, Math.ceil((mappedTournaments.length || 1) / itemsPerPage)));
-
-      let derivedCurrentPage = (currentPageFromServer != null)
-        ? Math.max(1, Number(currentPageFromServer))
-        : currentPage;
-
-      // Clamp current page to valid range to avoid invalid requests or UI glitches
-      if (derivedCurrentPage > derivedTotalPages) derivedCurrentPage = derivedTotalPages;
-
-      setTotalItems(derivedTotalItems ?? mappedTournaments.length);
-      setTotalPages(derivedTotalPages);
-      setCurrentPage(derivedCurrentPage);
-
       const mappedTournaments = await Promise.all(
         tournamentsData.map(async (t) => {
           let mappedStatus = 'upcoming';
-          if (t.status === 'ACTIVE') mappedStatus = 'live';
-          else if (t.status === 'COMPLETED') mappedStatus = 'completed';
-          else if (t.status === 'PENDING') mappedStatus = 'upcoming';
+          if (t.status === 'ACTIVE') {
+            mappedStatus = 'live';
+          } else if (t.status === 'COMPLETED') {
+            mappedStatus = 'completed';
+          } else if (t.status === 'PENDING') {
+            // Check isReady to differentiate between notOpen and upcoming
+            const isReady = t.isReady ?? t.is_ready ?? t.is_ready_flag ?? null;
+            if (isReady === 0 || isReady === '0' || isReady === false) {
+              mappedStatus = 'notOpen'; // Chưa mở đăng ký
+            } else {
+              mappedStatus = 'upcoming'; // Sắp diễn ra (đã mở đăng ký)
+            }
+          }
 
           let teamsCount = { current: 0, max: t.max_teams || 32, pending: 0, disputes: 0 };
           try {
@@ -263,105 +292,24 @@ export const TournamentManagement = () => {
 
       setTournaments(mappedTournaments);
 
-      // compute statistics
-      const serverTotal = Number(data?.totalItems ?? mappedTournaments.length);
+      // Pagination meta (backend returns totalItems, totalPages, currentPage)
+      const totalItemsFromServer = data?.totalItems ?? data?.meta?.totalItems ?? null;
+      const totalPagesFromServer = data?.totalPages ?? data?.meta?.totalPages ?? null;
+      const currentPageFromServer = data?.currentPage ?? data?.meta?.currentPage ?? null;
 
-      // Prefer server-provided aggregates when available (backend can add these keys)
-      const statusCounts = data?.statusCounts ?? data?.meta?.statusCounts ?? null;
-      const serverTotalTeams = data?.totalTeams ?? data?.meta?.totalTeams ?? null;
-      const serverTotalMatches = data?.totalMatches ?? data?.meta?.totalMatches ?? null;
-      const serverTotalPrizePool = data?.totalPrizePool ?? data?.meta?.totalPrizePool ?? null;
+      // Use server values directly - trust backend completely
+      const derivedTotalItems = totalItemsFromServer != null ? Number(totalItemsFromServer) : tournamentsData.length;
+      const derivedTotalPages = totalPagesFromServer != null ? Number(totalPagesFromServer) : Math.max(1, Math.ceil(derivedTotalItems / itemsPerPage));
+      const derivedCurrentPage = currentPageFromServer != null ? Number(currentPageFromServer) : currentPage;
+      
+      setTotalItems(derivedTotalItems);
+      setTotalPages(derivedTotalPages);
+      setCurrentPage(derivedCurrentPage);
 
-      const statsLocal = {
-        total: serverTotal,
-        active: 0,
-        upcoming: 0,
-        completed: 0,
-        totalTeams: 0,
-        totalMatches: 0,
-        totalPrizePool: 0,
-        issues: 0
-      };
-
-      if (statusCounts) {
-        // If backend returned counts per status, use them
-        statsLocal.active = Number(statusCounts.ACTIVE ?? statusCounts.active ?? 0);
-        statsLocal.upcoming = Number(statusCounts.PENDING ?? statusCounts.pending ?? 0);
-        statsLocal.completed = Number(statusCounts.COMPLETED ?? statusCounts.completed ?? 0);
-      } else {
-        // Try to fetch global counts per status from backend in parallel.
-        // This uses the existing `getAllTournaments` which returns `totalItems` for the query.
-        try {
-          const statusMap = [
-            { key: 'active', status: 'ACTIVE' },
-            { key: 'upcoming', status: 'PENDING' },
-            { key: 'completed', status: 'COMPLETED' }
-          ];
-
-          const countsPromises = statusMap.map(s =>
-            tournamentService.getAllTournamentsAdmin({ status: s.status, limit: 1, page: 1 })
-          );
-
-          const countsResults = await Promise.all(countsPromises);
-
-          statsLocal.active = Number(countsResults[0]?.data?.data?.totalItems ?? countsResults[0]?.data?.totalItems ?? 0);
-          statsLocal.upcoming = Number(countsResults[1]?.data?.data?.totalItems ?? countsResults[1]?.data?.totalItems ?? 0);
-          statsLocal.completed = Number(countsResults[2]?.data?.data?.totalItems ?? countsResults[2]?.data?.totalItems ?? 0);
-        } catch (err) {
-          // If counts fetch fails, fallback to computing from page items
-          mappedTournaments.forEach(tournament => {
-            if (tournament.status === 'active' || tournament.status === 'live') statsLocal.active++;
-            else if (tournament.status === 'upcoming') statsLocal.upcoming++;
-            else if (tournament.status === 'completed') statsLocal.completed++;
-          });
-        }
-      }
-
-      // Nếu đang dùng quickFilter (không phải 'all'), fix cứng số liệu hiển thị
-      if (quickFilter && quickFilter !== 'all') {
-        // Map quickFilter id to stats key
-        const quickToKey = { live: 'active', upcoming: 'upcoming', completed: 'completed', cancelled: null };
-        const key = quickToKey[quickFilter] || null;
-        // set tổng từ server
-        statsLocal.total = serverTotal;
-        // reset all to 0 then assign selected
-        statsLocal.active = 0;
-        statsLocal.upcoming = 0;
-        statsLocal.completed = 0;
-        if (key && ['active', 'upcoming', 'completed'].includes(key)) {
-          statsLocal[key] = serverTotal;
-        }
-      }
-
-      // Teams / matches / prize pool: prefer server totals otherwise sum page items
-      if (serverTotalTeams != null) {
-        statsLocal.totalTeams = Number(serverTotalTeams);
-      } else {
-        mappedTournaments.forEach(t => { if (t.teams?.current) statsLocal.totalTeams += t.teams.current; });
-      }
-
-      if (serverTotalMatches != null) {
-        statsLocal.totalMatches = Number(serverTotalMatches);
-      } else {
-        mappedTournaments.forEach(t => { if (t.matches?.played) statsLocal.totalMatches += t.matches.played; });
-      }
-
-      if (serverTotalPrizePool != null) {
-        statsLocal.totalPrizePool = Number(serverTotalPrizePool);
-      } else {
-        mappedTournaments.forEach(t => { if (t.prizePool) statsLocal.totalPrizePool += t.prizePool; });
-      }
-
-      // Issues: sum pending registrations + disputes from page items (no reliable server aggregate yet)
-      mappedTournaments.forEach(t => {
-        if (t.teams?.disputes) statsLocal.issues += t.teams.disputes;
-        if (t.teams?.pending) statsLocal.issues += t.teams.pending;
-      });
-
-      // Only update stats the first time, or when explicitly forced.
-      if (!statsLoaded || forceStats) {
-        setStats(statsLocal);
-        setStatsLoaded(true);
+      // Don't compute stats here anymore - use dedicated statistics API instead
+      // Only reload stats if explicitly forced (e.g., after creating/updating tournament)
+      if (forceStats) {
+        await loadStatistics();
       }
     } catch (error) {
       console.error('❌ Failed to load tournaments:', error);
@@ -420,6 +368,7 @@ export const TournamentManagement = () => {
     const key = String(status || '').toLowerCase();
     const badges = {
       live: { text: 'Đang diễn ra', color: 'bg-green-500/30 text-green-300 border-2 border-green-400/50' },
+      notopen: { text: 'Chưa mở đăng ký', color: 'bg-gray-500/20 text-gray-300 border-2 border-gray-400/30' },
       upcoming: { text: 'Sắp diễn ra', color: 'bg-amber-500/30 text-amber-200 border-2 border-amber-400/50' },
       completed: { text: 'Hoàn thành', color: 'bg-blue-500/30 text-blue-200 border-2 border-blue-400/50' },
       active: { text: 'Đang diễn ra', color: 'bg-green-500/30 text-green-300 border-2 border-green-400/50' },
@@ -786,53 +735,102 @@ export const TournamentManagement = () => {
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card hover padding="lg">
+          <Card hover padding="lg" className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border-cyan-500/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Tổng số</p>
+                <p className="text-sm text-cyan-300 font-medium">Tổng số</p>
                 <p className="text-2xl font-bold text-white mt-1">
                   {stats.total}
                 </p>
+                 <p className="text-xs text-cyan-200 mt-1">Giải đấu</p>
               </div>
-              <div className="p-3 bg-cyan-500/10 rounded-lg">
+              <div className="p-3 bg-cyan-500/20 rounded-lg ring-2 ring-cyan-400/30">
                 <svg className="w-8 h-8 text-cyan-300" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
                 </svg>
               </div>
             </div>
           </Card>
-
-          <Card hover padding="lg">
+           <Card hover padding="lg" className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Đang diễn ra</p>
+                <p className="text-sm text-indigo-300 font-medium">Tổng đội</p>
                 <p className="text-2xl font-bold text-white mt-1">
-                  {stats.active}
+                  {stats.totalTeams.toLocaleString()}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Live ngay bây giờ
-                </p>
+                <p className="text-xs text-indigo-200 mt-1">Đã đăng ký</p>
               </div>
-              <div className="p-3 bg-emerald-500/10 rounded-lg">
-                <svg className="w-8 h-8 text-emerald-300" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+              <div className="p-3 bg-indigo-500/20 rounded-lg ring-2 ring-indigo-400/30">
+                <svg className="w-8 h-8 text-indigo-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
                 </svg>
               </div>
             </div>
           </Card>
 
-          <Card hover padding="lg">
+          <Card hover padding="lg" className="bg-gradient-to-br from-rose-500/10 to-red-500/10 border-rose-500/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Sắp diễn ra</p>
+                <p className="text-sm text-rose-300 font-medium">Tổng trận</p>
+                <p className="text-2xl font-bold text-white mt-1">
+                  {stats.totalMatches.toLocaleString()}
+                </p>
+                <p className="text-xs text-rose-200 mt-1">Đã diễn ra</p>
+              </div>
+              <div className="p-3 bg-rose-500/20 rounded-lg ring-2 ring-rose-400/30">
+                <svg className="w-8 h-8 text-rose-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </Card>
+
+          <Card hover padding="lg" className="bg-gradient-to-br from-yellow-500/10 to-amber-500/10 border-yellow-500/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-yellow-300 font-medium">Giải thưởng</p>
+                <p className="text-2xl font-bold text-white mt-1">
+                  {stats.totalPrizePool.toLocaleString()} ETH
+                </p>
+                <p className="text-xs text-yellow-200 mt-1">Đã phân phối</p>
+              </div>
+              <div className="p-3 bg-yellow-500/20 rounded-lg ring-2 ring-yellow-400/30">
+                <svg className="w-8 h-8 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </Card>
+
+           <Card hover padding="lg" className="bg-gradient-to-br from-gray-500/10 to-slate-500/10 border-gray-500/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-300 font-medium">Chưa mở đăng ký</p>
+                <p className="text-2xl font-bold text-white mt-1">
+                  {stats.notOpen}
+                </p>
+              </div>
+              <div className="p-3 bg-gray-500/20 rounded-lg ring-2 ring-gray-400/30">
+                <svg className="w-8 h-8 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </Card>
+
+          <Card hover padding="lg" className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-amber-300 font-medium">Sắp diễn ra</p>
                 <p className="text-2xl font-bold text-white mt-1">
                   {stats.upcoming}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  30 ngày tới
+                <p className="text-xs text-amber-200 mt-1">
+                  Đã mở đăng ký
                 </p>
               </div>
-              <div className="p-3 bg-amber-500/10 rounded-lg">
+              <div className="p-3 bg-amber-500/20 rounded-lg ring-2 ring-amber-400/30">
                 <svg className="w-8 h-8 text-amber-300" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                 </svg>
@@ -840,18 +838,35 @@ export const TournamentManagement = () => {
             </div>
           </Card>
 
-          <Card hover padding="lg">
+          <Card hover padding="lg" className="bg-gradient-to-br from-emerald-500/10 to-green-500/10 border-emerald-500/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Đã hoàn thành</p>
+                <p className="text-sm text-emerald-300 font-medium">Đang diễn ra</p>
+                <p className="text-2xl font-bold text-white mt-1">
+                  {stats.active}
+                </p>
+                <p className="text-xs text-emerald-200 mt-1">Live ngay bây giờ</p>
+              </div>
+              <div className="p-3 bg-emerald-500/20 rounded-lg ring-2 ring-emerald-400/30">
+                <svg className="w-8 h-8 text-emerald-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </Card>
+
+          <Card hover padding="lg" className="bg-gradient-to-br from-sky-500/10 to-blue-500/10 border-sky-500/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-sky-300 font-medium">Đã hoàn thành</p>
                 <p className="text-2xl font-bold text-white mt-1">
                   {stats.completed}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-sky-200 mt-1">
                   Mùa giải này
                 </p>
               </div>
-              <div className="p-3 bg-sky-500/10 rounded-lg">
+              <div className="p-3 bg-sky-500/20 rounded-lg ring-2 ring-sky-400/30">
                 <svg className="w-8 h-8 text-sky-300" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
                   <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -860,73 +875,8 @@ export const TournamentManagement = () => {
             </div>
           </Card>
 
-          <Card hover padding="lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400">Tổng đội</p>
-                <p className="text-2xl font-bold text-white mt-1">
-                  {stats.totalTeams.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Đã đăng ký</p>
-              </div>
-              <div className="p-3 bg-indigo-500/10 rounded-lg">
-                <svg className="w-8 h-8 text-indigo-300" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                </svg>
-              </div>
-            </div>
-          </Card>
+         
 
-          <Card hover padding="lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400">Tổng trận</p>
-                <p className="text-2xl font-bold text-white mt-1">
-                  {stats.totalMatches.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Đã diễn ra</p>
-              </div>
-              <div className="p-3 bg-rose-500/10 rounded-lg">
-                <svg className="w-8 h-8 text-rose-300" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-          </Card>
-
-          <Card hover padding="lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400">Giải thưởng</p>
-                <p className="text-2xl font-bold text-white mt-1">
-                  ${(stats.totalPrizePool / 1000000).toFixed(1)}M
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Đã phân phối</p>
-              </div>
-              <div className="p-3 bg-gradient-gold/10 rounded-lg">
-                <svg className="w-8 h-8 text-[#C89B3C]" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2H6zm1 2a1 1 0 000 2h6a1 1 0 100-2H7zm6 7a1 1 0 011 1v3a1 1 0 11-2 0v-3a1 1 0 011-1zm-3 3a1 1 0 100 2h.01a1 1 0 100-2H10zm-4 1a1 1 0 011-1h.01a1 1 0 110 2H7a1 1 0 01-1-1zm1-4a1 1 0 100 2h.01a1 1 0 100-2H7zm2 1a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm4-4a1 1 0 100 2h.01a1 1 0 100-2H13zM9 9a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zM7 8a1 1 0 000 2h.01a1 1 0 000-2H7z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-          </Card>
-
-          <Card hover padding="lg" className="border-orange-500/40 bg-gradient-to-br from-orange-500/5 to-red-500/5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-300">Vấn đề</p>
-                <p className="text-2xl font-bold text-orange-400 mt-1">
-                  {stats.issues}
-                </p>
-                <p className="text-xs text-orange-300 mt-1">Cần xử lý ngay</p>
-              </div>
-              <div className="p-3 bg-orange-500/20 rounded-lg ring-2 ring-orange-500/30">
-                <svg className="w-8 h-8 text-orange-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-          </Card>
         </div>
 
         {/* Filters */}
@@ -952,10 +902,11 @@ export const TournamentManagement = () => {
             <div className="flex flex-wrap gap-2">
               {[
                 { id: 'all', label: 'Tất cả', variant: 'primary' },
-                { id: 'live', label: 'Đang diễn ra', variant: 'success' },
+                { id: 'notOpen', label: 'Chưa mở đăng ký', variant: 'secondary' },
                 { id: 'upcoming', label: 'Sắp diễn ra', variant: 'secondary' },
+                { id: 'hasRegistrations', label: 'Có đội đăng ký', variant: 'secondary' },
+                { id: 'live', label: 'Đang diễn ra', variant: 'success' },
                 { id: 'completed', label: 'Hoàn thành', variant: 'secondary' },
-                { id: 'cancelled', label: 'Đã hủy', variant: 'danger' },
               ].map(filter => (
                 <Button
                   key={filter.id}
@@ -1028,10 +979,10 @@ export const TournamentManagement = () => {
             <div className="p-12 text-center">
               <div className="text-6xl mb-4">🔍</div>
               <h3 className="text-lg font-medium text-white mb-2">
-                Không tìm thấy giải đấu
+                Không có
               </h3>
-              <p className="text-gray-400 mb-4">
-                Không có giải đấu nào phù hợp với bộ lọc "{quickFilter}"
+              <p className="text-gray-400">
+                Không tìm thấy giải đấu phù hợp với bộ lọc
               </p>
             </div>
           )}
@@ -1039,32 +990,19 @@ export const TournamentManagement = () => {
           {/* No tournaments at all */}
           {!loading && tournaments.length === 0 && (
             <div className="p-12 text-center">
-              <div className="text-6xl mb-4">🏆</div>
+              <div className="text-6xl mb-4">🔍</div>
               <h3 className="text-lg font-medium text-white mb-2">
-                Không tìm thấy giải đấu
+                Không có
               </h3>
-              <p className="text-gray-400 mb-4">
-                Không có giải đấu nào phù hợp với bộ lọc của bạn
+              <p className="text-gray-400">
+                Không tìm thấy giải đấu phù hợp với bộ lọc
               </p>
-              <Button
-                variant="primary"
-                onClick={() => setShowCreateModal(true)}
-              >
-                Tạo giải đấu đầu tiên
-              </Button>
             </div>
           )}
 
           {/* Pagination */}
           {!loading && tournaments.length > 0 && (
-            <div className="p-4 border-t border-primary-700/20 flex items-center justify-between">
-              <div className="text-sm text-gray-400">
-                {(() => {
-                  const start = (currentPage - 1) * itemsPerPage + 1;
-                  const end = Math.min(currentPage * itemsPerPage, totalItems || tournaments.length);
-                  return `Hiển thị ${totalItems > 0 ? start : 0}-${end} của ${totalItems || tournaments.length} giải đấu`;
-                })()}
-              </div>
+            <div className="p-4 border-t border-primary-700/20 flex items-center justify-center">
               <div className="flex gap-2">
                 <Button 
                   size="sm" 

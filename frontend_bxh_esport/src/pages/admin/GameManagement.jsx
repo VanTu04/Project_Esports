@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { getAllGames } from '../../services/gameService';
+import { getAllGames, deleteGame } from '../../services/gameService';
 import { useNotification } from '../../context/NotificationContext';
 import CreateGameModal from '../../components/game/CreateGameModal';
 import EditGameModal from '../../components/game/EditGameModal';
-import SeasonListModal from '../../components/season/SeasonListModal';
+import DeleteGameModal from '../../components/game/DeleteGameModal';
 import { Card } from '../../components/common/Card';
 import { Loading } from '../../components/common/Loading';
 import Button from '../../components/common/Button';
@@ -15,8 +15,9 @@ export default function GameManagementPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showSeasonListModal, setShowSeasonListModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState('ACTIVE');
   const [searchTerm, setSearchTerm] = useState('');
   const { showSuccess, showError } = useNotification();
@@ -33,13 +34,22 @@ export default function GameManagementPage() {
     try {
       setLoading(true);
       
-      // Lấy tất cả games
-      const allGamesResponse = await getAllGames(null);
-      setAllGames(allGamesResponse?.data || []);
-      setGames(allGamesResponse?.data || []);
+      const response = await getAllGames(null);
+      const apiResponse = response?.data || response;
+      
+      let gamesData = [];
+      if (apiResponse?.data && Array.isArray(apiResponse.data)) {
+        gamesData = apiResponse.data;
+      } else if (Array.isArray(apiResponse)) {
+        gamesData = apiResponse;
+      }
+      
+      setAllGames(gamesData);
+      setGames(gamesData);
     } catch (error) {
       showError('Không thể tải danh sách game');
-      console.error('Load games error:', error);
+      setAllGames([]);
+      setGames([]);
     } finally {
       setLoading(false);
     }
@@ -82,9 +92,39 @@ export default function GameManagementPage() {
     loadGames();
   };
 
-  const handleViewSeasonsClick = (game) => {
+  const handleDeleteClick = (game) => {
+    if (game.status === 'ACTIVE') {
+      showError('Không thể xóa game đang hoạt động. Vui lòng chuyển sang trạng thái Không hoạt động trước khi xóa.');
+      return;
+    }
     setSelectedGame(game);
-    setShowSeasonListModal(true);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedGame) return;
+    
+    try {
+      setDeleteLoading(true);
+      const response = await deleteGame(selectedGame.id);
+      
+      // Check if backend returned error in response
+      const apiResponse = response?.data || response;
+      if (apiResponse?.code !== 0) {
+        showError(apiResponse?.message || 'Xóa game thất bại');
+        return;
+      }
+      
+      showSuccess('Xóa game thành công');
+      setShowDeleteModal(false);
+      setSelectedGame(null);
+      loadGames();
+    } catch (error) {
+      const errorMessage = error?.response?.data?.message || error?.message || 'Xóa game thất bại';
+      showError(errorMessage);
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -128,7 +168,7 @@ export default function GameManagementPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-400">Tổng số Game</p>
-                <p className="text-2xl font-bold text-white mt-1">{allGames.length}</p>
+                <p className="text-2xl font-bold text-white mt-1">{Array.isArray(allGames) ? allGames.length : 0}</p>
               </div>
               <div className="p-3 bg-cyan-500/10 rounded-lg">
                 <svg className="w-8 h-8 text-cyan-300" fill="currentColor" viewBox="0 0 20 20">
@@ -143,7 +183,7 @@ export default function GameManagementPage() {
               <div>
                 <p className="text-sm text-gray-400">Đang hoạt động</p>
                 <p className="text-2xl font-bold text-white mt-1">
-                  {allGames.filter(g => g.status === 'ACTIVE').length}
+                  {Array.isArray(allGames) ? allGames.filter(g => g.status === 'ACTIVE').length : 0}
                 </p>
               </div>
               <div className="p-3 bg-emerald-500/10 rounded-lg">
@@ -159,7 +199,7 @@ export default function GameManagementPage() {
               <div>
                 <p className="text-sm text-gray-400">Không hoạt động</p>
                 <p className="text-2xl font-bold text-white mt-1">
-                  {allGames.filter(g => g.status === 'INACTIVE').length}
+                  {Array.isArray(allGames) ? allGames.filter(g => g.status === 'INACTIVE').length : 0}
                 </p>
               </div>
               <div className="p-3 bg-gray-500/10 rounded-lg">
@@ -260,31 +300,16 @@ export default function GameManagementPage() {
                     <tr>
                       <td colSpan="5" className="px-6 py-12 text-center">
                         <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-cyan-500/10 flex items-center justify-center">
-                          {searchTerm ? (
-                            <svg className="w-10 h-10 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                          ) : (
-                            <span className="text-4xl font-bold text-cyan-300">G</span>
-                          )}
+                          <svg className="w-10 h-10 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
                         </div>
                         <h3 className="text-lg font-medium text-white mb-2">
-                          {searchTerm ? 'Không tìm thấy game nào' : 'Không có game nào'}
+                          Không có
                         </h3>
-                        <p className="text-gray-400 mb-4">
-                          {searchTerm 
-                            ? `Không có kết quả cho "${searchTerm}"`
-                            : 'Chưa có game nào trong hệ thống'
-                          }
+                        <p className="text-gray-400">
+                          Không tìm thấy game phù hợp với bộ lọc
                         </p>
-                        {!searchTerm && (
-                          <Button
-                            variant="primary"
-                            onClick={() => setShowCreateModal(true)}
-                          >
-                            Thêm game đầu tiên
-                          </Button>
-                        )}
                       </td>
                     </tr>
                   ) : (
@@ -307,19 +332,21 @@ export default function GameManagementPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button
-                              onClick={() => handleViewSeasonsClick(game)}
-                              className="px-3 py-1.5 bg-blue-500/20 text-blue-300 font-semibold hover:bg-blue-500/30 rounded-lg transition-colors border border-blue-500/30"
-                              title="Quản lý mùa giải"
-                            >
-                              Mùa giải
-                            </button>
-                            <button
                               onClick={() => handleEditClick(game)}
                               className="px-3 py-1.5 bg-emerald-500/20 text-emerald-300 font-semibold hover:bg-emerald-500/30 rounded-lg transition-colors border border-emerald-500/30"
                               title="Chỉnh sửa game"
                             >
                               Sửa
                             </button>
+                            {game.status !== 'ACTIVE' && (
+                              <button
+                                onClick={() => handleDeleteClick(game)}
+                                className="px-3 py-1.5 bg-rose-500/20 text-rose-300 font-semibold hover:bg-rose-500/30 rounded-lg transition-colors border border-rose-500/30"
+                                title="Xóa game"
+                              >
+                                Xóa
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -350,15 +377,15 @@ export default function GameManagementPage() {
           />
         )}
 
-        {showSeasonListModal && selectedGame && (
-          <SeasonListModal
+        {showDeleteModal && selectedGame && (
+          <DeleteGameModal
             game={selectedGame}
-            allGames={allGames}
             onClose={() => {
-              setShowSeasonListModal(false);
+              setShowDeleteModal(false);
               setSelectedGame(null);
             }}
-            onUpdate={loadGames}
+            onConfirm={handleConfirmDelete}
+            loading={deleteLoading}
           />
         )}
       </div>

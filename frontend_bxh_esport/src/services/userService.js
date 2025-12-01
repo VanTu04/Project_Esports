@@ -160,6 +160,153 @@ const userService = {
     }
   },
 
+  // Email OTP 2FA: start/confirm enable and disable
+  startTwoFactorEnable: async (password) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/two-factor/email/start`, { password });
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.code !== 0) {
+        throw new Error(payload.message || 'Lỗi server');
+      }
+      return payload.data || payload;
+    } catch (error) {
+      console.error('userService.startTwoFactorEnable error', error);
+      throw error;
+    }
+  },
+
+  confirmTwoFactorEnable: async (otp) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/two-factor/email/confirm`, { otp });
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.code !== 0) {
+        throw new Error(payload.message || 'Lỗi server');
+      }
+      return payload.data || payload;
+    } catch (error) {
+      console.error('userService.confirmTwoFactorEnable error', error);
+      throw error;
+    }
+  },
+
+  startTwoFactorDisable: async (password) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/two-factor/email/start-disable`, { password });
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.code !== 0) {
+        throw new Error(payload.message || 'Lỗi server');
+      }
+      return payload.data || payload;
+    } catch (error) {
+      console.error('userService.startTwoFactorDisable error', error);
+      throw error;
+    }
+  },
+
+  confirmTwoFactorDisable: async (otp) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/two-factor/email/confirm-disable`, { otp });
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.code !== 0) {
+        throw new Error(payload.message || 'Lỗi server');
+      }
+      return payload.data || payload;
+    } catch (error) {
+      console.error('userService.confirmTwoFactorDisable error', error);
+      throw error;
+    }
+  },
+
+  // Disable two-factor immediately by verifying current password.
+  // Backend should remove any totp/email verification data and set two_factor_enabled = 0.
+  disableTwoFactorByPassword: async (password) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/two-factor/disable-by-password`, { password });
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.code !== 0) throw new Error(payload.message || 'Lỗi server');
+      return payload.data || payload;
+    } catch (error) {
+      console.error('userService.disableTwoFactorByPassword error', error);
+      throw error;
+    }
+  },
+
+  // Disable Email 2FA by verifying current password only
+  disableEmailByPassword: async (password) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/two-factor/email/disable-by-password`, { password });
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.code !== 0) throw new Error(payload.message || 'Lỗi server');
+      return payload.data || payload;
+    } catch (error) {
+      console.error('userService.disableEmailByPassword error', error);
+      throw error;
+    }
+  },
+
+  disableAllTwoFactor: async (password, token) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/two-factor/disable-all`, { password, token });
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.code !== 0) throw new Error(payload.message || 'Lỗi server');
+      return payload.data || payload;
+    } catch (error) {
+      console.error('userService.disableAllTwoFactor error', error);
+      throw error;
+    }
+  },
+
+  // TOTP (app) 2FA: start/setup/disable
+  startTotp: async (password) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/two-factor/totp/start`, { password });
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.code !== 0) throw new Error(payload.message || 'Lỗi server');
+      return payload.data || payload;
+    } catch (error) {
+      console.error('userService.startTotp error', error);
+      throw error;
+    }
+  },
+
+  confirmTotp: async (token) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/two-factor/totp/confirm`, { token });
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.code !== 0) throw new Error(payload.message || 'Lỗi server');
+      return payload.data || payload;
+    } catch (error) {
+      console.error('userService.confirmTotp error', error);
+      throw error;
+    }
+  },
+
+  // Apply an existing TOTP secret (activate 2FA) by verifying a TOTP code
+  applyExistingTotp: async (token) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/two-factor/totp/enable`, { token });
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.code !== 0) throw new Error(payload.message || 'Lỗi server');
+      return payload.data || payload;
+    } catch (error) {
+      console.error('userService.applyExistingTotp error', error);
+      throw error;
+    }
+  },
+
+  // Disable TOTP using password only
+  disableTotpByPassword: async (password) => {
+    try {
+      const res = await apiClient.post(`${API_ENDPOINTS.USERS}/two-factor/totp/disable`, { password });
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.code !== 0) throw new Error(payload.message || 'Lỗi server');
+      return payload.data || payload;
+    } catch (error) {
+      console.error('userService.disableTotpByPassword error', error);
+      throw error;
+    }
+  },
+
   // Delete current authenticated account
   deleteAccount: async () => {
     try {

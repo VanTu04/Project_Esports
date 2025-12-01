@@ -21,7 +21,7 @@ const normalizeImageUrl = (url) => {
 // 1. Tạo một giải đấu mới
 export const createTournamentWithRewards = async (req, res) => {
   try {
-    const { name, total_rounds, total_team, rewards, start_date, end_date, registration_fee } = req.body;
+    const { name, game_id, total_rounds, total_team, rewards, start_date, end_date, registration_fee } = req.body;
     // rewards = [{ rank: 1, reward_amount: 50 }, { rank: 2, reward_amount: 30 }, ...]
     console.log("Creating tournament with data:", req.body);
     if (!name || !total_rounds || !total_team) {
@@ -32,6 +32,16 @@ export const createTournamentWithRewards = async (req, res) => {
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Phí đăng ký không hợp lệ.'));
     }
 
+    // Validate game_id if provided
+    if (game_id) {
+      const game = await models.Game.findOne({
+        where: { id: game_id, status: 'ACTIVE', deleted: false }
+      });
+      if (!game) {
+        return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Game không tồn tại hoặc không ở trạng thái ACTIVE.'));
+      }
+    }
+
     const existing = await tournamentService.getTournamentByName(name);
     if (existing) {
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_EXIST, 'Giải đấu đã tồn tại.'));
@@ -39,7 +49,7 @@ export const createTournamentWithRewards = async (req, res) => {
 
     console.log("BODY:", req.body);
     const result = await models.sequelize.transaction(async (t) => {
-      const tournament = await tournamentService.create({ name, total_rounds, total_team, start_date, end_date, registration_fee }, { transaction: t });
+      const tournament = await tournamentService.create({ name, game_id, total_rounds, total_team, start_date, end_date, registration_fee }, { transaction: t });
       if (Array.isArray(rewards) && rewards.length > 0) {
         const rewardsData = rewards.map(r => ({
           tournament_id: tournament.id,
@@ -124,12 +134,63 @@ export const getTournamentDistributions = async (req, res) => {
 // 2. Lấy danh sách tất cả các giải đấu
 export const getAllTournamentsAdmin = async (req, res) => {
   try {
-    const { status, page, limit } = req.query;
+    const { status, page, limit, isReady, search, hasRegistrations } = req.query;
     
-    const result = await tournamentService.findAllByAdmin(status, page, limit);
+    const filters = { isReady, search, hasRegistrations };
+    const result = await tournamentService.findAllByAdmin(status, page, limit, filters);
     return res.json(responseSuccess(result, 'Lấy danh sách giải đấu thành công'));
   } catch (error) {
     console.error('getAllTournaments error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+// API thống kê tổng quan
+export const getTournamentStatistics = async (req, res) => {
+  try {
+    // Get all tournaments count
+    const totalTournaments = await models.Tournament.count({ where: { deleted: 0 } });
+    
+    // Count by status
+    const activeTournaments = await models.Tournament.count({ where: { deleted: 0, status: 'ACTIVE' } });
+    const notOpenTournaments = await models.Tournament.count({ where: { deleted: 0, status: 'PENDING', isReady: 0 } });
+    const upcomingTournaments = await models.Tournament.count({ where: { deleted: 0, status: 'PENDING', isReady: 1 } });
+    const completedTournaments = await models.Tournament.count({ where: { deleted: 0, status: 'COMPLETED' } });
+    
+    // Total teams (approved participants)
+    const totalTeams = await models.Participant.count({ where: { status: 'APPROVED' } });
+    
+    // Total distributed matches (DONE status only - matches that have been completed and finalized)
+    const distributedMatches = await models.Match.count({
+      where: {
+        status: 'DONE'
+      }
+    });
+    
+    
+    // Total distributed prize pool (sum rewards with blockNumber - confirmed on blockchain)
+    const distributedRewardsResult = await models.TournamentReward.sum('reward_amount', {
+      where: {
+        blockNumber: { [Op.ne]: null }
+      }
+    });
+    
+    
+    const totalDistributedPrizePool = Number(distributedRewardsResult) || 0;
+    
+
+    return res.json(responseSuccess({
+      total: totalTournaments,
+      active: activeTournaments,
+      notOpen: notOpenTournaments,
+      upcoming: upcomingTournaments,
+      completed: completedTournaments,
+      totalTeams,
+      totalDistributedMatches: Number(distributedMatches) || 0,
+      totalDistributedPrizePool: Number(totalDistributedPrizePool) || 0
+    }, 'Lấy thống kê thành công'));
+  } catch (error) {
+    console.error('getTournamentStatistics error', error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };

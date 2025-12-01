@@ -2,13 +2,35 @@ import * as gameService from '../services/GameService.js';
 import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
 
+/**
+ * Get all games (with optional filters)
+ * Query params: status (ACTIVE/INACTIVE), search
+ */
 export const getAllGames = async (req, res) => {
   try {
-    const { status } = req.query;
-    const result = await gameService.getAllGame(status);
+    const { status, search } = req.query;
+    const filters = {};
+    
+    if (status) filters.status = status;
+    if (search) filters.search = search;
+    
+    const result = await gameService.getAllGame(filters);
     return res.json(responseSuccess(result, 'Lấy danh sách game thành công'));
   } catch (error) {
     console.error('getAllGames error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+/**
+ * Get only ACTIVE games (for use in select boxes)
+ */
+export const getActiveGames = async (req, res) => {
+  try {
+    const result = await gameService.getActiveGames();
+    return res.json(responseSuccess(result, 'Lấy danh sách game đang hoạt động thành công'));
+  } catch (error) {
+    console.error('getActiveGames error', error);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };

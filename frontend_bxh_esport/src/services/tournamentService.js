@@ -23,6 +23,16 @@ const tournamentService = {
     }
   },
 
+  // Get tournament statistics
+  getTournamentStatistics: async () => {
+    try {
+      const res = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/statistics/overview`);
+      return res?.data ?? res;
+    } catch (error) {
+      throw error;
+    }
+  },
+
   getTournamentById: async (tournamentId) => {
     try {
       const res = await apiClient.get(`${API_ENDPOINTS.TOURNAMENTS}/${tournamentId}`);

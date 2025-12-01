@@ -17,6 +17,17 @@ export const getAllGames = async (status = null) => {
   }
 };
 
+// Lấy chỉ những game đang ACTIVE (dùng cho select box trong form)
+export const getActiveGames = async () => {
+  try {
+    const response = await apiClient.get(`${API_ENDPOINTS.GAMES}/active`);
+    return response;
+  } catch (error) {
+    console.error('getActiveGames error:', error);
+    throw error;
+  }
+};
+
 // Lấy thông tin game theo ID
 export const getGameById = async (id) => {
   try {

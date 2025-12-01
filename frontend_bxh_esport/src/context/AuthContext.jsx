@@ -92,6 +92,11 @@ export const AuthProvider = ({ children }) => {
     setUser(updatedUser);
     storage.setItem(STORAGE_KEYS.USER_DATA, updatedUser);
   };
+  
+  // Also expose a helper to mark user as authenticated (used after 2FA confirm)
+  const markAuthenticated = () => {
+    setIsAuthenticated(true);
+  };
 
   const value = {
     user,
@@ -101,6 +106,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateUser,
+    markAuthenticated,
   };
 
   return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;

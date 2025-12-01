@@ -2,9 +2,12 @@ import bcrypt from 'bcryptjs';
 import { Op } from 'sequelize';
 import models from '../models/index.js';
 import * as jwt_token from '../middlewares/jwt_token.js';
-import * as MailHelper from '../helper/MailHelper.js';
+import MailHelper from '../helper/MailHelper.js';
 import { decrypt, generateWallet } from '../utils/wallet.js';
 import { fundWalletOnAnvil } from '../init/initAdmin.js';
+import speakeasy from 'speakeasy';
+import qrcode from 'qrcode';
+import crypto from 'crypto';
 
 export const register = async (data) => {
   if (!data.email || !data.username || !data.password || !data.full_name) {
@@ -104,7 +107,7 @@ export const createAccount = async (data, adminId) => {
 export const getProfile = async (userId) => {
   let user = await models.User.findOne({
     where: { id: userId, status: 1, deleted: 0 },
-    attributes: ['id', 'username', 'full_name', 'email', 'role', 'wallet_address', 'private_key', 'avatar', 'phone']
+    attributes: ['id', 'username', 'full_name', 'email', 'role', 'wallet_address', 'private_key', 'avatar', 'phone', 'two_factor_enabled', 'email_two_factor_enabled', 'totp_secret']
   });
 
   const backendUrl = process.env.BACKEND_URL || 'https://api.vawndev.online';
@@ -121,7 +124,10 @@ export const getProfile = async (userId) => {
     email: user.email,
     role: user.role,
     wallet_address: user.wallet_address,
-    private_key: decrypt(user.private_key)
+    private_key: decrypt(user.private_key),
+    two_factor_enabled: user.two_factor_enabled,
+    email_two_factor_enabled: user.email_two_factor_enabled,
+    totp_secret: !!user.totp_secret
   }
 
   console.log("user:", user);
@@ -179,6 +185,84 @@ export const login = async (data) => {
   if (!isMatch) {
     throw new Error('Mật khẩu không đúng!');
   }
+  // If user has two-factor enabled, trigger OTP flow instead of returning tokens
+  if (user.two_factor_enabled === 1) {
+    // If user has TOTP configured, prefer TOTP as primary method
+    if (user.totp_secret) {
+      return {
+        twoFactorRequired: true,
+        method: 'totp',
+        // include info for frontend: whether email-based 2FA is also enabled and the user's email
+        email: user.email,
+        email_two_factor_enabled: user.email_two_factor_enabled,
+        totp: true
+      };
+    }
+
+    // Fallback to email OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 5);
+
+    await updateOTP(user.id, otp, expiresAt);
+    await sendOtp(user.email, otp, 'login');
+
+    return {
+      twoFactorRequired: true,
+      method: 'email',
+      email: user.email
+    };
+  }
+
+  const accessToken = jwt_token.signAccessToken(user);
+  const refreshToken = jwt_token.signRefreshToken(user);
+
+  let teamInfo = null;
+  if (user.role === 3) {
+    const team = await models.Team.findOne({
+      where: { leader_id: user.id },
+      attributes: ["id", "name", "wallet_address", "private_key"]
+    });
+    if (team) {
+      teamInfo = team;
+    }
+  }
+
+  const userInfo = {
+    id: user.id,
+    username: user.username,
+    full_name: user.full_name,
+    email: user.email,
+    role: user.role,
+    team: teamInfo
+  };
+
+  return {
+    accessToken,
+    refreshToken,
+    userInfo
+  };
+};
+
+export const loginConfirm = async (account, otp) => {
+  if (!account || !otp) throw new Error('Thiếu thông tin xác thực 2FA');
+
+  const user = await models.User.findOne({
+    where: {
+      [Op.or]: [ { email: account }, { username: account } ],
+      status: 1,
+      deleted: 0
+    }
+  });
+
+  if (!user) throw new Error('Tài khoản không tồn tại');
+
+  if (!user.otp || String(user.otp) !== String(otp)) throw new Error('OTP không hợp lệ');
+  const now = new Date();
+  if (!user.expires || user.expires < now) throw new Error('OTP đã hết hạn');
+
+  // clear otp and enable login
+  await updateOTP(user.id, null, null);
 
   const accessToken = jwt_token.signAccessToken(user);
   const refreshToken = jwt_token.signRefreshToken(user);
@@ -216,15 +300,24 @@ export const refreshToken = async (user) => {
   return { accessToken, refreshToken };
 };
 
-export const sendOtp = async (email, otp) => {
-  try {
-    await MailHelper.sendOtpEmail(email, otp);
-    return true;
-  } catch (error) {
-    console.error("Lỗi gửi mail:", error);
-    throw new Error("Gửi email thất bại");
+export const sendOtp = async (email, otp, type = 'reset') => {
+  // Ensure mail-sending failures are surfaced as exceptions so controllers
+  // can return proper error responses to the client.
+  const ok = await MailHelper.sendOtpEmail(email, otp, type);
+  if (!ok) {
+    console.error(`MailHelper failed to send OTP to ${email}`);
+    throw new Error('Gửi email thất bại');
   }
+  return true;
 }
+
+export const verifyUserPassword = async (userId, password) => {
+  const user = await models.User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+  const isMatch = await bcrypt.compare(String(password), user.password);
+  if (!isMatch) throw new Error('Mật khẩu không đúng');
+  return true;
+};
 
 export const forgetPassword = async (data) => {
 
@@ -398,4 +491,235 @@ export const findUsersByIds = async (userIds) => {
       }
     }
   });
+};
+
+// Start enable 2FA by sending OTP to user's email
+export const startTwoFactorEnable = async (userId, password) => {
+  // require password to start enabling email 2FA
+  if (!password) throw new Error('Mật khẩu không được để trống');
+  await verifyUserPassword(userId, password);
+  const user = await models.User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date();
+  expiresAt.setMinutes(expiresAt.getMinutes() + 5);
+
+  await updateOTP(userId, otp, expiresAt);
+  await sendOtp(user.email, otp, '2fa_enable');
+  return { success: true };
+};
+
+export const confirmTwoFactorEnable = async (userId, otp) => {
+  const user = await models.User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+  if (!user.otp || String(user.otp) !== String(otp)) throw new Error('OTP không hợp lệ');
+  const now = new Date();
+  if (!user.expires || user.expires < now) throw new Error('OTP đã hết hạn');
+
+  await models.User.update({ two_factor_enabled: 1, email_two_factor_enabled: 1, otp: null, expires: null, updated_date: new Date() }, { where: { id: userId } });
+  return { success: true };
+};
+
+// Start disable 2FA by sending OTP to user's email
+export const startTwoFactorDisable = async (userId, password) => {
+  // verify password first
+  await verifyUserPassword(userId, password);
+  const user = await models.User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date();
+  expiresAt.setMinutes(expiresAt.getMinutes() + 5);
+
+  await updateOTP(userId, otp, expiresAt);
+  await sendOtp(user.email, otp, '2fa_disable');
+  return { success: true };
+};
+
+export const confirmTwoFactorDisable = async (userId, otp) => {
+  const user = await models.User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+  if (!user.otp || String(user.otp) !== String(otp)) throw new Error('OTP không hợp lệ');
+  const now = new Date();
+  if (!user.expires || user.expires < now) throw new Error('OTP đã hết hạn');
+
+  await models.User.update({ two_factor_enabled: 0, email_two_factor_enabled: 0, otp: null, expires: null, updated_date: new Date() }, { where: { id: userId } });
+  return { success: true };
+};
+
+// Immediate disable of all two-factor methods by verifying current password
+export const disableTwoFactorByPassword = async (userId, password) => {
+  // verify password first
+  await verifyUserPassword(userId, password);
+  const user = await models.User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+
+  await models.User.update({
+    totp_secret: null,
+    totp_temp_secret: null,
+    otp: null,
+    expires: null,
+    two_factor_enabled: 0,
+    email_two_factor_enabled: 0,
+    updated_date: new Date()
+  }, { where: { id: userId } });
+
+  return { success: true };
+};
+
+// Disable ALL two-factor methods when provided password and a valid token (TOTP or Email OTP)
+export const disableAllTwoFactor = async (userId, { password, token }) => {
+  if (!password) throw new Error('Mật khẩu không được để trống');
+  await verifyUserPassword(userId, password);
+
+  const user = await models.User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+
+  // If token is provided, validate it against TOTP secret or OTP in DB
+  let tokenOk = false;
+  if (token) {
+    if (user.totp_secret) {
+      const secret = decryptSecret(user.totp_secret);
+      tokenOk = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 1 });
+    }
+    // check email OTP fallback
+    if (!tokenOk && user.otp && String(user.otp) === String(token)) {
+      const now = new Date();
+      if (user.expires && user.expires >= now) tokenOk = true;
+    }
+  }
+
+  if (!tokenOk) throw new Error('Mã xác thực không hợp lệ');
+
+  // clear all 2FA data
+  await models.User.update({
+    totp_secret: null,
+    totp_temp_secret: null,
+    otp: null,
+    expires: null,
+    two_factor_enabled: 0,
+    email_two_factor_enabled: 0,
+    updated_date: new Date()
+  }, { where: { id: userId } });
+
+  return { success: true };
+};
+
+// --- TOTP helpers ---
+const ENC_KEY = process.env.ENCRYPTION_KEY || null;
+const ALGO = 'aes-256-cbc';
+const ivFromKey = (key) => {
+  // derive a 16 bytes IV from key (not ideal for prod, but acceptable for local dev)
+  const hash = crypto.createHash('md5').update(String(key)).digest();
+  return hash;
+};
+
+const encryptSecret = (plain) => {
+  if (!ENC_KEY) return plain; // fallback (insecure) when no key provided
+  const iv = ivFromKey(ENC_KEY);
+  const cipher = crypto.createCipheriv(ALGO, Buffer.from(ENC_KEY).slice(0,32), iv);
+  let encrypted = cipher.update(String(plain), 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+  return encrypted;
+};
+
+const decryptSecret = (encrypted) => {
+  if (!ENC_KEY) return encrypted;
+  const iv = ivFromKey(ENC_KEY);
+  const decipher = crypto.createDecipheriv(ALGO, Buffer.from(ENC_KEY).slice(0,32), iv);
+  let dec = decipher.update(String(encrypted), 'base64', 'utf8');
+  dec += decipher.final('utf8');
+  return dec;
+};
+
+// Start TOTP setup: generate secret, save temp secret, return QR data URL and secret (base32)
+export const startTotpSetup = async (userId) => {
+  const user = await models.User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+
+  const secret = speakeasy.generateSecret({ length: 20 });
+  // save temporary secret (base32)
+  await models.User.update({ totp_temp_secret: secret.base32, updated_date: new Date() }, { where: { id: userId } });
+
+  const label = `${process.env.APP_NAME || 'Esports'}:${user.email}`;
+  const otpauth = speakeasy.otpauthURL({ secret: secret.base32, label, issuer: process.env.APP_NAME || 'Esports', encoding: 'base32' });
+  const qrDataUrl = await qrcode.toDataURL(otpauth);
+
+  return { qr: qrDataUrl, secret: secret.base32 };
+};
+
+// Confirm TOTP setup: verify code against temp secret, promote to stored secret
+export const confirmTotpSetup = async (userId, token) => {
+  const user = await models.User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+  if (!user.totp_temp_secret) throw new Error('No TOTP setup in progress');
+
+  const verified = speakeasy.totp.verify({ secret: user.totp_temp_secret, encoding: 'base32', token, window: 1 });
+  if (!verified) throw new Error('Mã TOTP không hợp lệ');
+
+  // encrypt and save
+  const encrypted = encryptSecret(user.totp_temp_secret);
+  await models.User.update({ totp_secret: encrypted, totp_temp_secret: null, two_factor_enabled: 1, updated_date: new Date() }, { where: { id: userId } });
+  return { success: true };
+};
+
+// Disable TOTP: require password OR valid TOTP token
+export const disableTotp = async (userId, password) => {
+  // disable TOTP using password verification only (no OTP required)
+  if (!password) throw new Error('Mật khẩu không được để trống');
+  await verifyUserPassword(userId, password);
+
+  const user = await models.User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+
+  // clear TOTP secret; if email 2FA isn't enabled, also clear two_factor_enabled
+  const updateData = { totp_secret: null, updated_date: new Date() };
+  if (!user.email_two_factor_enabled) updateData.two_factor_enabled = 0;
+
+  await models.User.update(updateData, { where: { id: userId } });
+  return { success: true };
+};
+
+// Disable Email two-factor using password only
+export const disableEmailByPassword = async (userId, password) => {
+  if (!password) throw new Error('Mật khẩu không được để trống');
+  await verifyUserPassword(userId, password);
+
+  const user = await models.User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+
+  // clear email flag; if no TOTP secret then disable overall two_factor_enabled
+  const updateData = { email_two_factor_enabled: 0, otp: null, expires: null, updated_date: new Date() };
+  if (!user.totp_secret) updateData.two_factor_enabled = 0;
+
+  await models.User.update(updateData, { where: { id: userId } });
+  return { success: true };
+};
+
+// Login confirm with TOTP (public): verify and issue tokens
+export const loginConfirmTotp = async (account, token) => {
+  if (!account || !token) throw new Error('Thiếu thông tin xác thực 2FA');
+
+  const user = await models.User.findOne({ where: { [Op.or]: [ { email: account }, { username: account } ], status: 1, deleted: 0 } });
+  if (!user) throw new Error('Tài khoản không tồn tại');
+  if (!user.totp_secret) throw new Error('TOTP chưa bật cho tài khoản này');
+
+  const secret = decryptSecret(user.totp_secret);
+  const verified = speakeasy.totp.verify({ secret, encoding: 'base32', token, window: 1 });
+  if (!verified) throw new Error('Mã TOTP không hợp lệ');
+
+  // issue tokens
+  const accessToken = jwt_token.signAccessToken(user);
+  const refreshToken = jwt_token.signRefreshToken(user);
+
+  let teamInfo = null;
+  if (user.role === 3) {
+    const team = await models.Team.findOne({ where: { leader_id: user.id }, attributes: ["id", "name", "wallet_address", "private_key"] });
+    if (team) teamInfo = team;
+  }
+
+  const userInfo = { id: user.id, username: user.username, full_name: user.full_name, email: user.email, role: user.role, team: teamInfo };
+
+  return { accessToken, refreshToken, userInfo };
 };
