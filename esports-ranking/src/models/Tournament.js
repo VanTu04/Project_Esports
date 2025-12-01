@@ -8,6 +8,15 @@ export default (sequelize) => {
       type: DataTypes.STRING,
       allowNull: false
     },
+    game_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'games',
+        key: 'id'
+      },
+      comment: 'ID của game mà giải đấu này thuộc về'
+    },
     status: {
       type: DataTypes.ENUM('PENDING', 'ACTIVE', 'COMPLETED'),
       defaultValue: 'PENDING',
@@ -87,6 +96,11 @@ export default (sequelize) => {
   });
 
   Tournament.associate = (models) => {
+    // Một giải đấu thuộc về một Game
+    Tournament.belongsTo(models.Game, {
+      foreignKey: 'game_id',
+      as: 'game'
+    });
     // Một giải đấu có nhiều Đội tham gia
     Tournament.hasMany(models.Participant, { 
       foreignKey: 'tournament_id', 

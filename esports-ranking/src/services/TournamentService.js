@@ -68,7 +68,17 @@ export const findParticipantsByStatus = async (id, status) => {
  * Tìm giải đấu theo ID (bao gồm các đội tham gia)
  */
 export const findById = async (id) => {
-  const tournament = await models.Tournament.findByPk(id);
+  const tournament = await models.Tournament.findOne({
+    where: { id, deleted: 0 },
+    include: [
+      {
+        model: models.Game,
+        as: 'game',
+        attributes: ['id', 'game_name', 'status'],
+        required: false
+      }
+    ]
+  });
 
   if (!tournament) return null;
 
@@ -103,38 +113,62 @@ export const findById = async (id) => {
 /**
  * Lấy tất cả giải đấu (có lọc theo status)
  */
-export const findAllByAdmin = async (status, page = 1, limit = 10) => {
-  const whereCondition = {};
+export const findAllByAdmin = async (status, page = 1, limit = 10, filters = {}) => {
+  const whereCondition = {
+    deleted: 0  // Exclude deleted tournaments
+  };
   if (status !== undefined && status !== null && status !== '') {
     whereCondition.status = status;
   }
 
+  // Support isReady filter (0 = not open, 1 = ready/open)
+  if (filters.isReady !== undefined && filters.isReady !== null && filters.isReady !== '') {
+    whereCondition.isReady = parseInt(filters.isReady);
+  }
+
+  // Support search filter
+  if (filters.search) {
+    whereCondition.name = { [Op.like]: `%${filters.search}%` };
+  }
+
   const offset = (page - 1) * limit;
 
-  const { count, rows: tournaments } = await models.Tournament.findAndCountAll({
+  // Base query options
+  const queryOptions = {
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-    attributes: ['id', 'name', 'status', 'total_rounds', 'total_team', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'createdAt', 'updatedAt'],
+    attributes: ['id', 'name', 'status', 'total_rounds', 'total_team', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'game_id', 'createdAt', 'updatedAt'],
+    distinct: true,
     include: [
+      {
+        model: models.Game,
+        as: 'game',
+        attributes: ['id', 'game_name', 'status'],
+        required: false
+      },
       {
         model: models.TournamentReward,
         as: 'rewards',
         attributes: ['id', 'rank', 'reward_amount', 'hash', 'distributed_at', 'blockNumber'],
-        required: false // nếu giải đấu chưa có reward vẫn trả về
+        required: false
       }
     ],
     limit: parseInt(limit),
     offset: parseInt(offset)
-  });
+  };
 
-  try {
-    // Log a compact sample to help debug missing date fields (removed in production later)
-    const sample = tournaments.slice(0, 5).map(t => (t && typeof t.get === 'function') ? t.get({ plain: true }) : t);
-    console.log('[TournamentService.findAll] sample tournaments (id, start_date, end_date, start_time, end_time):',
-      sample.map(s => ({ id: s.id, start_date: s.start_date, end_date: s.end_date, start_time: s.start_time, end_time: s.end_time })));
-  } catch (e) {
-    console.warn('Could not log tournaments sample', e);
+  // Support hasRegistrations filter (tournaments with at least 1 participant waiting approval or approved)
+  if (filters.hasRegistrations === '1' || filters.hasRegistrations === 1) {
+    queryOptions.include.push({
+      model: models.Participant,
+      as: 'participants',
+      where: { status:'WAITING_APPROVAL' },
+      attributes: [],
+      required: true // INNER JOIN to only get tournaments with participants
+    });
   }
+
+  const { count, rows: tournaments } = await models.Tournament.findAndCountAll(queryOptions);
 
   return {
     tournaments,
@@ -145,20 +179,28 @@ export const findAllByAdmin = async (status, page = 1, limit = 10) => {
 };
 
 export const findAll = async (status, page = 1, limit = 10) => {
-  const whereCondition = {};
+  const whereCondition = {
+    deleted: 0,  // Exclude deleted tournaments
+    isReady: 1
+  };
   if (status !== undefined && status !== null && status !== '') {
     whereCondition.status = status;
   }
-
-  whereCondition.isReady = 1;
 
   const offset = (page - 1) * limit;
 
   const { count, rows: tournaments } = await models.Tournament.findAndCountAll({
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-  attributes: ['id', 'name', 'status', 'total_rounds', 'total_team', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'createdAt', 'updatedAt'],
+  attributes: ['id', 'name', 'status', 'total_rounds', 'total_team', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'game_id', 'createdAt', 'updatedAt'],
+    distinct: true,  // Count only unique tournaments (avoid duplicates from joins)
     include: [
+      {
+        model: models.Game,
+        as: 'game',
+        attributes: ['id', 'game_name', 'status'],
+        required: false
+      },
       {
         model: models.TournamentReward,
         as: 'rewards',

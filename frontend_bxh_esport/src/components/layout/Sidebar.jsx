@@ -26,7 +26,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           { icon: HomeIcon, label: 'Dashboard', path: ROUTES.ADMIN_DASHBOARD },
           { icon: UsersIcon, label: 'Người dùng', path: ROUTES.ADMIN_USERS },
           { icon: TrophyIcon, label: 'Giải đấu', path: ROUTES.ADMIN_TOURNAMENTS },
-          // { icon: ChartBarIcon, label: 'Trò chơi', path: ROUTES.ADMIN_GAMES },
+          { icon: ChartBarIcon, label: 'Game', path: ROUTES.ADMIN_GAMES },
           { icon: ChartBarIcon, label: 'Blockchain', path: ROUTES.ADMIN_BLOCKCHAIN },
           // { icon: ChartBarIcon, label: 'Thống kê', path: ROUTES.ADMIN_STATISTICS },
         ];

@@ -1,27 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import Button from '../common/Button';
 import rewardService from '../../services/rewardService';
+import { getActiveGames } from '../../services/gameService';
+import { useNotification } from '../../context/NotificationContext';
 
 export default function EditTournamentForm({ initialData = {}, onSave, onCancel, saving = false }) {
-  const toDateTimeLocal = (value) => {
-    if (!value) return '';
-    try {
-      const d = new Date(value);
-      if (isNaN(d.getTime())) return '';
-      const pad = (n) => String(n).padStart(2, '0');
-      const yyyy = d.getFullYear();
-      const mm = pad(d.getMonth() + 1);
-      const dd = pad(d.getDate());
-      const hh = pad(d.getHours());
-      const min = pad(d.getMinutes());
-      return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
-    } catch (e) {
-      return '';
-    }
-  };
-
+  const { showSuccess, showError } = useNotification();
   const [form, setForm] = useState({
     name: '',
+    game_id: '',
     total_rounds: 3,
     expected_teams: '',
     start_date: '',
@@ -32,19 +21,57 @@ export default function EditTournamentForm({ initialData = {}, onSave, onCancel,
   });
 
   const [errors, setErrors] = useState({});
+  const [games, setGames] = useState([]);
+  const [startDateObj, setStartDateObj] = useState(null);
+  const [endDateObj, setEndDateObj] = useState(null);
+
+  // Load active games on mount
+  useEffect(() => {
+    const loadGames = async () => {
+      try {
+        const response = await getActiveGames();
+        let gamesData = [];
+        if (response?.data?.data && Array.isArray(response.data.data)) {
+          gamesData = response.data.data;
+        } else if (Array.isArray(response?.data)) {
+          gamesData = response.data;
+        } else if (Array.isArray(response)) {
+          gamesData = response;
+        }
+        setGames(gamesData);
+      } catch (error) {
+        showError('Không thể tải danh sách game');
+        setGames([]);
+      }
+    };
+    loadGames();
+  }, []);
 
   useEffect(() => {
     if (initialData) {
+      const parseISOToLocal = (d) => {
+        if (!d) return null;
+        const p = String(d).split('-').map(Number);
+        return p.length === 3 ? new Date(p[0], p[1] - 1, p[2]) : new Date(d);
+      };
+
+      const startDate = initialData.start_date || initialData.start_time;
+      const endDate = initialData.end_date || initialData.end_time;
+
       setForm({
         name: initialData.name || initialData.tournament_name || '',
+        game_id: initialData.game_id ?? initialData.gameId ?? '',
         total_rounds: initialData.total_rounds ?? initialData.totalRounds ?? 3,
         expected_teams: initialData.expected_teams ?? initialData.expectedTeams ?? '',
-        start_date: toDateTimeLocal(initialData.start_date || initialData.start_time),
-        end_date: toDateTimeLocal(initialData.end_date || initialData.end_time),
+        start_date: startDate ? startDate.split('T')[0] : '',
+        end_date: endDate ? endDate.split('T')[0] : '',
         description: initialData.description || initialData.desc || '',
         rewards: initialData.rewards || [],
         registration_fee: initialData.registration_fee ?? initialData.registrationFee ?? '',
       });
+
+      setStartDateObj(startDate ? parseISOToLocal(startDate.split('T')[0]) : null);
+      setEndDateObj(endDate ? parseISOToLocal(endDate.split('T')[0]) : null);
 
       (async () => {
         try {
@@ -74,23 +101,67 @@ export default function EditTournamentForm({ initialData = {}, onSave, onCancel,
     if (errors[name]) setErrors(prev => { const c = { ...prev }; delete c[name]; return c; });
   };
 
+  const computeSwissBounds = (rounds) => {
+    const r = Number(rounds) || 0;
+    const maxTeams = Math.pow(2, r);
+    const minTeams = Math.max(2, r + 1);
+    return { minTeams, maxTeams };
+  };
+
   const validate = () => {
     const newErrors = {};
-    if (!form.name || !form.name.trim()) newErrors.name = 'Tên giải đấu không được để trống';
+    
+    if (!form.name || !form.name.trim()) {
+      newErrors.name = 'Tên giải đấu không được để trống';
+    } else if (form.name.trim().length < 3) {
+      newErrors.name = 'Tên giải đấu phải có ít nhất 3 ký tự';
+    } else if (form.name.trim().length > 100) {
+      newErrors.name = 'Tên giải đấu không được quá 100 ký tự';
+    }
+
     const rounds = Number(form.total_rounds);
-    if (!rounds || rounds < 1) newErrors.total_rounds = 'Số vòng phải >= 1';
+    if (!rounds || rounds < 1) {
+      newErrors.total_rounds = 'Số vòng phải >= 1';
+    } else if (rounds > 20) {
+      newErrors.total_rounds = 'Số vòng đấu không được quá 20';
+    }
+
+    if (form.expected_teams) {
+      const t = parseInt(form.expected_teams);
+      if (!t || t < 2) {
+        newErrors.expected_teams = 'Số đội phải là số nguyên >= 2';
+      }
+    }
+
     if (!form.start_date) newErrors.start_date = 'Chọn ngày bắt đầu';
     if (!form.end_date) newErrors.end_date = 'Chọn ngày kết thúc';
+    
     if (form.start_date && form.end_date) {
       const s = new Date(form.start_date);
       const e = new Date(form.end_date);
-      if (s >= e) newErrors.end_date = 'Ngày kết thúc phải sau ngày bắt đầu';
+      if (e < s) newErrors.end_date = 'Ngày kết thúc không được trước ngày bắt đầu';
     }
-    if (form.registration_fee && isNaN(Number(form.registration_fee))) newErrors.registration_fee = 'Phí đăng ký không hợp lệ';
+
+    if (form.description && form.description.trim().length > 1000) {
+      newErrors.description = 'Mô tả không được quá 1000 ký tự';
+    }
+
+    if (form.registration_fee !== '' && isNaN(Number(form.registration_fee))) {
+      newErrors.registration_fee = 'Phí đăng ký phải là số ETH >= 0';
+    }
 
     (form.rewards || []).forEach((r, idx) => {
-      if (!r || r.rank === '' || isNaN(Number(r.rank))) newErrors[`rewards.${idx}.rank`] = 'Hạng không hợp lệ';
-      if (r.reward_amount === '' || isNaN(Number(r.reward_amount))) newErrors[`rewards.${idx}.reward_amount`] = 'Số tiền không hợp lệ';
+      if (!r || typeof r.rank === 'undefined' || r.rank === null || String(r.rank).trim() === '') {
+        newErrors[`rewards.${idx}.rank`] = 'Rank bắt buộc';
+      } else if (Number(r.rank) < 1) {
+        newErrors[`rewards.${idx}.rank`] = 'Rank phải >= 1';
+      }
+
+      if (typeof r.reward_amount === 'undefined' || r.reward_amount === null || String(r.reward_amount).trim() === '') {
+        newErrors[`rewards.${idx}.reward_amount`] = 'Số tiền thưởng bắt buộc';
+      } else if (Number(r.reward_amount) < 0) {
+        newErrors[`rewards.${idx}.reward_amount`] = 'Số tiền thưởng không được âm';
+      }
     });
 
     setErrors(newErrors);
@@ -99,17 +170,21 @@ export default function EditTournamentForm({ initialData = {}, onSave, onCancel,
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!validate()) return;
+    if (!validate()) {
+      showError('Vui lòng kiểm tra lại thông tin');
+      return;
+    }
 
     const payload = {
       name: form.name.trim(),
+      game_id: form.game_id ? parseInt(form.game_id) : undefined,
       total_rounds: Number(form.total_rounds),
-      start_date: form.start_date ? new Date(form.start_date).toISOString() : null,
-      end_date: form.end_date ? new Date(form.end_date).toISOString() : null,
-      expected_teams: form.expected_teams ? Number(form.expected_teams) : undefined,
-      description: form.description || undefined,
+      start_date: form.start_date,
+      end_date: form.end_date,
+      total_team: form.expected_teams ? parseInt(form.expected_teams) : undefined,
+      description: form.description.trim() || undefined,
       registration_fee: form.registration_fee !== '' ? Number(form.registration_fee) : undefined,
-      rewards: Array.isArray(form.rewards) ? form.rewards.map(r => ({ rank: Number(r.rank), reward_amount: Number(r.reward_amount) })) : undefined,
+      rewards: Array.isArray(form.rewards) && form.rewards.length > 0 ? form.rewards.map(r => ({ rank: Number(r.rank), reward_amount: Number(r.reward_amount) })) : undefined,
     };
 
     onSave && onSave(payload);
@@ -128,7 +203,7 @@ export default function EditTournamentForm({ initialData = {}, onSave, onCancel,
   const removeReward = (idx) => setForm(prev => ({ ...prev, rewards: (prev.rewards || []).filter((_, i) => i !== idx) }));
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6 w-full">
+    <form onSubmit={handleSubmit} className="space-y-5 w-full">
       <div>
         <label className="block text-sm font-semibold text-white mb-2">Tên giải đấu <span className="text-rose-400">*</span></label>
         <input
@@ -143,47 +218,31 @@ export default function EditTournamentForm({ initialData = {}, onSave, onCancel,
         <p className="text-xs text-gray-400 mt-1">{(form.name || '').length}/100 ký tự</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
-        <div>
-          <label className="block text-sm font-semibold text-white mb-2">Ngày bắt đầu <span className="text-rose-400">*</span></label>
-          <input
-            type="datetime-local"
-            name="start_date"
-            value={form.start_date || ''}
-            onChange={handleChange}
-            className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.start_date ? 'border-rose-500' : 'border-primary-700/30'}`}
-          />
-          {errors.start_date && <p className="text-xs text-rose-400 mt-1">{errors.start_date}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-semibold text-white mb-2">Ngày kết thúc <span className="text-rose-400">*</span></label>
-          <input
-            type="datetime-local"
-            name="end_date"
-            value={form.end_date || ''}
-            onChange={handleChange}
-            className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.end_date ? 'border-rose-500' : 'border-primary-700/30'}`}
-          />
-          {errors.end_date && <p className="text-xs text-rose-400 mt-1">{errors.end_date}</p>}
-        </div>
-      </div>
-
+      {/* Game */}
       <div>
-        <label className="block text-sm font-semibold text-white mb-2">Số vòng đấu <span className="text-rose-400">*</span></label>
-        <input
-          type="number"
-          min="1"
-          name="total_rounds"
-          value={form.total_rounds}
+        <label className="block text-sm font-semibold text-white mb-2">
+          Game
+        </label>
+        <select
+          name="game_id"
+          value={form.game_id}
           onChange={handleChange}
-          className={`w-32 px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.total_rounds ? 'border-rose-500' : 'border-primary-700/30'}`}
-        />
-        {errors.total_rounds && <p className="text-xs text-rose-400 mt-1">{errors.total_rounds}</p>}
-        <p className="text-xs text-gray-400 mt-1">Số vòng đấu trong giải (1-20 vòng)</p>
+          className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.game_id ? 'border-rose-500' : 'border-primary-700/30'}`}
+        >
+          <option value="">-- Chọn game --</option>
+          {games.map(game => (
+            <option key={game.id} value={game.id}>{game.game_name}</option>
+          ))}
+        </select>
+        {errors.game_id && <p className="text-xs text-rose-400 mt-1">{errors.game_id}</p>}
+        <p className="text-xs text-gray-400 mt-1">Chọn game cho giải đấu (chỉ hiển thị game đang hoạt động)</p>
       </div>
 
+      {/* Phí đăng ký */}
       <div>
-        <label className="block text-sm font-semibold text-white mb-2">Phí đăng ký tham gia (ETH)</label>
+        <label className="block text-sm font-semibold text-white mb-2">
+          Phí đăng ký tham gia (ETH)
+        </label>
         <input
           name="registration_fee"
           type="number"
@@ -191,12 +250,159 @@ export default function EditTournamentForm({ initialData = {}, onSave, onCancel,
           step="0.0001"
           value={form.registration_fee}
           onChange={handleChange}
-          className={`w-40 px-4 py-2.5 border rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.registration_fee ? 'border-rose-500' : 'border-primary-700/30'}`}
+          className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.registration_fee ? 'border-rose-500' : 'border-primary-700/30'}`}
           placeholder="Nhập số ETH cần để đăng ký (ví dụ: 0.01)"
         />
         {errors.registration_fee && <p className="text-xs text-rose-400 mt-1">{errors.registration_fee}</p>}
       </div>
 
+      {/* Số vòng đấu */}
+      <div>
+        <label className="block text-sm font-semibold text-white mb-2">
+          Số vòng đấu <span className="text-rose-400">*</span>
+        </label>
+        <input
+          type="number"
+          min="1"
+          max="20"
+          name="total_rounds"
+          value={form.total_rounds}
+          onChange={handleChange}
+          className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.total_rounds ? 'border-rose-500' : 'border-primary-700/30'}`}
+        />
+        {errors.total_rounds && <p className="text-xs text-rose-400 mt-1">{errors.total_rounds}</p>}
+        <p className="text-xs text-gray-400 mt-1">Số vòng đấu trong giải (1-20 vòng)</p>
+
+        {/* Swiss-system bounds info */}
+        <div className="mt-2 text-sm text-gray-300">
+          {(() => {
+            const { minTeams, maxTeams } = computeSwissBounds(form.total_rounds);
+            return (
+              <div>Gợi ý cho chế độ Thụy Sĩ: tối thiểu <strong>{minTeams}</strong> đội, tối đa khuyến nghị <strong>{maxTeams}</strong> đội (dựa trên {form.total_rounds} vòng).</div>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* Số đội tham gia */}
+      <div>
+        <label className="block text-sm font-semibold text-white mb-2">
+          Số đội tham gia
+        </label>
+        <input
+          name="expected_teams"
+          type="number"
+          min="1"
+          value={form.expected_teams}
+          onChange={handleChange}
+          className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.expected_teams ? 'border-rose-500' : 'border-primary-700/30'}`}
+        />
+        {errors.expected_teams && <p className="text-xs text-rose-400 mt-1">{errors.expected_teams}</p>}
+        
+        {/* Show notification inline if expected_teams is outside recommended bounds */}
+        {form.expected_teams && (() => {
+          const t = parseInt(form.expected_teams);
+          const { minTeams, maxTeams } = computeSwissBounds(form.total_rounds);
+          if (!t) return null;
+          if (t < minTeams) {
+            return <p className="text-xs text-amber-300 mt-1">Số đội {t} nhỏ hơn tối thiểu khuyến nghị {minTeams} cho {form.total_rounds} vòng. Bạn nên giảm số vòng hoặc thêm đội.</p>;
+          }
+          if (t > maxTeams) {
+            return <p className="text-xs text-amber-300 mt-1">Số đội {t} lớn hơn tối đa khuyến nghị {maxTeams} cho {form.total_rounds} vòng. Xem xét tăng số vòng để phân định thứ hạng tốt hơn.</p>;
+          }
+          return <p className="text-xs text-green-400 mt-1">Số đội {t} nằm trong khoảng khuyến nghị.</p>;
+        })()}
+      </div>
+
+      {/* Ngày bắt đầu và kết thúc */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-white mb-2">Ngày bắt đầu <span className="text-rose-400">*</span></label>
+          <DatePicker
+            selected={startDateObj}
+            onChange={(date) => {
+              setStartDateObj(date);
+              const iso = date ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}` : '';
+              setForm(prev => ({ ...prev, start_date: iso }));
+              if (date && endDateObj && endDateObj < date) {
+                setEndDateObj(null);
+                setForm(prev => ({ ...prev, end_date: '' }));
+              }
+              if (errors.start_date) {
+                setErrors(prev => { const c = { ...prev }; delete c.start_date; return c; });
+              }
+            }}
+            dateFormat="dd/MM/yyyy"
+            placeholderText="dd/mm/yyyy"
+            className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.start_date ? 'border-rose-500' : 'border-primary-700/30'}`}
+          />
+          {errors.start_date && <p className="text-xs text-rose-400 mt-1">{errors.start_date}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-white mb-2">Ngày kết thúc <span className="text-rose-400">*</span></label>
+          <DatePicker
+            selected={endDateObj}
+            onChange={(date) => {
+              setEndDateObj(date);
+              const iso = date ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}` : '';
+              setForm(prev => ({ ...prev, end_date: iso }));
+              if (errors.end_date) {
+                setErrors(prev => { const c = { ...prev }; delete c.end_date; return c; });
+              }
+            }}
+            minDate={startDateObj || null}
+            dateFormat="dd/MM/yyyy"
+            placeholderText="dd/mm/yyyy"
+            className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.end_date ? 'border-rose-500' : 'border-primary-700/30'}`}
+          />
+          {errors.end_date && <p className="text-xs text-rose-400 mt-1">{errors.end_date}</p>}
+        </div>
+      </div>
+
+      {/* Phần thưởng (Rewards) */}
+      <div>
+        <label className="block text-sm font-semibold text-white mb-2">Phần thưởng</label>
+        <div className="space-y-2">
+          {(form.rewards || []).map((r, idx) => (
+            <div key={idx} className="grid grid-cols-3 gap-3 items-end">
+              <div>
+                <label className="text-xs text-gray-300">Hạng</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={r.rank}
+                  onChange={(e) => handleRewardChange(idx, 'rank', e.target.value)}
+                  className={`w-full px-3 py-2 rounded border bg-white text-gray-900 ${errors[`rewards.${idx}.rank`] ? 'border-rose-500' : 'border-primary-700/30'}`}
+                />
+                {errors[`rewards.${idx}.rank`] && <p className="text-xs text-rose-400">{errors[`rewards.${idx}.rank`]}</p>}
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-300">Số tiền</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={r.reward_amount}
+                  onChange={(e) => handleRewardChange(idx, 'reward_amount', e.target.value)}
+                  className={`w-full px-3 py-2 rounded border bg-white text-gray-900 ${errors[`rewards.${idx}.reward_amount`] ? 'border-rose-500' : 'border-primary-700/30'}`}
+                />
+                {errors[`rewards.${idx}.reward_amount`] && <p className="text-xs text-rose-400">{errors[`rewards.${idx}.reward_amount`]}</p>}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => removeReward(idx)} className="text-sm text-rose-400 hover:underline">Xóa</button>
+              </div>
+            </div>
+          ))}
+
+          <div>
+            <button type="button" onClick={addReward} className="text-sm text-cyan-400 hover:underline">+ Thêm phần thưởng</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mô tả */}
       <div>
         <label className="block text-sm font-semibold text-white mb-2">Mô tả giải đấu</label>
         <textarea
@@ -212,52 +418,12 @@ export default function EditTournamentForm({ initialData = {}, onSave, onCancel,
         <p className="text-xs text-gray-400 mt-1">{(form.description || '').length}/1000 ký tự</p>
       </div>
 
-      <div>
-        <label className="block text-sm text-gray-300">Phần thưởng</label>
-        <div className="space-y-2 mt-2">
-          {(form.rewards || []).map((r, idx) => (
-            <div key={idx} className="grid grid-cols-3 gap-3 items-end">
-              <div>
-                <label className="text-xs text-gray-300">Hạng</label>
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Hạng"
-                  value={r.rank}
-                  onChange={(e) => handleRewardChange(idx, 'rank', e.target.value)}
-                  className={`w-full px-3 py-2 rounded border bg-white text-gray-900 ${errors[`rewards.${idx}.rank`] ? 'border-rose-500' : 'border-primary-700/30'}`}
-                />
-                {errors[`rewards.${idx}.rank`] && <p className="text-xs text-rose-400">{errors[`rewards.${idx}.rank`]}</p>}
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-300">Số tiền</label>
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="Số tiền"
-                  value={r.reward_amount}
-                  onChange={(e) => handleRewardChange(idx, 'reward_amount', e.target.value)}
-                  className={`w-full px-3 py-2 rounded border bg-white text-gray-900 ${errors[`rewards.${idx}.reward_amount`] ? 'border-rose-500' : 'border-primary-700/30'}`}
-                />
-                {errors[`rewards.${idx}.reward_amount`] && <p className="text-xs text-rose-400">{errors[`rewards.${idx}.reward_amount`]}</p>}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => removeReward(idx)} className="text-sm text-rose-400 hover:underline">Xóa</button>
-              </div>
-            </div>
-          ))}
-
-          <div>
-            <button type="button" onClick={addReward} className="text-cyan-400">+ Thêm phần thưởng</button>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-3">
-        <Button variant="secondary" onClick={onCancel}>Hủy</Button>
-        <Button variant="primary" loading={saving} type="submit">Lưu thay đổi</Button>
+      {/* Buttons */}
+      <div className="flex justify-end gap-3 pt-4 border-t border-primary-700/20">
+        <Button variant="secondary" onClick={onCancel} disabled={saving}>Hủy</Button>
+        <Button variant="primary" loading={saving} type="submit" disabled={saving}>
+          {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+        </Button>
       </div>
     </form>
   );

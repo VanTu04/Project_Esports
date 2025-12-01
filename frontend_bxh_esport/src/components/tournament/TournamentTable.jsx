@@ -27,19 +27,18 @@ export const TournamentTable = ({
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Tên Giải đấu
             </th>
-
-
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              Game
+            </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Thời gian
             </th>
-
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Số vòng
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Vòng hiện tại
             </th>
-
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Trạng thái
             </th>
@@ -61,11 +60,23 @@ export const TournamentTable = ({
               </td>
 
               <td className="px-6 py-4 whitespace-nowrap">
-                <div 
-                  className="text-sm font-medium text-white hover:text-primary-400 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/admin/tournaments/${tournament.id}`)}
-                >
-                  {tournament.name || tournament.tournament_name}
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="text-sm font-medium text-white hover:text-primary-400 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/admin/tournaments/${tournament.id}`)}
+                  >
+                    {tournament.name || tournament.tournament_name}
+                  </div>
+                  
+                  {/* Reward distributed badge */}
+                  {tournament.reward_distributed === 1 && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      Đã phân phối
+                    </span>
+                  )}
                 </div>
 
                 {tournament.description && (
@@ -132,6 +143,11 @@ export const TournamentTable = ({
 
                   return null;
                 })()}
+              </td>
+
+              {/* Game */}
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                {tournament.game?.game_name || tournament.game_name || <span className="italic text-gray-500">-</span>}
               </td>
 
               {/*THỜI GIAN */}

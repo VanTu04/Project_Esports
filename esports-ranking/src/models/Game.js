@@ -35,6 +35,7 @@ export default (sequelize) => {
   // Associations
   Game.associate = (models) => {
     Game.hasMany(models.Season, { foreignKey: 'game_id', as: 'seasons' });
+    Game.hasMany(models.Tournament, { foreignKey: 'game_id', as: 'tournaments' });
   };
 
   return Game;

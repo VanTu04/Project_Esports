@@ -11,6 +11,7 @@ export const BlockchainTransactions = () => {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [walletLoading, setWalletLoading] = useState(true);
   const [totalTransactions, setTotalTransactions] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const { showError } = useNotification();
@@ -35,9 +36,11 @@ export const BlockchainTransactions = () => {
       console.log('Transaction response:', txResp);
       const transactions = txResp?.data?.data ?? [];
       const total = txResp?.data?.totalItems ?? txResp?.data?.total ?? txResp?.data?.pagination?.total ?? transactions?.length ?? 0;
+      const pages = txResp?.data?.totalPages ?? (Math.ceil(total / size) || 1);
       setWalletTransactions(transactions);
       setTotalTransactions(total);
-      console.log('Total transactions:', total, 'Current page:', page, 'Page size:', size, 'Total pages:', txResp?.data?.totalPages);
+      setTotalPages(pages);
+      console.log('Total transactions:', total, 'Current page:', page, 'Page size:', size, 'Total pages:', pages);
       // Try to capture current user id from returned transactions (fallback)
       const possibleId = transactions?.[0]?.user_id ?? transactions?.[0]?.user?.id ?? null;
       setCurrentUserId(possibleId);
@@ -79,6 +82,7 @@ export const BlockchainTransactions = () => {
         view="admin" 
         currentUserId={currentUserId}
         total={totalTransactions}
+        totalPages={totalPages}
         currentPage={currentPage}
         pageSize={pageSize}
         onPageChange={(page, size) => loadWalletData(page, size)}
