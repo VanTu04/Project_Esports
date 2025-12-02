@@ -30,9 +30,9 @@ const teamService = {
 
   getTeamMembers: async (teamId) => {
     try {
-      // use constant template if present, otherwise fallback
-      const endpoint = API_ENDPOINTS.TEAM_MEMBERS ? build(API_ENDPOINTS.TEAM_MEMBERS, teamId) : `${API_ENDPOINTS.TEAMS}/${teamId}/members`;
-      return await apiClient.get(endpoint);
+      // Backend doesn't have team members endpoint yet
+      // TODO: Implement backend endpoint
+      return { data: [] };
     } catch (error) {
       throw error;
     }
@@ -48,8 +48,9 @@ const teamService = {
 
   invitePlayer: async (teamId, userId) => {
     try {
-      const endpoint = API_ENDPOINTS.TEAM_INVITATIONS ? build(API_ENDPOINTS.TEAM_INVITATIONS, teamId) : `${API_ENDPOINTS.TEAMS}/${teamId}/invites`;
-      return await apiClient.post(endpoint, { userId });
+      // Backend doesn't have team invitations endpoint yet
+      // TODO: Implement backend endpoint
+      return { data: null };
     } catch (error) {
       throw error;
     }
@@ -90,6 +91,30 @@ const teamService = {
   deleteTeam: async (id) => {
     try {
       return await apiClient.delete(`${API_ENDPOINTS.TEAMS}/${id}`);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Get top teams (leaderboard)
+  getTopTeams: async (limit = 10) => {
+    try {
+      const response = await apiClient.get(`${API_ENDPOINTS.TEAMS}/rankings`, { 
+        params: { limit, sortBy: 'points', order: 'desc' } 
+      });
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Get top teams by wins
+  getTopTeamsByWins: async (limit = 5) => {
+    try {
+      const response = await apiClient.get(`${API_ENDPOINTS.TEAMS}/top/wins`, { 
+        params: { limit } 
+      });
+      return response;
     } catch (error) {
       throw error;
     }

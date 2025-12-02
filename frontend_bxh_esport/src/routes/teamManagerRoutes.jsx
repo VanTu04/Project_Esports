@@ -5,7 +5,6 @@ import { TournamentRegistration } from '../pages/team-manager/TournamentRegistra
 import TournamentDetail from '../components/tournament/TournamentDetail';
 import { MatchHistory } from '../pages/team-manager/MatchHistory';
 import { BlockchainWallet } from '../pages/team-manager/BlockchainWallet';
-import { ReportComplaint } from '../pages/team-manager/ReportComplaint';
 
 export const teamManagerRoutes = [
   { path: '/team-managers', element: <TeamManagerDashboard /> },
@@ -15,5 +14,4 @@ export const teamManagerRoutes = [
   { path: '/team-managers/tournaments/:tournamentId', element: <TournamentDetail /> },
   { path: '/team-managers/matches', element: <MatchHistory /> },
   { path: '/team-managers/wallet', element: <BlockchainWallet /> },
-  { path: '/team-managers/reports', element: <ReportComplaint /> },
 ];

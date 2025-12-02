@@ -100,38 +100,34 @@ export const BLOCKCHAIN_NETWORK = {
 
 // API Endpoints (khớp với backend hiện có)
 export const API_ENDPOINTS = {
+  // Authentication
   LOGIN: '/users/login',
   REGISTER: '/users/register',
   REFRESH_TOKEN: '/users/refresh-token',
   LOGOUT: '/users/logout',
+  
+  // Users
   USERS: '/users',
   USER_PROFILE: '/users/profile',
   ADMIN_CREATE_ACCOUNT: '/users/new-account',
   
-  // Backend có các endpoint này
+  // Core Resources (có backend hỗ trợ)
   GAMES: '/games',
   TEAMS: '/teams',
   SEASONS: '/seasons',
-  RANKING_BOARD: '/ranking-board',
-  
-  TEAM_MEMBERS: '/teams/:id/members',
-  TEAM_INVITATIONS: '/teams/:id/invitations',
-  PLAYERS: '/players',
-  PLAYER_STATS: '/players/:id/stats',
   TOURNAMENTS: '/tournaments',
+  MATCHES: '/matches',
+  
+  // Tournament specific
   TOURNAMENT_REGISTRATIONS: '/tournaments/:id/registrations',
   TOURNAMENT_LEADERBOARD: '/tournaments/:id/leaderboard',
   TOURNAMENT_REWARDS: '/tournaments/:id/rewards',
+  
+  // Wallet & Blockchain
   WALLET: '/wallet',
-  REWARDS: '/rewards',
-  NEWS: '/news',
-
-  // Blockchain-related endpoints
   BLOCKCHAIN_STORE_MATCH_RESULT: '/blockchain/store-match-result',
   BLOCKCHAIN_VERIFY_MATCH_RESULT: '/blockchain/verify-match-result',
   BLOCKCHAIN_REWARDS: '/blockchain/rewards',
-  // Admin distribution endpoints (mounted at /api/distribute-rewards)
-  DISTRIBUTE_REWARDS: '/distribute-rewards',
   BLOCKCHAIN_VERIFY_WALLET: '/blockchain/verify-wallet',
   BLOCKCHAIN_STATS: '/blockchain/stats',
   BLOCKCHAIN_TX_PENDING: '/blockchain/transactions/pending',
@@ -139,14 +135,17 @@ export const API_ENDPOINTS = {
   BLOCKCHAIN_GAS_PRICE: '/blockchain/gas-price',
   BLOCKCHAIN_STORE_TOURNAMENT: '/blockchain/store-tournament',
   BLOCKCHAIN_TOURNAMENTS: '/blockchain/tournaments/:id',
-  MATCHES: '/matches',
-  MATCH_RESULTS: '/matches/:id/results',
   BLOCKCHAIN_TRANSACTIONS: '/blockchain/transactions',
-  BLOCKCHAIN_REWARDS: '/blockchain/rewards',
   BLOCKCHAIN_WALLET: '/blockchain/wallet',
-  REPORTS: '/reports',
-  COMPLAINTS: '/complaints',
+  
+  // Rewards & Distribution
+  DISTRIBUTE_REWARDS: '/distribute-rewards',
+  
+  // Favorite Teams
   FAVORITE_TEAMS: '/favorite-teams',
+  
+  // Match Results
+  MATCH_RESULTS: '/matches/:id/results',
 };
 
 // Frontend Routes
@@ -165,7 +164,6 @@ export const ROUTES = {
   TEAM_MANAGER_TOURNAMENTS: '/team-managers/tournaments',
   TEAM_MANAGER_MATCHES: '/team-managers/matches',
   TEAM_MANAGER_WALLET: '/team-managers/wallet',
-  TEAM_MANAGER_REPORTS: '/team-managers/reports',
   PLAYER_DASHBOARD: '/player',
   PLAYER_PROFILE: '/player/profile',
   PLAYER_TEAM: '/player/team',

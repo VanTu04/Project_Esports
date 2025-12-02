@@ -50,3 +50,15 @@ export const updateTeamWallet = async (req, res) => {
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };
+
+export const getTopTeamsByWins = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+    const result = await teamService.getTopTeamsByWins(limit);
+    return res.json(responseSuccess(result, 'Lấy top đội tuyển thành công'));
+  } catch (error) {
+    console.error('getTopTeamsByWins error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+

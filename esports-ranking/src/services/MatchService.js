@@ -156,3 +156,69 @@ export const findMatchesByTeam = async (participantIds, options = {}) => {
 
   return { matches, total };
 };
+
+/**
+ * Lấy danh sách trận đấu theo status với thông tin đầy đủ
+ * @param {string} status - PENDING, IN_PROGRESS, COMPLETED
+ */
+export const findMatchesByStatus = async (status) => {
+  const matches = await models.Match.findAll({
+    where: { status },
+    include: [
+      {
+        model: models.Tournament,
+        as: 'tournament',
+        attributes: ['id', 'name', 'status', 'game_id']
+      },
+      {
+        model: models.Participant,
+        as: 'teamA',
+        attributes: ['id', 'user_id', 'team_name', 'wallet_address'],
+        include: [{
+          model: models.User,
+          as: 'team',
+          attributes: ['id', 'username', 'avatar']
+        }]
+      },
+      {
+        model: models.Participant,
+        as: 'teamB',
+        attributes: ['id', 'user_id', 'team_name', 'wallet_address'],
+        include: [{
+          model: models.User,
+          as: 'team',
+          attributes: ['id', 'username', 'avatar']
+        }]
+      }
+    ],
+    order: [
+      ['match_time', 'ASC'],  // Sắp xếp theo thời gian trận đấu (sớm nhất trước)
+      ['id', 'ASC']
+    ]
+  });
+
+  // Format response with avatar URLs
+  const backendUrl = process.env.BACKEND_URL || 'https://api.vawndev.online';
+  
+  return matches.map(match => ({
+    id: match.id,
+    tournament_id: match.tournament_id,
+    round_number: match.round_number,
+    team_a_participant_id: match.team_a_participant_id,
+    team_b_participant_id: match.team_b_participant_id,
+    winner_participant_id: match.winner_participant_id,
+    point_team_a: match.point_team_a,
+    point_team_b: match.point_team_b,
+    score_team_a: match.score_team_a,
+    score_team_b: match.score_team_b,
+    status: match.status,
+    match_time: match.match_time,
+    created_at: match.createdAt,
+    updated_at: match.updatedAt,
+    tournament: match.tournament,
+    team_a_name: match.teamA?.team_name || 'N/A',
+    team_b_name: match.teamB?.team_name || 'BYE',
+    team_a_avatar: match.teamA?.team?.avatar ? `${backendUrl}${match.teamA.team.avatar}` : null,
+    team_b_avatar: match.teamB?.team?.avatar ? `${backendUrl}${match.teamB.team.avatar}` : null,
+  }));
+};
