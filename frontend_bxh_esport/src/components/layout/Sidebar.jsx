@@ -13,7 +13,7 @@ import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { USER_ROLES, ROUTES } from '../../utils/constants';
 
-const Sidebar = ({ isOpen, onClose }) => {
+const Sidebar = ({ isOpen, onClose, isDashboard = false }) => {
   const location = useLocation();
   const { user } = useAuth();
 
@@ -28,7 +28,6 @@ const Sidebar = ({ isOpen, onClose }) => {
           { icon: TrophyIcon, label: 'Giải đấu', path: ROUTES.ADMIN_TOURNAMENTS },
           { icon: ChartBarIcon, label: 'Game', path: ROUTES.ADMIN_GAMES },
           { icon: ChartBarIcon, label: 'Blockchain', path: ROUTES.ADMIN_BLOCKCHAIN },
-          // { icon: ChartBarIcon, label: 'Thống kê', path: ROUTES.ADMIN_STATISTICS },
         ];
 
       case USER_ROLES.TEAM_MANAGER:
@@ -51,11 +50,8 @@ const Sidebar = ({ isOpen, onClose }) => {
 
       default: // USER
         return [
-          { icon: HomeIcon, label: 'Trang chủ', path: ROUTES.HOME },
-          { icon: TrophyIcon, label: 'Giải đấu', path: ROUTES.TOURNAMENTS },
-          { icon: ChartBarIcon, label: 'Bảng xếp hạng', path: ROUTES.LEADERBOARD },
-          { icon: UserGroupIcon, label: 'Đội tuyển', path: ROUTES.TEAMS },
-          { icon: UsersIcon, label: 'Hồ sơ', path: ROUTES.USER_PROFILE },
+          { icon: UserGroupIcon, label: 'Đội yêu thích', path: '/users/favorites' },
+          { icon: WalletIcon, label: 'Donate', path: '/users/donate' },
         ];
     }
   };
@@ -68,10 +64,10 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   return (
     <>
-      {/* Mobile overlay */}
+      {/* Overlay khi sidebar mở - trên dashboard chỉ hiện trên mobile */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className={`fixed inset-0 bg-black/50 z-40 ${isDashboard ? 'lg:hidden' : ''}`}
           onClick={onClose}
         />
       )}
@@ -80,10 +76,12 @@ const Sidebar = ({ isOpen, onClose }) => {
       <aside
         className={clsx(
           // place the sidebar below the fixed header (header height = h-20)
-          // use calc to set height = 100vh - headerHeight so it doesn't overflow
-          'fixed top-20 left-0 z-40 w-64 bg-dark-500 border-r border-primary-700/30 transition-transform duration-300',
-          // on larger screens keep it visible (no translate) and ensure it can scroll
-          isOpen ? 'translate-x-0 h-[calc(100vh-5rem)]' : '-translate-x-full lg:translate-x-0 lg:h-[calc(100vh-5rem)]'
+          'fixed top-20 left-0 z-40 w-64 bg-dark-500 border-r border-primary-700/30 transition-transform duration-300 h-[calc(100vh-5rem)]',
+          // Dashboard: hiện mặc định trên lg, ẩn/hiện theo isOpen trên mobile
+          // Public: luôn ẩn cho đến khi isOpen=true
+          isDashboard
+            ? (isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0')
+            : (isOpen ? 'translate-x-0' : '-translate-x-full')
         )}
       >
         <div className="flex flex-col h-full">

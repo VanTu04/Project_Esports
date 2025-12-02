@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import tournamentService from '../../services/tournamentService';
 import Card from '../../components/common/Card';
-import Header from '../../components/layout/Header';
-import Footer from '../../components/layout/Footer';
+import PublicLayout from '../../components/layout/PublicLayout';
 
 const Schedule = () => {
   const [tournaments, setTournaments] = useState([]);
@@ -56,9 +55,9 @@ const Schedule = () => {
   }, [selectedTournamentId]);
 
   return (
-    <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
-      <Header />
-     <main className="flex mt-20 mb-0"> {/* main flex container */}
+    <PublicLayout>
+      <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
+        <main className="flex mb-0"> {/* main flex container */}
   {/* Sidebar */}
   <aside className="w-1/4 border-r border-gray-800 p-6 bg-gradient-to-br from-[#031014] via-[#071018] to-[#081216] flex-shrink-0">
     <h2 className="text-lg text-gray-300 mb-3">Giải đấu</h2>
@@ -167,9 +166,9 @@ const Schedule = () => {
   )}
 </section>
 
-      </main>
-      <Footer />
-    </div>
+        </main>
+      </div>
+    </PublicLayout>
   );
 };
 

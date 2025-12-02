@@ -12,6 +12,7 @@ import './config/passport.js';
 import { initAdminAccount } from './init/initAdmin.js';
 import cookieParser from 'cookie-parser';
 import path from 'path';
+import { fail } from 'assert';
 import { sanitizeInput } from './middlewares/sanitize.js';
 
 dotenv.config();
@@ -162,7 +163,7 @@ app.get('/api/auth/fail', (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 sequelize
-  .sync({ alter: false})
+  .sync({ alter: false })
   .then(async () => {
     console.log('Database synced');
 

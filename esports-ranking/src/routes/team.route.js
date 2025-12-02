@@ -5,6 +5,7 @@ import roles from '../constant/roles.js';
 
 const router = express.Router();
 
+router.get('/', teamController.getAllTeams);
 router.get('/:id', teamController.getTeamById);
 router.put('/:id', checkRole([roles.ADMIN]), teamController.updateTeamWallet);
 

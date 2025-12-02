@@ -146,6 +146,7 @@ export const API_ENDPOINTS = {
   BLOCKCHAIN_WALLET: '/blockchain/wallet',
   REPORTS: '/reports',
   COMPLAINTS: '/complaints',
+  FAVORITE_TEAMS: '/favorite-teams',
 };
 
 // Frontend Routes
