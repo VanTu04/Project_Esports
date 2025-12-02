@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import Header from '../../components/layout/Header';
-import Footer from '../../components/layout/Footer';
+import PublicLayout from '../../components/layout/PublicLayout';
 import tournamentService from '../../services/tournamentService';
 import { TournamentList } from '../../components/tournament/TournamentList';
 
@@ -85,10 +84,9 @@ export const TournamentPublic = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
-      <Header />
-
-      <main className="flex-1 mt-20">
+    <PublicLayout>
+      <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
+        <main className="flex-1">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <h1 className="text-3xl font-bold mb-4">Giải đấu</h1>
 
@@ -197,10 +195,9 @@ export const TournamentPublic = () => {
             </div>
           )}
         </div>
-      </main>
-
-      <Footer />
-    </div>
+        </main>
+      </div>
+    </PublicLayout>
   );
 };
 

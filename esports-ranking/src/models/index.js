@@ -14,6 +14,7 @@ import defineMatch from './Match.js';
 import defineTournamentReward from './TournamentReward.js';
 import defineTournamentDistribution from './TournamentDistribution.js';
 import defineTransactionHistory from './TransactionHistory.js';
+import defineFavoriteTeam from './FavoriteTeam.js';
 
 // --- Khởi tạo models ---
 const User = defineUser(sequelize, DataTypes);
@@ -28,6 +29,7 @@ const Match = defineMatch(sequelize, DataTypes);
 const TournamentReward = defineTournamentReward(sequelize, DataTypes);
 const TournamentDistribution = defineTournamentDistribution(sequelize, DataTypes);
 const TransactionHistory = defineTransactionHistory(sequelize, DataTypes);
+const FavoriteTeam = defineFavoriteTeam(sequelize, DataTypes);
 
 // --- Gom tất cả models vào 1 object ---
 const models = {
@@ -42,7 +44,8 @@ const models = {
   TournamentDistribution,
   Participant,
   Match,
-  TransactionHistory
+  TransactionHistory,
+  FavoriteTeam
 };
 
 // --- Gọi associate() cho từng model nếu có ---
@@ -53,7 +56,7 @@ Object.keys(models).forEach((modelName) => {
 });
 
 // --- Xuất ---
-export { sequelize, Sequelize, User, user_otp, Team, TeamMember, Game, Season, Tournament, TournamentReward, TournamentDistribution, Participant, Match, TransactionHistory };
+export { sequelize, Sequelize, User, user_otp, Team, TeamMember, Game, Season, Tournament, TournamentReward, TournamentDistribution, Participant, Match, TransactionHistory, FavoriteTeam };
 
 export default {
   sequelize,
@@ -70,4 +73,5 @@ export default {
   Participant,
   Match,
   TransactionHistory,
+  FavoriteTeam,
 };

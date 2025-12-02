@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import Header from '../../components/layout/Header';
-import Footer from '../../components/layout/Footer';
+import PublicLayout from '../../components/layout/PublicLayout';
 import { apiClient } from '../../services/api';
 
 const demoNews = [
@@ -38,9 +37,9 @@ const News = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
-      <Header />
-      <main className="flex-1 max-w-6xl mx-auto p-6">
+    <PublicLayout>
+      <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
+        <main className="flex-1 max-w-6xl mx-auto p-6">
         <h1 className="text-2xl font-bold mb-4">Tin tức</h1>
         {loading ? (
           <div className="text-gray-400">Đang tải...</div>
@@ -58,9 +57,9 @@ const News = () => {
             ))}
           </div>
         )}
-      </main>
-      <Footer />
-    </div>
+        </main>
+      </div>
+    </PublicLayout>
   );
 };
 

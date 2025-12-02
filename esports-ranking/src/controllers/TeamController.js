@@ -2,6 +2,17 @@ import * as teamService from '../services/TeamService.js';
 import { responseSuccess, responseWithError } from '../response/ResponseSuccess.js';
 import { ErrorCodes } from '../constant/ErrorCodes.js';
 
+export const getAllTeams = async (req, res) => {
+  try {
+    const params = req.query;
+    const result = await teamService.getAllTeams(params);
+    return res.json(responseSuccess(result, 'Lấy danh sách đội tuyển thành công'));
+  } catch (error) {
+    console.error('getAllTeams error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
 export const getTeamById = async (req, res) => {
   try {
     const { id } = req.params;

@@ -23,3 +23,31 @@ export const getTeamById = async (id) => {
     throw new Error(`getTeamById error: ${error.message}`);
   }
 };
+
+export const getAllTeams = async (params = {}) => {
+  try {
+    const where = {
+      role: 3, // TEAM_MANAGER role
+      status: 1,
+      deleted: 0
+    };
+
+    // Filter by search query (tìm theo username hoặc full_name)
+    if (params.search) {
+      where[models.Sequelize.Op.or] = [
+        { username: { [models.Sequelize.Op.like]: `%${params.search}%` } },
+        { full_name: { [models.Sequelize.Op.like]: `%${params.search}%` } }
+      ];
+    }
+
+    const teams = await models.User.findAll({
+      where,
+      attributes: ['id', 'username', 'full_name', 'email', 'avatar', 'phone', 'wallet_address', 'created_date'],
+      order: [['created_date', 'DESC']]
+    });
+
+    return { teams };
+  } catch (error) {
+    throw new Error(`getAllTeams error: ${error.message}`);
+  }
+};

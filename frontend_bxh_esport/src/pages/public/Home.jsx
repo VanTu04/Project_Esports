@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import Header from "../../components/layout/Header";
-import Footer from "../../components/layout/Footer";
+import PublicLayout from "../../components/layout/PublicLayout";
 import Card from "../../components/common/Card";
 import { TrophyIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { TournamentList } from '../../components/tournament/TournamentList';
@@ -103,10 +102,8 @@ const Home = () => {
 
 
   return (
-    <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
-      <Header />
-
-      <main className="flex-1 mt-20">
+    <PublicLayout>
+      <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
         {/* Hero */}
         <section className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary-700/50 via-gray-900 to-primary-600/30"></div>
@@ -208,10 +205,8 @@ const Home = () => {
             </div>
           )}
         </section>
-      </main>
-
-      <Footer />
-    </div>
+      </div>
+    </PublicLayout>
   );
 };
 

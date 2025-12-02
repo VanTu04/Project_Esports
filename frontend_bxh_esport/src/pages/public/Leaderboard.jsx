@@ -3,8 +3,7 @@ import tournamentService from '../../services/tournamentService';
 import LeaderboardTable from '../../components/tournament/LeaderboardTable';
 import rewardService from '../../services/rewardService';
 import { MatchSchedule } from '../../components/tournament/MatchSchedule';
-import Header from '../../components/layout/Header';
-import Footer from '../../components/layout/Footer';
+import PublicLayout from '../../components/layout/PublicLayout';
 import Card from '../../components/common/Card';
 
 export const Leaderboard = ({ tournamentId: initialTournamentId }) => {
@@ -151,10 +150,9 @@ export const Leaderboard = ({ tournamentId: initialTournamentId }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
-      <Header />
-
-      <main className="flex mt-20 mb-0">
+    <PublicLayout>
+      <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
+        <main className="flex mb-0">
         {/* Sidebar giải đấu */}
         <aside className="w-1/4 border-r border-gray-800 p-6 bg-gradient-to-br from-[#031014] via-[#071018] to-[#081216] flex-shrink-0">
           <h2 className="text-lg text-gray-300 mb-3">Giải đấu</h2>
@@ -264,9 +262,8 @@ export const Leaderboard = ({ tournamentId: initialTournamentId }) => {
             </div>
           )}
         </section>
-      </main>
-
-      <Footer />
-    </div>
+        </main>
+      </div>
+    </PublicLayout>
   );
 };

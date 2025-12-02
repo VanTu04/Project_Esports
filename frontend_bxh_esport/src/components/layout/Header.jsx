@@ -43,15 +43,26 @@ const Header = ({ onMenuClick }) => {
       <div className="max-w-7xl mx-auto flex items-center justify-between px-8 h-20">
         {/* Logo */}
         <div className="flex items-center gap-4">
-          <button
-            onClick={onMenuClick}
-            className="lg:hidden p-2 text-gray-400 hover:text-white transition"
-          >
-            <Bars3Icon className="h-7 w-7" />
-          </button>
+          {/* Menu button - chỉ hiển thị khi đã đăng nhập */}
+          {user && (
+            <button
+              onClick={onMenuClick}
+              className="p-2 text-gray-400 hover:text-white transition"
+              title="Menu"
+            >
+              <Bars3Icon className="h-7 w-7" />
+            </button>
+          )}
 
-          {/* Khi click logo sẽ điều hướng về trang tương ứng theo role */}
-          <LogoLink user={user} />
+          {/* Logo - chỉ hiển thị, không điều hướng */}
+          <div className="flex items-center gap-3">
+            <img
+              src="https://cdn-icons-png.flaticon.com/512/5968/5968705.png"
+              alt="EsportChain Logo"
+              className="h-10 w-10"
+            />
+            <span className="text-2xl font-bold text-white tracking-wide">EsportChain</span>
+          </div>
         </div>
 
         {/* Navigation - expanded to match demo */}
@@ -164,34 +175,3 @@ const Header = ({ onMenuClick }) => {
 };
 
 export default Header;
-
-// --- Helper component: LogoLink ---
-const LogoLink = ({ user }) => {
-  const navigate = useNavigate();
-
-  const handleClick = (e) => {
-    e.preventDefault();
-    // Determine target route by role
-    const role = user?.role ?? null;
-    const roleNum = role != null ? Number(role) : null;
-
-    let target = ROUTES.HOME || '/';
-    if (roleNum === Number(USER_ROLES.ADMIN)) target = ROUTES.ADMIN_DASHBOARD;
-    else if (roleNum === Number(USER_ROLES.TEAM_MANAGER)) target = ROUTES.TEAM_MANAGER_DASHBOARD;
-    else if (roleNum === Number(USER_ROLES.PLAYER)) target = ROUTES.PLAYER_DASHBOARD;
-    else target = ROUTES.HOME || '/';
-
-    navigate(target);
-  };
-
-  return (
-    <button onClick={handleClick} className="flex items-center gap-3">
-      <img
-        src="https://cdn-icons-png.flaticon.com/512/5968/5968705.png"
-        alt="EsportChain Logo"
-        className="h-10 w-10"
-      />
-      <span className="text-2xl font-bold text-white tracking-wide">EsportChain</span>
-    </button>
-  );
-};
