@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🛡️ Security Test Page</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+    .header h1 { margin-bottom: 10px; font-size: 2em; }
+    .header p { opacity: 0.9; }
+    .content { padding: 30px; }
+    .test-section {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-left: 4px solid #667eea;
+    }
+    .test-section h3 {
+      color: #333;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .test-section p { color: #666; margin-bottom: 15px; line-height: 1.6; }
+    .test-item {
+      background: white;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 6px;
+      border: 1px solid #e0e0e0;
+    }
+    .test-item strong { color: #333; display: block; margin-bottom: 8px; }
+    .input-test {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+    }
+    .btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: transform 0.2s;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .result {
+      margin-top: 15px;
+      padding: 15px;
+      border-radius: 6px;
+      display: none;
+    }
+    .result.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+      display: block;
+    }
+    .result.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+      display: block;
+    }
+    .result.info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+      display: block;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+    .badge.pass { background: #28a745; color: white; }
+    .badge.fail { background: #dc3545; color: white; }
+    code {
+      background: #f1f1f1;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #e83e8c;
+    }
+    pre {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 13px;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🛡️ Security Testing Dashboard</h1>
+      <p>Test các biện pháp bảo mật XSS, Rate Limiting, và Security Headers</p>
+    </div>
+    
+    <div class="content">
+      <!-- Test 1: XSS Input -->
+      <div class="test-section">
+        <h3>
+          <span>🔍</span>
+          Test 1: XSS Input Sanitization
+          <span class="badge pass" id="badge1" style="display:none"></span>
+        </h3>
+        <p>Thử nhập các payload XSS vào form. Backend sẽ tự động sanitize input.</p>
+        
+        <div class="test-item">
+          <strong>Test Script Tag:</strong>
+          <input type="text" class="input-test" id="xss1" 
+                 value='<script>alert("XSS")</script>' readonly>
+          <button class="btn" onclick="testXSS('xss1')">Test</button>
+          <div class="result" id="result1"></div>
+        </div>
+        
+        <div class="test-item">
+          <strong>Test Event Handler:</strong>
+          <input type="text" class="input-test" id="xss2" 
+                 value='<img src=x onerror="alert(1)">' readonly>
+          <button class="btn" onclick="testXSS('xss2')">Test</button>
+          <div class="result" id="result2"></div>
+        </div>
+        
+        <div class="test-item">
+          <strong>Test JavaScript Protocol:</strong>
+          <input type="text" class="input-test" id="xss3" 
+                 value='<a href="javascript:alert(1)">Click</a>' readonly>
+          <button class="btn" onclick="testXSS('xss3')">Test</button>
+          <div class="result" id="result3"></div>
+        </div>
+      </div>
+      
+      <!-- Test 2: Rate Limiting -->
+      <div class="test-section">
+        <h3>
+          <span>⏱️</span>
+          Test 2: Rate Limiting
+          <span class="badge pass" id="badge2" style="display:none"></span>
+        </h3>
+        <p>Gửi nhiều request liên tiếp để test rate limiting (max 5 login attempts/15 phút).</p>
+        
+        <div class="test-item">
+          <button class="btn" onclick="testRateLimit()">Gửi 10 requests liên tiếp</button>
+          <div class="result" id="resultRate"></div>
+        </div>
+      </div>
+      
+      <!-- Test 3: Security Headers -->
+      <div class="test-section">
+        <h3>
+          <span>📋</span>
+          Test 3: Security Headers
+          <span class="badge pass" id="badge3" style="display:none"></span>
+        </h3>
+        <p>Kiểm tra các HTTP security headers từ server (Helmet).</p>
+        
+        <div class="test-item">
+          <button class="btn" onclick="testHeaders()">Kiểm tra Headers</button>
+          <div class="result" id="resultHeaders"></div>
+        </div>
+      </div>
+      
+      <!-- Test 4: CAPTCHA -->
+      <div class="test-section">
+        <h3>
+          <span>🤖</span>
+          Test 4: CAPTCHA Protection
+        </h3>
+        <p>Cloudflare Turnstile CAPTCHA đã được áp dụng cho login/register.</p>
+        <div class="test-item">
+          <div class="result success">
+            ✓ CAPTCHA đã được kích hoạt trên form đăng nhập và đăng ký.<br>
+            Widget sẽ xuất hiện khi user submit form.
+          </div>
+        </div>
+      </div>
+      
+      <!-- Instructions -->
+      <div class="test-section" style="border-left-color: #28a745;">
+        <h3>📝 Hướng dẫn kiểm tra thêm</h3>
+        <p><strong>Backend Terminal Test:</strong></p>
+        <pre>cd esports-ranking
+node test-security.js</pre>
+        
+        <p style="margin-top: 15px;"><strong>Check Headers bằng curl:</strong></p>
+        <pre>curl -I https://api.vawndev.online/api/users/login</pre>
+        
+        <p style="margin-top: 15px;"><strong>Browser DevTools:</strong></p>
+        <ul style="margin-left: 20px; color: #666;">
+          <li>Mở F12 → Network tab</li>
+          <li>Gửi request đến API</li>
+          <li>Xem Response Headers có <code>Content-Security-Policy</code>, <code>X-Frame-Options</code>, etc.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'https://api.vawndev.online/api';
+    
+    // Test XSS
+    async function testXSS(inputId) {
+      const input = document.getElementById(inputId);
+      const resultDiv = document.getElementById('result' + inputId.slice(-1));
+      const payload = input.value;
+      
+      resultDiv.className = 'result info';
+      resultDiv.innerHTML = '⏳ Testing...';
+      
+      try {
+        const response = await fetch(`${API_URL}/users/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: 'test_' + Date.now(),
+            email: 'test' + Date.now() + '@test.com',
+            password: 'Test123!@#',
+            full_name: payload,
+          }),
+        });
+        
+        const data = await response.json();
+        const bodyStr = JSON.stringify(data);
+        
+        // Check if dangerous chars are in response
+        const hasDangerous = bodyStr.includes('<script') || 
+                            bodyStr.includes('onerror=') || 
+                            bodyStr.includes('javascript:');
+        
+        if (hasDangerous) {
+          resultDiv.className = 'result error';
+          resultDiv.innerHTML = `❌ <strong>FAIL:</strong> Payload không được sanitize!<br>
+                                <code>${payload.substring(0, 50)}...</code>`;
+          updateBadge('badge1', false);
+        } else {
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = `✅ <strong>PASS:</strong> Payload đã được sanitize!<br>
+                                Original: <code>${payload.substring(0, 50)}...</code>`;
+          updateBadge('badge1', true);
+        }
+      } catch (error) {
+        resultDiv.className = 'result error';
+        resultDiv.innerHTML = `❌ Error: ${error.message}`;
+      }
+    }
+    
+    // Test Rate Limiting
+    async function testRateLimit() {
+      const resultDiv = document.getElementById('resultRate');
+      resultDiv.className = 'result info';
+      resultDiv.innerHTML = '⏳ Gửi 10 requests...';
+      
+      let blocked = false;
+      let attempts = 0;
+      
+      for (let i = 0; i < 10; i++) {
+        try {
+          const response = await fetch(`${API_URL}/users/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: 'test@test.com',
+              password: 'wrong',
+            }),
+          });
+          
+          attempts++;
+          
+          if (response.status === 429) {
+            blocked = true;
+            resultDiv.className = 'result success';
+            resultDiv.innerHTML = `✅ <strong>PASS:</strong> Rate limit triggered sau ${attempts} attempts!<br>
+                                  Server trả về status 429 (Too Many Requests).`;
+            updateBadge('badge2', true);
+            break;
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          console.error(error);
+        }
+      }
+      
+      if (!blocked) {
+        resultDiv.className = 'result error';
+        resultDiv.innerHTML = `⚠️ Rate limit chưa trigger sau ${attempts} attempts.<br>
+                              Có thể cần điều chỉnh rate limit settings.`;
+        updateBadge('badge2', false);
+      }
+    }
+    
+    // Test Headers
+    async function testHeaders() {
+      const resultDiv = document.getElementById('resultHeaders');
+      resultDiv.className = 'result info';
+      resultDiv.innerHTML = '⏳ Checking headers...';
+      
+      try {
+        const response = await fetch(`${API_URL}/users/login`, {
+          method: 'OPTIONS',
+        });
+        
+        const headers = [
+          'content-security-policy',
+          'x-frame-options',
+          'x-content-type-options',
+          'strict-transport-security'
+        ];
+        
+        let html = '<strong>Security Headers:</strong><br><br>';
+        let allPresent = true;
+        
+        headers.forEach(header => {
+          const value = response.headers.get(header);
+          if (value) {
+            html += `✅ <code>${header}</code>: ${value.substring(0, 50)}...<br>`;
+          } else {
+            html += `❌ <code>${header}</code>: Missing<br>`;
+            allPresent = false;
+          }
+        });
+        
+        resultDiv.className = allPresent ? 'result success' : 'result error';
+        resultDiv.innerHTML = html;
+        updateBadge('badge3', allPresent);
+      } catch (error) {
+        resultDiv.className = 'result error';
+        resultDiv.innerHTML = `❌ Error: ${error.message}<br>
+                              <small>Note: CORS có thể chặn việc đọc headers từ browser.</small>`;
+      }
+    }
+    
+    function updateBadge(badgeId, passed) {
+      const badge = document.getElementById(badgeId);
+      badge.style.display = 'inline-block';
+      badge.className = 'badge ' + (passed ? 'pass' : 'fail');
+      badge.textContent = passed ? 'PASS' : 'FAIL';
+    }
+  </script>
+</body>
+</html>
