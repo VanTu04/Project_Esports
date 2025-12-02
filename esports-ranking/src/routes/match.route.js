@@ -25,4 +25,9 @@ router.get('/tournament/:tournamentId/matches', matchController.getMatchesByTour
 router.get('/my-team', checkAccessToken, matchController.getMatchesByTeam);
 // query: ?page=1&limit=10&tournament_id=1&status=COMPLETED&search=team_name
 
+// === 7. Lấy trận đấu theo status ===
+router.get('/by-status', matchController.getMatchesByStatus);
+// query: ?status=live | ?status=upcoming | ?status=completed
+// Không có status sẽ trả về tất cả
+
 export default router;

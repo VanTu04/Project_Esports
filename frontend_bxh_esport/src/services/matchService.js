@@ -62,28 +62,28 @@ const matchService = {
     }
   },
 
-  getLiveMatches: async (params = {}) => {
+  // Get matches by status using unified endpoint
+  getMatchesByStatus: async (status, params = {}) => {
     try {
-      return await apiClient.get(`${API_ENDPOINTS.MATCHES}/live`, { params });
+      return await apiClient.get(`${API_ENDPOINTS.MATCHES}/by-status`, { 
+        params: { ...params, status } 
+      });
     } catch (error) {
       throw error;
     }
+  },
+
+  // Convenience methods
+  getLiveMatches: async (params = {}) => {
+    return matchService.getMatchesByStatus('live', params);
   },
 
   getUpcomingMatches: async (params = {}) => {
-    try {
-      return await apiClient.get(`${API_ENDPOINTS.MATCHES}/upcoming`, { params });
-    } catch (error) {
-      throw error;
-    }
+    return matchService.getMatchesByStatus('upcoming', params);
   },
 
   getCompletedMatches: async (params = {}) => {
-    try {
-      return await apiClient.get(`${API_ENDPOINTS.MATCHES}/completed`, { params });
-    } catch (error) {
-      throw error;
-    }
+    return matchService.getMatchesByStatus('completed', params);
   },
 
   startMatch: async (matchId) => {
@@ -115,7 +115,8 @@ const matchService = {
 
   reportComplaint: async (matchId, complaintData) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.MATCHES}/${matchId}/complaints`, complaintData);
+      // TODO: Backend doesn't have complaints endpoint yet
+      return { data: null };
     } catch (error) {
       throw error;
     }
@@ -123,7 +124,8 @@ const matchService = {
 
   getMatchComplaints: async (matchId) => {
     try {
-      return await apiClient.get(`${API_ENDPOINTS.MATCHES}/${matchId}/complaints`);
+      // TODO: Backend doesn't have complaints endpoint yet
+      return { data: [] };
     } catch (error) {
       throw error;
     }
@@ -131,9 +133,8 @@ const matchService = {
 
   resolveComplaint: async (complaintId, resolution) => {
     try {
-      return await apiClient.post(`${API_ENDPOINTS.COMPLAINTS}/${complaintId}/resolve`, {
-        resolution,
-      });
+      // TODO: Backend doesn't have complaints endpoint yet
+      return { data: null };
     } catch (error) {
       throw error;
     }

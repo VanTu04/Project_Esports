@@ -20,8 +20,15 @@ export const TournamentCard = ({ tournament, compact = false }) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : 0;
   };
+  // Calculate total prize from rewards array
+  const calculateTotalPrize = (t) => {
+    if (t?.rewards && Array.isArray(t.rewards)) {
+      return t.rewards.reduce((sum, reward) => sum + (Number(reward.reward_amount) || 0), 0);
+    }
+    return t?.prize || t?.prize_pool || t?.prizePool || 0;
+  };
   const [participantsCount, setParticipantsCount] = useState(() => normalizeParticipants(tournament?.participantsCount ?? tournament?.participants_count ?? tournament?.participants));
-  const [prize, setPrize] = useState(() => normalizePrize(tournament?.prize ?? tournament?.prize_pool ?? tournament?.prizePool ?? 0));
+  const [prize, setPrize] = useState(() => normalizePrize(calculateTotalPrize(tournament)));
 
   // Determine if registration is open: pending status, explicit registration flag, or isReady/is_ready flag
   const statusUpper = (tournament?.status || '').toString().toUpperCase();
@@ -58,7 +65,7 @@ export const TournamentCard = ({ tournament, compact = false }) => {
         setStartDate(prev => prev ?? (data.startDate ?? data.start_date ?? data.start_time ?? null));
         setEndDate(prev => prev ?? (data.endDate ?? data.end_date ?? data.end_time ?? null));
         setParticipantsCount(prev => (prev || prev === 0) ? prev : normalizeParticipants(data.participantsCount ?? data.participants_count ?? data.participants));
-        setPrize(prev => (prev || prev === 0) ? prev : normalizePrize(data.prize ?? data.prize_pool ?? data.prizePool ?? 0));
+        setPrize(prev => (prev || prev === 0) ? prev : normalizePrize(calculateTotalPrize(data)));
       } catch (err) {
         // silent fallback — card will show the best available data from prop
         console.debug('TournamentCard: failed to fetch details', err?.message || err);
@@ -86,7 +93,7 @@ export const TournamentCard = ({ tournament, compact = false }) => {
                 <div className="p-1 rounded-md bg-primary-600/10">
                   <TrophyIcon className="w-4 h-4 text-yellow-400" />
                 </div>
-                <span className="font-medium">{formatCurrency(prize ?? tournament.prize ?? tournament.prize_pool ?? 0, 'VND')}</span>
+                <span className="font-medium">{prize ?? tournament.prize ?? tournament.prize_pool ?? 0} ETH</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="p-1 rounded-md bg-primary-600/10">
@@ -130,9 +137,15 @@ export const TournamentCard = ({ tournament, compact = false }) => {
             <div className="flex items-center text-yellow-400 font-semibold">
               <TrophyIcon className="w-4 h-4 mr-2" />
               <span>
-                Phí đăng ký: {tournament.registration_fee != null ? `${tournament.registration_fee} ETH` : formatCurrency(prize)}
+                Giải thưởng: {prize ?? tournament.prize ?? tournament.prize_pool ?? 0} ETH
               </span>
             </div>
+            {tournament.registration_fee != null && tournament.registration_fee > 0 && (
+              <div className="flex items-center text-blue-400">
+                <span className="mr-2">💰</span>
+                <span>Phí đăng ký: {tournament.registration_fee} ETH</span>
+              </div>
+            )}
           </div>
 
           <div className="pt-4 border-t border-gray-700">
