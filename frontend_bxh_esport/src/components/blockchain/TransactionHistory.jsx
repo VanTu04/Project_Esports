@@ -11,11 +11,12 @@ export const TransactionHistory = ({
   view = 'team', 
   currentUserId = null, 
   total = 0, 
+  totalPages: propTotalPages,
   currentPage = 1,
   pageSize = 5,
   onPageChange 
 }) => {
-  const totalPages = Math.ceil(total / pageSize);
+  const totalPages = propTotalPages || Math.ceil(total / pageSize) || 1;
   
   const handlePageChange = (newPage) => {
     if (newPage < 1 || newPage > totalPages) return;
@@ -24,11 +25,6 @@ export const TransactionHistory = ({
     }
   };
   
-  const handlePageSizeChange = (newSize) => {
-    if (onPageChange) {
-      onPageChange(1, newSize);
-    }
-  };
   const renderTeamName = (row) => {
     // Show the team that SENT the money (fromUser) as requested
     return (
@@ -162,48 +158,28 @@ export const TransactionHistory = ({
       />
       
       {total > 0 && (
-        <div className="mt-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-400">Hiển thị:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-              className="px-3 py-1.5 bg-dark-700 text-white border border-primary-700/20 rounded-md focus:outline-none focus:border-primary-500 cursor-pointer"
-              style={{ colorScheme: 'dark' }}
-            >
-              <option value={5} className="bg-dark-700 text-white">5</option>
-              <option value={10} className="bg-dark-700 text-white">10</option>
-              <option value={20} className="bg-dark-700 text-white">20</option>
-              <option value={50} className="bg-dark-700 text-white">50</option>
-            </select>
-            <span className="text-sm text-gray-400">
-              {Math.min((currentPage - 1) * pageSize + 1, total)}-{Math.min(currentPage * pageSize, total)} / {total}
-            </span>
-          </div>
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1 || loading}
+          >
+            ← Trước
+          </Button>
           
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1 || loading}
-            >
-              ← Trước
-            </Button>
-            
-            <span className="text-sm text-gray-300">
-              Trang {currentPage} / {totalPages}
-            </span>
-            
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage >= totalPages || loading}
-            >
-              Sau →
-            </Button>
-          </div>
+          <span className="text-sm text-gray-300">
+            Trang {currentPage} / {totalPages}
+          </span>
+          
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages || loading}
+          >
+            Sau →
+          </Button>
         </div>
       )}
     </div>

@@ -24,8 +24,7 @@ export const LeaderboardModal = ({
   const [distributionsMap, setDistributionsMap] = useState({});
   const [totalRewardNeeded, setTotalRewardNeeded] = useState(0);
   const [isDistributed, setIsDistributed] = useState(false);
-
-  // no contract-balance UI in modal anymore
+  const [contractBalance, setContractBalance] = useState(0);
 
   useEffect(() => {
     const fetchFinalLeaderboard = async () => {
@@ -92,6 +91,15 @@ export const LeaderboardModal = ({
           console.debug('Failed to fetch tournament details:', e);
         }
 
+        // Fetch contract balance and address
+        // Fetch contract balance
+        try {
+          const balanceResp = await apiClient.get(`${API_ENDPOINTS.DISTRIBUTE_REWARDS}/contract-balance`);
+          const balanceData = balanceResp?.data?.data ?? balanceResp?.data ?? balanceResp;
+          setContractBalance(balanceData?.balance ?? 0);
+        } catch (e) {
+          console.debug('Failed to fetch contract balance:', e);
+        }
         // Normalize leaderboard — provide fields expected by LeaderboardTable
         const normalized = (dataArr || []).map((item, idx) => {
           const teamName = item.team_name ?? item.name ?? item.username ?? item.fullname ?? `Team ${idx + 1}`;
@@ -229,23 +237,42 @@ export const LeaderboardModal = ({
 
   if (!show) return null;
 
-  // contract-balance removed from modal UI
-
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <Card className="relative max-w-[1200px] w-[95vw] max-h-[calc(100vh-4rem)] overflow-y-auto">
         <div className="p-6 border-b border-primary-700/20 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-white">Bảng xếp hạng Giải {tournamentId}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-white">Bảng xếp hạng Giải {tournamentId}</h2>
+            {isDistributed && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Đã phân phối giải thưởng
+              </span>
+            )}
+          </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl transition-colors">×</button>
         </div>
 
           <div className="p-6 space-y-6 pb-6">
-          {/* If rewards already distributed, show a banner */}
-          {isDistributed && (
-            <div className="bg-dark-300 rounded-lg p-4 border border-primary-700/20">
-              <div className="text-sm text-emerald-400 font-semibold">✓ Đã phân phối giải thưởng</div>
+          {/* Contract Info Banner */}
+          <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg p-4 border border-amber-500/20">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-amber-300 font-medium mb-1">💰 Số dư Contract</p>
+                <p className="text-lg text-white font-bold">
+                  {contractBalance.toFixed(4)} ETH
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-amber-300 font-medium mb-1">🏆 Tổng giải thưởng cần</p>
+                <p className="text-lg text-white font-bold">
+                  {totalRewardNeeded.toFixed(4)} ETH
+                </p>
+              </div>
             </div>
-          )}
+          </div>
 
           {/* Use shared LeaderboardTable for consistent display */}
           <div>

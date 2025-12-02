@@ -40,6 +40,17 @@ router.get(
 );
 
 /**
+ * @route   GET /api/tournaments/statistics
+ * @desc    Lấy thống kê tổng quan về giải đấu
+ * @access  Admin
+ */
+router.get(
+  '/statistics/overview',
+  checkRole([roles.ADMIN]),
+  tournamentController.getTournamentStatistics
+);
+
+/**
  * @route   GET /api/tournaments/:id
  * @desc    Lấy thông tin chi tiết 1 giải đấu (bao gồm các đội tham gia)
  * @access  Public

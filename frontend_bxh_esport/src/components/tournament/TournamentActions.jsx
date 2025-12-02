@@ -67,8 +67,8 @@ export const TournamentActions = ({
         </Button>
       )}
 
-      {/* Xóa - Chỉ khi isReady != 1 (i.e., not opened) and status is upcoming */}
-      {tournament.status === 'upcoming' && (isReady === 0 || isReady === '0' || isReady === false) && (
+      {/* Xóa - Chỉ cho giải đấu chưa mở đăng ký (status = 'notOpen' hoặc isReady = 0) */}
+      {(tournament.status === 'notOpen' || (tournament.status === 'upcoming' && (isReady === 0 || isReady === '0' || isReady === false))) && (
         <Button
           variant="danger"
           size="sm"
