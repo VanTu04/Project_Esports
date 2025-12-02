@@ -3,6 +3,9 @@ import express from 'express';
 import session from 'express-session';
 import passport from 'passport';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import hpp from 'hpp';
 import routes from './routes/index.js';
 import { sequelize } from './models/index.js';
 import './config/passport.js';
@@ -10,18 +13,85 @@ import { initAdminAccount } from './init/initAdmin.js';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fail } from 'assert';
+import { sanitizeInput } from './middlewares/sanitize.js';
 
 dotenv.config();
 
 const app = express();
 
+// =========================
+// SECURITY MIDDLEWARE
+// =========================
+
+// 1. Helmet - Set security HTTP headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://challenges.cloudflare.com"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://challenges.cloudflare.com"],
+      frameSrc: ["'self'", "https://challenges.cloudflare.com"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// 2. CORS Configuration - MUST be before rate limiting
 app.use(cors({
-  origin: true, // Cho phép tất cả origins
+  // origin: true, // Allow all origins (or specify: ['https://vawndev.online', 'http://localhost:5173'])
+  origin: ['https://vawndev.online', 'http://localhost:5173'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   optionsSuccessStatus: 204
 }));
+
+
+
+// 3. Rate Limiting - Prevent brute force attacks
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip OPTIONS requests (CORS preflight)
+  skip: (req) => req.method === 'OPTIONS',
+});
+app.use('/api/', limiter);
+
+// Stricter rate limit for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute (for easier testing)
+  max: 3, // Limit each IP to 3 attempts per minute
+  message: {
+    code: 429,
+    status: 429,
+    message: 'Too many login attempts, please try again after 1 minute.',
+  },
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip OPTIONS requests (CORS preflight)
+  skip: (req) => req.method === 'OPTIONS',
+  handler: (req, res) => {
+    res.status(429).json({
+      code: 429,
+      status: 429,
+      message: 'Too many login attempts, please try again after 1 minute.',
+    });
+  },
+});
+app.use('/api/users/login', authLimiter);
+app.use('/api/users/register', authLimiter);
+
+// 4. Prevent HTTP Parameter Pollution
+app.use(hpp());
 
 app.use(cookieParser());
 
@@ -31,8 +101,12 @@ app.set('views', './views');
 app.use(express.static('public'));
 
 // --- Middleware ---
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Limit body size to prevent large payload attacks
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 6. XSS Protection - Sanitize all user inputs
+app.use(sanitizeInput);
 
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
