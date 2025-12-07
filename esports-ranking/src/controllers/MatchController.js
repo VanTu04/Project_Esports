@@ -327,3 +327,51 @@ export const getMatchesByTeam = async (req, res) => {
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
   }
 };
+
+// === 7. Lấy trận đấu theo status (với query parameter) ===
+export const getMatchesByStatus = async (req, res) => {
+  try {
+    const { status } = req.query; // live, upcoming, completed, done
+    
+    let matchStatus;
+    let message;
+    let filterByTime = false;
+    
+    switch(status?.toLowerCase()) {
+      case 'live':
+        // Live: trận đang diễn ra dựa trên thời gian (match_time <= hiện tại và chưa DONE)
+        filterByTime = true;
+        message = "Lấy danh sách trận đấu live thành công";
+        break;
+      case 'upcoming':
+        matchStatus = 'PENDING'; // Sắp diễn ra
+        message = "Lấy danh sách trận đấu sắp diễn ra thành công";
+        break;
+      case 'completed':
+        matchStatus = 'COMPLETED'; // Có kết quả nhưng chưa kết thúc
+        message = "Lấy danh sách trận đấu có kết quả thành công";
+        break;
+      case 'done':
+        matchStatus = 'DONE'; // Đã kết thúc
+        message = "Lấy danh sách trận đấu đã kết thúc thành công";
+        break;
+      default:
+        // Nếu không có status, trả về tất cả
+        const allMatches = await matchService.findAllMatchesWithDetails();
+        return res.json(responseSuccess(allMatches, "Lấy tất cả trận đấu thành công"));
+    }
+    
+    let matches;
+    if (filterByTime) {
+      // Lấy trận live dựa trên thời gian
+      matches = await matchService.findLiveMatches();
+    } else {
+      matches = await matchService.findMatchesByStatus(matchStatus);
+    }
+    
+    return res.json(responseSuccess(matches, message));
+  } catch (error) {
+    console.error("getMatchesByStatus error:", error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
