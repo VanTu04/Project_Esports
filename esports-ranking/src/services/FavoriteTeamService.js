@@ -123,3 +123,37 @@ export const getFavoriteStatus = async (userId, teamIds) => {
     throw error;
   }
 };
+
+// Get users who favorited a given team (followers)
+export const getFollowersOfTeam = async (teamId) => {
+  try {
+    const rows = await models.FavoriteTeam.findAll({
+      where: { team_id: teamId },
+      include: [{ model: models.User, as: 'user', attributes: ['id', 'username', 'full_name', 'avatar', 'email', 'role'] }],
+      order: [['created_date', 'DESC']]
+    });
+
+    const users = rows.map(r => r.user).filter(Boolean);
+    return { users };
+  } catch (error) {
+    console.error('getFollowersOfTeam error:', error);
+    throw error;
+  }
+};
+
+// Get teams followed by a given user (following)
+export const getFollowingByUser = async (userId) => {
+  try {
+    const rows = await models.FavoriteTeam.findAll({
+      where: { user_id: userId },
+      include: [{ model: models.User, as: 'teamUser', attributes: ['id', 'username', 'full_name', 'avatar', 'email', 'role'] }],
+      order: [['created_date', 'DESC']]
+    });
+
+    const teams = rows.map(r => r.teamUser).filter(Boolean);
+    return { teams };
+  } catch (error) {
+    console.error('getFollowingByUser error:', error);
+    throw error;
+  }
+};

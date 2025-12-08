@@ -50,6 +50,19 @@ const WalletIcon = () => (
   </svg>
 );
 
+const EyeIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+  </svg>
+);
+
 export function UserProfile() {
   const { updateUser } = useAuth();
   const { showSuccess, showError } = useNotification();
@@ -74,15 +87,19 @@ export function UserProfile() {
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState(null);
   const [avatarFile, setAvatarFile] = useState(null);
+  const [showPrivateKey, setShowPrivateKey] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
         const data = await userService.getProfile();
+        console.log('[Profile] Raw data from API:', data);
         // Normalize common axios wrapper shapes: { code, data: { ... } } or { data: {...} } or direct object
         const wrapper = data?.data ?? data;
         const profilePayload = wrapper?.data ?? wrapper ?? null;
+        console.log('[Profile] Extracted profilePayload:', profilePayload);
+        console.log('[Profile] total_rewards value:', profilePayload?.total_rewards);
         // set profile data first
         setProfile(profilePayload);
         // then try to fetch fresh wallet balance
@@ -196,16 +213,34 @@ export function UserProfile() {
   })();
 
   const displayRewards = (() => {
-    const r = profile.rewards;
-    if (r === null || r === undefined) return '0.0';
-    if (typeof r === 'number' || typeof r === 'string') return r;
+    const r = profile.total_rewards;
+    console.log('[Profile] Computing displayRewards from:', r, 'type:', typeof r);
+    if (r === null || r === undefined) return '0.00';
+    if (typeof r === 'number') {
+      const result = Number(r).toFixed(4);
+      console.log('[Profile] displayRewards result:', result);
+      return result;
+    }
+    if (typeof r === 'string') {
+      const num = parseFloat(r);
+      if (!isNaN(num)) return num.toFixed(4);
+      return r;
+    }
     if (typeof r === 'object') {
-      if (r.rewards !== undefined && (typeof r.rewards === 'number' || typeof r.rewards === 'string')) return r.rewards;
-      if (r.data !== undefined && (typeof r.data === 'number' || typeof r.data === 'string')) return r.data;
-      try { return String(r); } catch (e) { return '0.0'; }
+      if (r.total_rewards !== undefined && (typeof r.total_rewards === 'number' || typeof r.total_rewards === 'string')) {
+        const num = parseFloat(r.total_rewards);
+        return !isNaN(num) ? num.toFixed(4) : String(r.total_rewards);
+      }
+      if (r.data !== undefined && (typeof r.data === 'number' || typeof r.data === 'string')) {
+        const num = parseFloat(r.data);
+        return !isNaN(num) ? num.toFixed(4) : String(r.data);
+      }
+      try { return String(r); } catch (e) { return '0.00'; }
     }
     return String(r);
   })();
+  
+  console.log('[Profile] Final displayRewards:', displayRewards);
 
   return (
     <div className="min-h-screen p-6">
@@ -326,12 +361,63 @@ export function UserProfile() {
                   <label className="text-sm font-medium text-gray-200 mb-2 block">Địa chỉ ví</label>
                   <div className="flex items-center gap-3">
                     <code className="flex-1 font-mono text-sm break-all text-white">{profile.wallet_address || profile.wallet || ''}</code>
-                    <Button variant="secondary" size="sm" className="flex-shrink-0" onClick={() => profile.wallet_address && navigator.clipboard.writeText(profile.wallet_address || profile.wallet)} title="Copy địa chỉ">
+                    <Button variant="secondary" size="sm" className="flex-shrink-0" onClick={() => {
+                      const address = profile.wallet_address || profile.wallet;
+                      if (address) {
+                        navigator.clipboard.writeText(address);
+                        showSuccess('Đã copy địa chỉ ví');
+                      }
+                    }} title="Copy địa chỉ">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                       </svg>
                     </Button>
                   </div>
+                </div>
+
+                <div className="md:col-span-2 p-5 rounded-lg border border-red-500/20 bg-gradient-to-b from-red-700/10 to-dark-600">
+                  <label className="text-sm font-medium text-red-300 mb-2 block flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    Private Key (Bảo mật - Không chia sẻ!)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <code className="flex-1 font-mono text-sm break-all text-white">
+                      {showPrivateKey ? (profile.private_key || '********') : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
+                    </code>
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      className="flex-shrink-0" 
+                      onClick={() => setShowPrivateKey(!showPrivateKey)} 
+                      title={showPrivateKey ? "Ẩn private key" : "Hiện private key"}
+                    >
+                      {showPrivateKey ? <EyeOffIcon /> : <EyeIcon />}
+                    </Button>
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      className="flex-shrink-0" 
+                      onClick={() => {
+                        if (profile.private_key) {
+                          navigator.clipboard.writeText(profile.private_key);
+                          showSuccess('Đã copy private key');
+                        }
+                      }} 
+                      title="Copy private key"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-red-400/70 mt-2 flex items-start gap-1">
+                    <svg className="w-3 h-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Cảnh báo: Không bao giờ chia sẻ private key với bất kỳ ai. Bất kỳ ai có private key đều có thể truy cập và chuyển tài sản trong ví của bạn.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -340,9 +426,15 @@ export function UserProfile() {
                     <p className="text-2xl font-bold text-white">{displayBalance ?? '0.0'} ETH</p>
                   </div>
 
-                  <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700/50">
-                    <p className="text-sm text-gray-400 mb-1">Tổng thưởng</p>
+                  <div className="p-4 bg-gradient-to-br from-green-900/30 to-emerald-900/20 rounded-lg border border-green-500/30">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-sm text-green-300 font-medium">Tổng thưởng đã nhận</p>
+                    </div>
                     <p className="text-2xl font-bold text-green-400">{displayRewards ?? '0.0'} ETH</p>
+                    <p className="text-xs text-green-400/60 mt-1">Từ các giải đấu đã tham gia</p>
                   </div>
                 </div>
               </div>

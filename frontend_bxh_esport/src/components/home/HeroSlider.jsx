@@ -37,7 +37,10 @@ const HeroSlider = ({ tournaments = [] }) => {
   }
 
   const currentTournament = tournaments[currentSlide];
-  const bannerUrl = currentTournament?.banner || currentTournament?.image || '/default-tournament-bg.jpg';
+  const rawBannerUrl = currentTournament?.banner || currentTournament?.image;
+  const bannerUrl = rawBannerUrl 
+    ? (rawBannerUrl.startsWith('http') ? rawBannerUrl : `${import.meta.env.VITE_API_URL}${rawBannerUrl}`)
+    : '/default-tournament-bg.jpg';
 
   return (
     <div className="relative w-full h-[500px] overflow-hidden rounded-xl">

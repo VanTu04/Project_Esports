@@ -294,12 +294,12 @@ export const deleteUser = async (req, res, next) => {
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
-    const { full_name, phone } = req.body;
+    const { full_name, phone, description } = req.body;
 
     let avatarUrl = null;
     if (req.file) avatarUrl = `/uploads/${req.file.filename}`;
 
-    const updated = await userService.updateProfile(userId, { full_name, phone, avatar: avatarUrl });
+    const updated = await userService.updateProfile(userId, { full_name, phone, avatar: avatarUrl, description });
 
     return res.json({
       success: true,

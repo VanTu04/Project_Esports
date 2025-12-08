@@ -20,6 +20,8 @@ export const getStatusBadge = (status) => {
   );
 };
 
+import { API_URL } from '../../utils/constants';
+
 const TournamentInfo = ({
   tournament,
   teamsLength,
@@ -42,7 +44,22 @@ const TournamentInfo = ({
 
   return (
     <Card padding="lg">
-      <h2 className="text-xl font-bold text-white mb-4">Thông tin giải đấu</h2>
+      {/* Header với ảnh */}
+      <div className="flex items-center gap-4 mb-6">
+        {tournament.image && (
+          <div className="w-20 h-20 rounded-lg overflow-hidden border-2 border-primary-500/50 bg-dark-400 flex-shrink-0">
+            <img 
+              src={tournament.image.startsWith('http') ? tournament.image : `${API_URL}${tournament.image}`}
+              alt={tournament.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23334155" width="100" height="100"/%3E%3Ctext x="50" y="50" font-size="40" text-anchor="middle" dominant-baseline="middle" fill="%23cbd5e1"%3E🏆%3C/text%3E%3C/svg%3E';
+              }}
+            />
+          </div>
+        )}
+        <h2 className="text-xl font-bold text-white">Thông tin giải đấu</h2>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-lg p-4 border border-primary-500/30 bg-primary-500/10">
           <span className="text-gray-300 text-sm">Vòng đấu</span>

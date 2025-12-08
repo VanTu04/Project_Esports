@@ -72,6 +72,38 @@ const teamService = {
     }
   },
 
+  getMyTeamInfo: async () => {
+    try {
+      return await apiClient.get(`${API_ENDPOINTS.TEAMS}/my-team`);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  getMyTeamMembers: async () => {
+    try {
+      return await apiClient.get(`${API_ENDPOINTS.TEAMS}/my-team/members`);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  addTeamMember: async (memberData) => {
+    try {
+      return await apiClient.post(`${API_ENDPOINTS.TEAMS}/my-team/members`, memberData);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  removeTeamMember: async (memberId) => {
+    try {
+      return await apiClient.delete(`${API_ENDPOINTS.TEAMS}/my-team/members/${memberId}`);
+    } catch (error) {
+      throw error;
+    }
+  },
+
   createTeam: async (newTeam) => {
     try {
       return await apiClient.post(API_ENDPOINTS.TEAMS, newTeam);
@@ -83,6 +115,14 @@ const teamService = {
   updateTeam: async (id, updatedData) => {
     try {
       return await apiClient.put(`${API_ENDPOINTS.TEAMS}/${id}`, updatedData);
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  updateMyTeam: async (updatedData) => {
+    try {
+      return await apiClient.put(`${API_ENDPOINTS.TEAMS}/my-team`, updatedData);
     } catch (error) {
       throw error;
     }

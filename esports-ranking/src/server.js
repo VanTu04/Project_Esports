@@ -39,6 +39,7 @@ app.use(helmet({
     },
   },
   crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
 // 2. CORS Configuration - MUST be before rate limiting
@@ -56,7 +57,7 @@ app.use(cors({
 // 3. Rate Limiting - Prevent brute force attacks
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 500, // Limit each IP to 500 requests per windowMs (increased for development)
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -67,8 +68,8 @@ app.use('/api/', limiter);
 
 // Stricter rate limit for auth endpoints
 const authLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute (for easier testing)
-  max: 3, // Limit each IP to 3 attempts per minute
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 attempts per minute (increased for development)
   message: {
     code: 429,
     status: 429,
@@ -108,6 +109,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // 6. XSS Protection - Sanitize all user inputs
 app.use(sanitizeInput);
 
+// Serve uploads (static). CORP is handled by Helmet's crossOriginResourcePolicy above.
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // --- Session middleware ---

@@ -19,6 +19,7 @@ export default (sequelize) => {
     phone: DataTypes.STRING(15),
     avatar: DataTypes.TEXT('long'),
     cover_image: DataTypes.TEXT('long'),
+    description: DataTypes.TEXT,
 
     role: { type: DataTypes.INTEGER(2), defaultValue: 1 },
     otp: DataTypes.STRING(15),

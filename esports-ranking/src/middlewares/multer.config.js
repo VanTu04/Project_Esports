@@ -34,3 +34,9 @@ export const uploadAvatar = multer({
   fileFilter,
   limits: { fileSize: 3 * 1024 * 1024 },
 });
+
+export const uploadTournamentImage = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB for tournament images
+});

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import matchService from '../../services/matchService';
-import { API_BACKEND } from '../../utils/constants';
+import { API_URL } from '../../utils/constants';
 import { MatchSchedule } from '../../components/tournament/MatchSchedule';
 import Button from '../../components/common/Button';
 
@@ -73,7 +73,7 @@ export const MatchHistory = () => {
             url = window?.location?.protocol ? `${window.location.protocol}${url}` : `https:${url}`;
           }
           if (url.startsWith('/')) {
-            const prefix = API_BACKEND || '';
+            const prefix = API_URL || '';
             return `${prefix}${url}`;
           }
           if (!url.startsWith('http')) {

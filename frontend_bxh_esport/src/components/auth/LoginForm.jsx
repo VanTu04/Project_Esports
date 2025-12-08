@@ -9,7 +9,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { validateForm } from '../../utils/validators';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
-import { API_BASE_URL } from '../../utils/constants';
+import { API_URL } from '../../utils/constants';
 
 // Helper function để decode JWT token
 const decodeJWT = (token) => {
@@ -305,7 +305,7 @@ export const LoginForm = () => {
           type="button"
           aria-label="Đăng nhập với Google"
           onClick={() => {
-            window.location.href = `${API_BASE_URL}/auth/google`;
+            window.location.href = `${API_URL}/auth/google`;
           }}
           className="p-2 rounded-md bg-white hover:opacity-90 transition-opacity"
           title="Google"
@@ -323,7 +323,7 @@ export const LoginForm = () => {
           type="button"
           aria-label="Đăng nhập với Facebook"
           onClick={() => {
-            window.location.href = `${API_BASE_URL}/auth/facebook`;
+            window.location.href = `${API_URL}/auth/facebook`;
           }}
           className="p-2 rounded-md bg-[#1877F2] hover:opacity-90 transition-opacity"
           title="Facebook"

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Bars3Icon, BellIcon, UserCircleIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { Menu, Transition } from "@headlessui/react";
 import { useAuth } from "../../context/AuthContext";
@@ -9,6 +9,7 @@ import { apiClient } from '../../services/api';
 
 const Header = ({ onMenuClick }) => {
   const { user, logout } = useAuth(); // Lấy user từ AuthContext
+  const location = useLocation();
 
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -67,11 +68,38 @@ const Header = ({ onMenuClick }) => {
 
         {/* Navigation - expanded to match demo */}
         <nav className="hidden lg:flex items-center gap-6 text-base font-semibold text-gray-300">
-          <Link to="/" className="hover:text-white transition px-2 py-1 rounded">Trang chủ</Link>
-          <Link to="/tournaments" className="hover:text-white transition px-2 py-1 rounded">Giải đấu</Link>
-          <Link to="/teams" className="hover:text-white transition px-2 py-1 rounded">Đội tuyển</Link>
-          <Link to="/schedule" className="hover:text-white transition px-2 py-1 rounded">Lịch thi đấu</Link>
-          <Link to="/leaderboard" className="hover:text-white transition px-2 py-1 rounded">Xếp hạng</Link>
+          <Link 
+            to="/" 
+            className={`hover:text-white transition px-2 py-1 rounded ${
+              location.pathname === '/' ? 'text-primary-500 bg-primary-500/10' : ''
+            }`}
+          >
+            Trang chủ
+          </Link>
+          <Link 
+            to="/tournaments" 
+            className={`hover:text-white transition px-2 py-1 rounded ${
+              location.pathname === '/tournaments' ? 'text-primary-500 bg-primary-500/10' : ''
+            }`}
+          >
+            Giải đấu
+          </Link>
+          <Link 
+            to="/teams" 
+            className={`hover:text-white transition px-2 py-1 rounded ${
+              location.pathname === '/teams' ? 'text-primary-500 bg-primary-500/10' : ''
+            }`}
+          >
+            Đội tuyển
+          </Link>
+          <Link 
+            to="/schedule" 
+            className={`hover:text-white transition px-2 py-1 rounded ${
+              location.pathname === '/schedule' ? 'text-primary-500 bg-primary-500/10' : ''
+            }`}
+          >
+            Lịch thi đấu
+          </Link>
         </nav>
 
         {/* Right Section */}

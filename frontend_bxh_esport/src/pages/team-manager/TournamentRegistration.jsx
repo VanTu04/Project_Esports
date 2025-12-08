@@ -310,6 +310,17 @@ export const TournamentRegistration = () => {
           {filteredTournaments.map((tournament) => (
             <Card key={tournament.id} className="hover:border-primary-500/50 transition-all">
               <div className="p-6 space-y-4">
+                {/* Tournament Image */}
+                {tournament.image && (
+                  <div className="w-full h-40 rounded-lg overflow-hidden mb-4">
+                    <img
+                      src={tournament.image.startsWith('http') ? tournament.image : `${import.meta.env.VITE_API_URL}${tournament.image}`}
+                      alt={tournament.tournament_name || tournament.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  </div>
+                )}
                 {/* Tournament Header */}
                 <div>
                   <h3 className="text-xl font-bold text-white mb-2">

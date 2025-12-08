@@ -86,6 +86,11 @@ export default (sequelize) => {
       default: 1,
       comment: 'Số tiền để đăng kí tham gia giải đấu'
     },
+    image: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Đường dẫn ảnh đại diện của giải đấu'
+    },
     deleted: {
       type: DataTypes.INTEGER,
       defaultValue: 0

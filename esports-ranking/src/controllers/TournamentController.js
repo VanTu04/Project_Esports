@@ -21,9 +21,15 @@ const normalizeImageUrl = (url) => {
 // 1. Tạo một giải đấu mới
 export const createTournamentWithRewards = async (req, res) => {
   try {
-    const { name, game_id, total_rounds, total_team, rewards, start_date, end_date, registration_fee } = req.body;
+    const { name, game_id, total_rounds, total_team, rewards, start_date, end_date, registration_fee, description } = req.body;
     // rewards = [{ rank: 1, reward_amount: 50 }, { rank: 2, reward_amount: 30 }, ...]
     console.log("Creating tournament with data:", req.body);
+    console.log("Uploaded file:", req.file);
+    
+    // Handle uploaded image
+    const image = req.file ? `/uploads/${req.file.filename}` : null;
+    console.log("Image path to save:", image);
+    
     if (!name || !total_rounds || !total_team) {
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Tên, tổng số vòng và tổng số đội là bắt buộc.'));
     }
@@ -49,7 +55,7 @@ export const createTournamentWithRewards = async (req, res) => {
 
     console.log("BODY:", req.body);
     const result = await models.sequelize.transaction(async (t) => {
-      const tournament = await tournamentService.create({ name, game_id, total_rounds, total_team, start_date, end_date, registration_fee }, { transaction: t });
+      const tournament = await tournamentService.create({ name, game_id, total_rounds, total_team, start_date, end_date, registration_fee, description, image }, { transaction: t });
       if (Array.isArray(rewards) && rewards.length > 0) {
         const rewardsData = rewards.map(r => ({
           tournament_id: tournament.id,
@@ -197,9 +203,10 @@ export const getTournamentStatistics = async (req, res) => {
 
 export const getAllTournaments = async (req, res) => {
   try {
-    const { status, page, limit } = req.query;
-    
-    const result = await tournamentService.findAll(status, page, limit);
+    const { status, page, limit, hasMatches, search, game_id } = req.query;
+    const filters = { hasMatches, search, game_id };
+
+    const result = await tournamentService.findAll(status, page, limit, filters);
     return res.json(responseSuccess(result, 'Lấy danh sách giải đấu thành công'));
   } catch (error) {
     console.error('getAllTournaments error', error);

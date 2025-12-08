@@ -51,6 +51,75 @@ export const updateTeamWallet = async (req, res) => {
   }
 };
 
+export const getMyTeamInfo = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await teamService.getMyTeamInfo(userId);
+    console.log(`[TeamController] getMyTeamInfo - userId: ${userId}, followers: ${result.followers}, following: ${result.following}, tournaments: ${result.tournaments?.length}`);
+    return res.json(responseSuccess(result, 'Lấy thông tin đội thành công'));
+  } catch (error) {
+    console.error('getMyTeamInfo error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+export const updateMyTeamInfo = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const data = req.body || {};
+
+    // Call service to update allowed fields
+    const result = await teamService.updateMyTeamInfo(userId, data);
+    return res.json(responseSuccess(result, 'Cập nhật thông tin đội thành công'));
+  } catch (error) {
+    console.error('updateMyTeamInfo error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+export const getMyTeamMembers = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await teamService.getMyTeamMembers(userId);
+    return res.json(responseSuccess(result, 'Lấy danh sách thành viên thành công'));
+  } catch (error) {
+    console.error('getMyTeamMembers error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
+export const addTeamMember = async (req, res) => {
+  try {
+    const teamUserId = req.user.id; // id user của đội (chủ team)
+    const memberData = req.body;
+
+    console.log('[TeamController] addTeamMember called by teamUserId:', teamUserId);
+    console.log('[TeamController] addTeamMember payload:', JSON.stringify(memberData));
+
+    const result = await teamService.addTeamMember(teamUserId, memberData);
+
+    return res.json(responseSuccess(result, 'Thêm thành viên thành công'));
+  } catch (error) {
+    console.error('addTeamMember error', error);
+    return res.json(
+      responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message)
+    );
+  }
+};
+
+
+export const removeTeamMember = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { memberId } = req.params;
+    const result = await teamService.removeTeamMember(userId, memberId);
+    return res.json(responseSuccess(result, 'Xóa thành viên thành công'));
+  } catch (error) {
+    console.error('removeTeamMember error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
 export const getTopTeamsByWins = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 5;
@@ -62,3 +131,12 @@ export const getTopTeamsByWins = async (req, res) => {
   }
 };
 
+export const getTeamRankings = async (req, res) => {
+  try {
+    const result = await teamService.getTeamRankings();
+    return res.json(responseSuccess(result, 'Lấy bảng xếp hạng đội tuyển thành công'));
+  } catch (error) {
+    console.error('getTeamRankings error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};

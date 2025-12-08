@@ -37,11 +37,13 @@ export const Leaderboard = ({ tournamentId: initialTournamentId }) => {
       }
     };
     loadTournaments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load matches when tournament changes
   useEffect(() => {
     if (selectedTournamentId) loadMatches(selectedTournamentId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTournamentId]);
 
   const loadMatches = async (tId) => {
@@ -165,24 +167,34 @@ export const Leaderboard = ({ tournamentId: initialTournamentId }) => {
                 <button
                   key={t.id}
                   onClick={() => setSelectedTournamentId(t.id)}
-                  className={`w-full text-left px-3 py-2 rounded flex items-center justify-between gap-3 ${
+                  className={`w-full text-left px-3 py-2 rounded flex flex-col gap-2 ${
                     isSelected ? 'bg-cyan-600 text-white' : 'bg-neutral-900 text-gray-300 hover:bg-neutral-800'
                   }`}
                 >
-                  <div>
-                    <div className={`font-semibold ${isOngoing ? 'text-green-300' : 'text-yellow-300'}`}>
-                      {t.name}
-                    </div>
-                    {t.startDate && (
-                      <div className="text-xs text-gray-400">
-                        {new Date(t.startDate).toLocaleDateString('vi-VN')} - {t.endDate ? new Date(t.endDate).toLocaleDateString('vi-VN') : '...'}
+                  {t.image && (
+                    <img
+                      src={t.image.startsWith('http') ? t.image : `${import.meta.env.VITE_API_URL}${t.image}`}
+                      alt={t.name}
+                      className="w-full h-20 object-cover rounded"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  )}
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className={`font-semibold ${isOngoing ? 'text-green-300' : 'text-yellow-300'}`}>
+                        {t.name}
                       </div>
-                    )}
-                  </div>
-                  <div className="flex-shrink-0">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${isOngoing ? 'bg-green-700 text-white' : 'bg-yellow-600 text-black'}`}>
-                      {isOngoing ? 'Đang diễn ra' : 'Sắp/Đã'}
-                    </span>
+                      {t.startDate && (
+                        <div className="text-xs text-gray-400">
+                          {new Date(t.startDate).toLocaleDateString('vi-VN')} - {t.endDate ? new Date(t.endDate).toLocaleDateString('vi-VN') : '...'}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-shrink-0">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${isOngoing ? 'bg-green-700 text-white' : 'bg-yellow-600 text-black'}`}>
+                        {isOngoing ? 'Đang diễn ra' : 'Sắp/Đã'}
+                      </span>
+                    </div>
                   </div>
                 </button>
               );
