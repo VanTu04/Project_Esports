@@ -137,45 +137,9 @@ export default function UserDetailModal({ user, onClose }) {
               <div className="text-center py-4 text-gray-400">
                 Chưa thuộc đội nào
               </div>
-            )}
+            )}  
           </div>
         )}
-
-        {/* Thông tin tài khoản */}
-        <div className="bg-dark-400 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-white mb-4">Thông tin tài khoản</h3>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-400">Ngày tạo</p>
-              <p className="text-white font-medium">
-                {userDetail.created_date ? new Date(userDetail.created_date).toLocaleDateString('vi-VN') : '-'}
-              </p>
-            </div>
-            
-            <div>
-              <p className="text-sm text-gray-400">Cập nhật lần cuối</p>
-              <p className="text-white font-medium">
-                {userDetail.updated_date ? new Date(userDetail.updated_date).toLocaleDateString('vi-VN') : '-'}
-              </p>
-            </div>
-            
-            {userDetail.google_id && (
-              <div className="col-span-2">
-                <p className="text-sm text-gray-400">Đăng nhập bằng</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <svg className="w-5 h-5" viewBox="0 0 48 48">
-                    <path fill="#EA4335" d="M24 9.5c3.9 0 7.2 1.4 9.7 3.6l7.2-7.2C35 2.2 29.9 0 24 0 14.7 0 6.9 5.6 3.1 13.6l8.6 6.7C13.5 15.1 18.3 9.5 24 9.5z"/>
-                    <path fill="#34A853" d="M46.5 24c0-1.6-.1-3.1-.4-4.6H24v9h12.7c-.5 2.7-2 5-4.3 6.6l6.8 5.3C44.6 36.4 46.5 30.5 46.5 24z"/>
-                    <path fill="#4A90E2" d="M11.7 28.3C10.8 26.5 10.3 24.6 10.3 22.5c0-2.1.5-4 1.4-5.8L3.1 10C1.1 13.8 0 18 0 22.5s1.1 8.7 3.1 12.5l8.6-6.7z"/>
-                    <path fill="#FBBC05" d="M24 48c6.5 0 12-2.1 16-5.9l-7.6-6.1c-2.5 1.7-5.6 2.7-8.4 2.7-5.7 0-10.5-4.6-11.8-10.7L3.1 34.5C6.9 42.4 14.7 48 24 48z"/>
-                  </svg>
-                  <span className="text-white">Google</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </Modal>
   );

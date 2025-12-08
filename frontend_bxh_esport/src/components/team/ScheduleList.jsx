@@ -7,6 +7,8 @@ const ScheduleList = ({ matches = [], loading = false }) => {
   console.log('📊 [ScheduleList] Received:', {
     matchesCount: matches?.length,
     loading,
+    matchesType: typeof matches,
+    isArray: Array.isArray(matches),
     matches: matches?.slice(0, 2) // First 2 for inspection
   });
 
@@ -46,8 +48,21 @@ const ScheduleList = ({ matches = [], loading = false }) => {
 
   // ✅ Validate matches
   if (!Array.isArray(matches)) {
-    console.warn('⚠️ [ScheduleList] matches is not an array:', typeof matches);
-    return <MatchSchedule matches={[]} loading={loading} />;
+    console.warn('⚠️ [ScheduleList] matches is not an array:', typeof matches, matches);
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-400">Dữ liệu lịch thi đấu không hợp lệ</p>
+      </div>
+    );
+  }
+
+  if (matches.length === 0) {
+    console.log('ℹ️ [ScheduleList] No matches to display');
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-400">Chưa có lịch thi đấu sắp tới</p>
+      </div>
+    );
   }
 
   // ✅ Map with detailed logging
@@ -55,15 +70,13 @@ const ScheduleList = ({ matches = [], loading = false }) => {
     const rawStatus = m.status || m.match_status || '';
     const scheduledAt = m.match_time || m.scheduled_time || m.created_at || m.match_date || null;
     
-    // 🔍 Debug first match
+    // 🔍 Debug first match - FULL DATA
     if (index === 0) {
-      console.log('📊 [ScheduleList] First match mapping:', {
-        id: m.id,
-        rawStatus,
-        scheduledAt,
-        teamA: m.teamA?.team_name || m.team1?.name,
-        teamB: m.teamB?.team_name || m.team2?.name
-      });
+      console.log('📊 [ScheduleList] First match FULL DATA:', m);
+      console.log('📊 [ScheduleList] teamA structure:', m.teamA);
+      console.log('📊 [ScheduleList] teamB structure:', m.teamB);
+      console.log('📊 [ScheduleList] teamA.team_name:', m.teamA?.team_name);
+      console.log('📊 [ScheduleList] teamB.team_name:', m.teamB?.team_name);
     }
 
     return {
@@ -73,8 +86,10 @@ const ScheduleList = ({ matches = [], loading = false }) => {
         name:
           m.teamA?.team_name ||
           m.teamA?.name ||
+          m.teamA?.full_name ||
           m.team1?.team_name ||
           m.team1?.name ||
+          m.participant_a_name ||
           'Team 1',
         logo: resolveAvatar(m.teamA || m.team1),
         region: m.teamA?.region || '',
@@ -84,8 +99,10 @@ const ScheduleList = ({ matches = [], loading = false }) => {
         name:
           m.teamB?.team_name ||
           m.teamB?.name ||
+          m.teamB?.full_name ||
           m.team2?.team_name ||
           m.team2?.name ||
+          m.participant_b_name ||
           'Team 2',
         logo: resolveAvatar(m.teamB || m.team2),
         region: m.teamB?.region || '',

@@ -25,7 +25,11 @@ router.get('/tournament/:tournamentId/matches', matchController.getMatchesByTour
 router.get('/my-team', checkAccessToken, matchController.getMatchesByTeam);
 // query: ?page=1&limit=10&tournament_id=1&status=COMPLETED&search=team_name
 
-// === 7. Lấy trận đấu theo status ===
+// === 7. Lấy danh sách trận đấu của team cụ thể (public) ===
+router.get('/team/:teamId', matchController.getMatchesBySpecificTeam);
+// query: ?page=1&limit=10&status=PENDING
+
+// === 8. Lấy trận đấu theo status ===
 router.get('/by-status', matchController.getMatchesByStatus);
 // query: ?status=live | ?status=upcoming | ?status=completed
 // Không có status sẽ trả về tất cả

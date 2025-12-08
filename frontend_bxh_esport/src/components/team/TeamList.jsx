@@ -5,7 +5,7 @@ import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/solid';
 import favoriteTeamService from '../../services/favoriteTeamService';
 import { useAuth } from '../../context/AuthContext';
 
-export const TeamList = ({ teams, loading, onEdit, onDelete }) => {
+export const TeamList = ({ teams, loading, onEdit, onDelete, baseUrl }) => {
   const { user } = useAuth();
   const [favoriteTeamIds, setFavoriteTeamIds] = useState([]);
 
@@ -51,6 +51,7 @@ export const TeamList = ({ teams, loading, onEdit, onDelete }) => {
             team={team} 
             isFavorite={favoriteTeamIds.includes(team.id)}
             onFavoriteChange={handleFavoriteChange}
+            baseUrl={baseUrl}
           />
 
           {/* Nút hành động (hiện khi hover) */}

@@ -1046,7 +1046,7 @@ export const TournamentManagement = () => {
         {/* Create Tournament Modal (uses centralized component) */}
         {showCreateModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <Card className="max-w-5xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-4 border-b border-primary-700/20 flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-white">Tạo Giải đấu Mới</h2>
                 <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-white text-2xl transition-colors">×</button>
@@ -1110,7 +1110,7 @@ export const TournamentManagement = () => {
       {/* Edit Tournament Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <Card className="max-w-5xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b border-primary-700/20 flex justify-between items-center">
               <h2 className="text-2xl font-bold text-white">Sửa Giải đấu</h2>
               <button onClick={() => { setShowEditModal(false); setEditingTournament(null); }} className="text-gray-400 hover:text-white text-2xl transition-colors">×</button>

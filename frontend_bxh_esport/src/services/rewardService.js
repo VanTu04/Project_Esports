@@ -44,6 +44,20 @@ const rewardService = {
   },
 
   /**
+   * Create tournament rewards
+   * Backend: POST /api/tournaments/:id/rewards
+   */
+  createTournamentRewards: async (tournamentId, rewards) => {
+    try {
+      const endpoint = API_ENDPOINTS.TOURNAMENT_REWARDS.replace(':id', tournamentId);
+      const response = await apiClient.post(endpoint, { rewards });
+      return response?.data ?? response;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
    * Get pending rewards (mock - backend doesn't have this yet)
    */
   getPendingRewards: async (params = {}) => {

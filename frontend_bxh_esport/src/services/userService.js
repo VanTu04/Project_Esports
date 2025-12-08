@@ -328,6 +328,28 @@ const userService = {
       throw error;
     }
   },
+
+  // Admin: update user
+  updateUser: async (userId, payload) => {
+    try {
+      const res = await apiClient.put(`${API_ENDPOINTS.USERS}/${userId}`, payload);
+      return res.data || res;
+    } catch (error) {
+      console.error('userService.updateUser error', error);
+      throw error;
+    }
+  },
+
+  // Admin: delete user
+  deleteUser: async (userId) => {
+    try {
+      const res = await apiClient.delete(`${API_ENDPOINTS.USERS}/${userId}`);
+      return res.data || res;
+    } catch (error) {
+      console.error('userService.deleteUser error', error);
+      throw error;
+    }
+  },
 };
 
 export default userService;

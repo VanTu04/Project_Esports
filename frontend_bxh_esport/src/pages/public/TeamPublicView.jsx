@@ -4,9 +4,12 @@ import PublicLayout from '../../components/layout/PublicLayout';
 import teamService from '../../services/teamService';
 import { TeamList } from '../../components/team/TeamList';
 import { normalizeImageUrl } from '../../utils/imageHelpers';
+import { useAuth } from '../../context/AuthContext';
+import { USER_ROLES } from '../../utils/constants';
 
 export const TeamPublicView = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('rank'); // rank, points, wins, winRate, name, matches
@@ -218,7 +221,7 @@ export const TeamPublicView = () => {
                         return (
                           <tr 
                             key={team.id}
-                            onClick={() => navigate(`/teams/${team.id}`)}
+                            onClick={() => navigate(user?.role === USER_ROLES.ADMIN ? `/admin/teams/${team.id}` : `/teams/${team.id}`)}
                             className="hover:bg-primary-500/5 transition-colors duration-200 cursor-pointer"
                           >
                             <td className="px-6 py-4">

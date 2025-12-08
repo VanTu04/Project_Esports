@@ -328,6 +328,97 @@ export const getMatchesByTeam = async (req, res) => {
   }
 };
 
+/**
+ * Lấy danh sách trận đấu của team cụ thể (public - không cần login)
+ * GET /api/matches/team/:teamId
+ * Query params: 
+ *   - page (default: 1)
+ *   - limit (default: 10)
+ *   - status (optional): PENDING, IN_PROGRESS, COMPLETED
+ */
+export const getMatchesBySpecificTeam = async (req, res) => {
+  try {
+    const { teamId } = req.params; // Team ID từ URL
+    const { page, limit, status } = req.query;
+
+    // 1. Tìm participant_id của team trong các tournament
+    const participants = await models.Participant.findAll({
+      where: { 
+        user_id: teamId,
+        status: 'APPROVED'
+      },
+      attributes: ['id', 'tournament_id']
+    });
+
+    if (!participants || participants.length === 0) {
+      return res.json(responseSuccess({
+        matches: [],
+        pagination: { page: 1, limit: 10, total: 0, totalPages: 0 }
+      }, "Team chưa tham gia giải đấu nào"));
+    }
+
+    const participantIds = participants.map(p => p.id);
+
+    // 2. Gọi service với danh sách participant_id
+    const { matches, total } = await matchService.findMatchesByTeam(participantIds, {
+      page: page || 1,
+      limit: limit || 10,
+      status
+    });
+
+    // 3. Format response
+    const formattedMatches = matches.map(match => ({
+      id: match.id,
+      tournament_id: match.tournament_id,
+      round_number: match.round_number,
+      team_a_participant_id: match.team_a_participant_id,
+      team_b_participant_id: match.team_b_participant_id,
+      winner_participant_id: match.winner_participant_id,
+      point_team_a: match.point_team_a,
+      point_team_b: match.point_team_b,
+      score_team_a: match.score_team_a,
+      score_team_b: match.score_team_b,
+      status: match.status,
+      match_time: match.match_time,
+      created_at: match.created_at,
+      updated_at: match.updated_at,
+      tournament: match.tournament,
+      teamA: match.teamA ? {
+        id: match.teamA.id,
+        user_id: match.teamA.user_id,
+        team_name: match.teamA.team_name,
+        wallet_address: match.teamA.wallet_address,
+        avatar: match.teamA.team?.avatar ? `${backendUrl}${match.teamA.team.avatar}` : null
+      } : null,
+      teamB: match.teamB ? {
+        id: match.teamB.id,
+        user_id: match.teamB.user_id,
+        team_name: match.teamB.team_name,
+        wallet_address: match.teamB.wallet_address,
+        avatar: match.teamB.team?.avatar ? `${backendUrl}${match.teamB.team.avatar}` : null
+      } : null
+    }));
+
+    const currentPage = parseInt(page || 1);
+    const currentLimit = parseInt(limit || 10);
+    const totalPages = Math.ceil(total / currentLimit);
+
+    return res.json(responseSuccess({
+      matches: formattedMatches,
+      pagination: {
+        page: currentPage,
+        limit: currentLimit,
+        total,
+        totalPages
+      }
+    }, "Lấy danh sách trận đấu thành công"));
+
+  } catch (error) {
+    console.error("getMatchesBySpecificTeam error:", error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, error.message));
+  }
+};
+
 // === 7. Lấy trận đấu theo status (với query parameter) ===
 export const getMatchesByStatus = async (req, res) => {
   try {

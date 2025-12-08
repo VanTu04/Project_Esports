@@ -1,4 +1,5 @@
 import models from '../models/index.js';
+import { getLeaderboardFromChain } from './BlockchainService.js';
 
 export const linkWallet = async (id, wallet_address) => {
   try {
@@ -116,9 +117,64 @@ export const getTeamById = async (id) => {
           status: 'APPROVED'
         },
         required: true,
-        attributes: ['id', 'team_name', 'total_points']
+        attributes: ['id', 'team_name', 'total_points', 'tournament_id', 'user_id', 'wallet_address']
       }],
-      attributes: ['id', 'name', 'start_date', 'end_date', 'status', 'image']
+      attributes: ['id', 'name', 'start_date', 'end_date', 'status', 'image', 'total_rounds']
+    });
+
+    // Calculate rank for each tournament from blockchain leaderboard
+    const tournamentsWithRank = await Promise.all(tournaments.map(async (tournament) => {
+      let rank = null;
+      
+      // Chỉ lấy rank từ blockchain cho giải đã kết thúc
+      if (tournament.status === 'COMPLETED' && tournament.total_rounds) {
+        try {
+          const participant = tournament.participants[0]; // Current user's participant
+          if (participant && participant.wallet_address) {
+            // Lấy leaderboard từ blockchain
+            const leaderboard = await getLeaderboardFromChain(tournament.id, tournament.total_rounds);
+            
+            // Tìm rank dựa trên wallet_address
+            const position = leaderboard.findIndex(entry => 
+              entry.wallet.toLowerCase() === participant.wallet_address.toLowerCase()
+            );
+            
+            rank = position >= 0 ? position + 1 : null;
+            
+            console.log(`[TeamService] getTeamById - Tournament ${tournament.id} (${tournament.name}):`, {
+              status: tournament.status,
+              totalRounds: tournament.total_rounds,
+              walletAddress: participant.wallet_address,
+              leaderboardLength: leaderboard.length,
+              position,
+              rank,
+              top3: leaderboard.slice(0, 3).map((e, i) => ({
+                rank: i + 1,
+                wallet: e.wallet,
+                score: e.score
+              }))
+            });
+          }
+        } catch (error) {
+          console.error(`[TeamService] Error getting leaderboard for tournament ${tournament.id}:`, error);
+        }
+      }
+
+      return {
+        id: tournament.id,
+        name: tournament.name,
+        start_date: tournament.start_date,
+        end_date: tournament.end_date,
+        status: tournament.status,
+        image: tournament.image,
+        rank: rank,
+        participants: tournament.participants
+      };
+    }));
+
+    console.log(`[TeamService] getTeamById - ✅ Final tournaments count: ${tournamentsWithRank.length}`);
+    tournamentsWithRank.forEach(t => {
+      console.log(`  - ${t.name}: rank ${t.rank}`);
     });
 
     // Lấy danh sách trận đấu
@@ -167,7 +223,7 @@ export const getTeamById = async (id) => {
       following: followingCount,
       description: user.description || `Đội ${teamName}`,
       members: formattedMembers,
-      tournaments: tournaments || [],
+      tournaments: tournamentsWithRank || [],
       matches: formattedMatches || []
     };
   } catch (error) {
@@ -278,21 +334,58 @@ export const getMyTeamInfo = async (userId) => {
           status: 'APPROVED'
         },
         required: true,
-        attributes: ['id', 'team_name', 'total_points']
+        attributes: ['id', 'team_name', 'total_points', 'tournament_id', 'user_id']
       }],
       // Only select existing tournament attributes
       attributes: ['id', 'name', 'start_date', 'end_date', 'status', 'image']
     });
 
+    // Get rank information for each tournament based on total_points
+    const tournamentsWithRank = await Promise.all(tournaments.map(async (tournament) => {
+      // Get all participants of this tournament sorted by points
+      const allParticipants = await models.Participant.findAll({
+        where: {
+          tournament_id: tournament.id,
+          status: 'APPROVED'
+        },
+        attributes: ['user_id', 'total_points'],
+        order: [['total_points', 'DESC']]
+      });
+
+      // Find rank based on position in sorted list
+      const userParticipant = allParticipants.findIndex(p => parseInt(p.user_id) === parseInt(userId));
+      const rank = userParticipant >= 0 ? userParticipant + 1 : null;
+
+      console.log(`[TeamService] getMyTeamInfo - Tournament ${tournament.id} (${tournament.name}):`, {
+        searchingForUserId: userId,
+        participantsUserIds: allParticipants.map(p => p.user_id),
+        foundIndex: userParticipant,
+        rank: rank,
+        totalParticipants: allParticipants.length
+      });
+      if (rank) {
+        console.log(`[TeamService] ✅ Rank found: ${rank} for tournament ${tournament.name}`);
+      } else {
+        console.log(`[TeamService] ⚠️ No rank for tournament ${tournament.name}`);
+      }
+
+      return {
+        id: tournament.id,
+        name: tournament.name,
+        start_date: tournament.start_date,
+        end_date: tournament.end_date,
+        status: tournament.status,
+        image: tournament.image,
+        rank: rank,
+        participants: tournament.participants
+      };
+    }));
+
     // Log participant avatar/raw info for debugging
     try {
-      console.log(`[TeamService] getMyTeamInfo - tournaments found: ${tournaments.length}`);
-      tournaments.forEach(t => {
-        const p = (t.participants || [])[0];
-        console.log(`[TeamService] tournament ${t.id} participants length:`, (t.participants || []).length);
-        if (p && p.team && p.team.avatar) {
-          console.log(`[TeamService] tournament ${t.id} participant team.avatar:`, p.team.avatar);
-        }
+      console.log(`[TeamService] getMyTeamInfo - tournaments found: ${tournamentsWithRank.length}`);
+      tournamentsWithRank.forEach(t => {
+        console.log(`[TeamService] tournament ${t.id} rank:`, t.rank);
       });
     } catch (e) {
       // ignore logging errors
@@ -314,7 +407,7 @@ export const getMyTeamInfo = async (userId) => {
       followers: followersCount,
       following: followingCount,
       description: user.description || `Đội ${teamName}`,
-      tournaments: tournaments || []
+      tournaments: tournamentsWithRank || []
     };
   } catch (error) {
     throw new Error(`getMyTeamInfo error: ${error.message}`);

@@ -4,7 +4,7 @@ import Card from '../common/Card';
 import { HeartButton } from '../common/HeartButton';
 import { normalizeImageUrl, resolveTeamLogo } from '../../utils/imageHelpers';
 
-export const TeamCard = ({ team, isFavorite = false, onFavoriteChange }) => {
+export const TeamCard = ({ team, isFavorite = false, onFavoriteChange, baseUrl = '/teams' }) => {
   // Support both team object and user object (user with role = team)
   const displayName = team.full_name || team.name || team.username;
   const displaySubtitle = team.email || team.region || team.username;
@@ -71,7 +71,7 @@ export const TeamCard = ({ team, isFavorite = false, onFavoriteChange }) => {
       </div>
       
       <Link
-        to={`/teams/${team.id}`}
+        to={`${baseUrl}/${team.id}`}
         className="block w-full mt-4 py-2 text-center bg-primary-500 hover:bg-primary-600 text-white rounded-md transition-colors"
       >
         Xem chi tiết

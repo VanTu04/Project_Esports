@@ -7,6 +7,7 @@ import { useNotification } from '../../context/NotificationContext';
 import Button from '../common/Button';
 import { Loading } from '../common/Loading';
 import { getActiveGames } from '../../services/gameService';
+import rewardService from '../../services/rewardService';
 
 export default function CreateTournamentForm({ onCreated, onCancel }) {
   const [form, setForm] = useState({
@@ -87,6 +88,11 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
       newErrors.name = 'Tên giải đấu không được quá 100 ký tự';
     }
 
+    // Validate game_id (required)
+    if (!form.game_id) {
+      newErrors.game_id = 'Vui lòng chọn game cho giải đấu';
+    }
+
     const rounds = parseInt(form.total_rounds);
     if (!rounds || rounds < 1) {
       newErrors.total_rounds = 'Số vòng đấu phải lớn hơn 0';
@@ -94,8 +100,10 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
       newErrors.total_rounds = 'Số vòng đấu không được quá 20';
     }
 
-    // Validate expected teams (optional)
-    if (form.expected_teams) {
+    // Validate expected teams (required)
+    if (!form.expected_teams) {
+      newErrors.expected_teams = 'Vui lòng nhập số đội tham gia';
+    } else {
       const t = parseInt(form.expected_teams);
       if (!t || t < 2) {
         newErrors.expected_teams = 'Số đội phải là số nguyên >= 2';
@@ -131,8 +139,10 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
       newErrors.description = 'Mô tả không được quá 1000 ký tự';
     }
 
-    // Validate rewards if present
-    if (Array.isArray(form.rewards) && form.rewards.length > 0) {
+    // Validate rewards (required - at least one reward)
+    if (!Array.isArray(form.rewards) || form.rewards.length === 0) {
+      newErrors.rewards = 'Vui lòng thêm ít nhất một phần thưởng cho giải đấu';
+    } else {
       form.rewards.forEach((r, idx) => {
         if (!r || typeof r.rank === 'undefined' || r.rank === null || String(r.rank).trim() === '') {
           newErrors[`rewards.${idx}.rank`] = 'Rank bắt buộc';
@@ -148,8 +158,10 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
       });
     }
 
-    // Validate registration fee
-    if (form.registration_fee !== '') {
+    // Validate registration fee (required)
+    if (form.registration_fee === '' || form.registration_fee === null || form.registration_fee === undefined) {
+      newErrors.registration_fee = 'Vui lòng nhập phí đăng ký';
+    } else {
       const fee = Number(form.registration_fee);
       if (isNaN(fee) || fee < 0) {
         newErrors.registration_fee = 'Phí đăng ký phải là số ETH >= 0';
@@ -239,27 +251,40 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
       if (form.description) formData.append('description', form.description.trim());
       formData.append('registration_fee', form.registration_fee !== '' ? Number(form.registration_fee) : 1);
       if (imageFile) formData.append('image', imageFile);
+      
+      // Gửi rewards dưới dạng JSON string (backend sẽ parse)
       if (Array.isArray(form.rewards) && form.rewards.length > 0) {
-        formData.append('rewards', JSON.stringify(form.rewards.map(r => ({ rank: Number(r.rank), reward_amount: Number(r.reward_amount) }))));
+        const rewardsData = form.rewards.map(r => ({ 
+          rank: Number(r.rank), 
+          reward_amount: Number(r.reward_amount) 
+        }));
+        formData.append('rewards', JSON.stringify(rewardsData));
+        console.log('🎁 Sending rewards:', rewardsData);
       }
 
+      console.log('📤 Creating tournament...');
       const response = await apiClient.post(API_ENDPOINTS.TOURNAMENTS, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
+      console.log('✅ Tournament created:', response);
+
       if (response.success || response.data) {
-        showSuccess(response.message || 'Tạo giải đấu thành công!');
+        showSuccess('Tạo giải đấu thành công!');
         setForm({
           name: '',
           game_id: '',
           total_rounds: 3,
-            expected_teams: '',
-            start_date: '',
-            end_date: '',
-            description: '',
-            rewards: [],
+          expected_teams: '',
+          start_date: '',
+          end_date: '',
+          description: '',
+          rewards: [],
+          registration_fee: '',
         });
         setErrors({});
+        setImageFile(null);
+        setImagePreview(null);
 
         if (onCreated) {
           onCreated(response.data || response);
@@ -408,53 +433,54 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
               })()}
             </div>
 
-            {/* Ngày bắt đầu */}
-            <div>
-              <label className="block text-sm font-semibold text-white mb-2">
-                Ngày bắt đầu <span className="text-rose-400">*</span>
-              </label>
-              <DatePicker
-                selected={startDateObj}
-                onChange={(date) => {
-                  setStartDateObj(date);
-                  const iso = date ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}` : '';
-                  setForm(prev => ({ ...prev, start_date: iso }));
-                  if (date && endDateObj && endDateObj < date) {
-                    setEndDateObj(null);
-                    setForm(prev => ({ ...prev, end_date: '' }));
-                  }
-                  if (errors.start_date) {
-                    setErrors(prev => { const c = { ...prev }; delete c.start_date; return c; });
-                  }
-                }}
-                dateFormat="dd/MM/yyyy"
-                placeholderText="dd/mm/yyyy"
-                className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.start_date ? 'border-rose-500' : 'border-primary-700/30'}`}
-              />
-              {errors.start_date && <p className="text-xs text-rose-400 mt-1">{errors.start_date}</p>}
-            </div>
+            {/* Ngày bắt đầu & Ngày kết thúc - 1 hàng */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">
+                  Ngày bắt đầu <span className="text-rose-400">*</span>
+                </label>
+                <DatePicker
+                  selected={startDateObj}
+                  onChange={(date) => {
+                    setStartDateObj(date);
+                    const iso = date ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}` : '';
+                    setForm(prev => ({ ...prev, start_date: iso }));
+                    if (date && endDateObj && endDateObj < date) {
+                      setEndDateObj(null);
+                      setForm(prev => ({ ...prev, end_date: '' }));
+                    }
+                    if (errors.start_date) {
+                      setErrors(prev => { const c = { ...prev }; delete c.start_date; return c; });
+                    }
+                  }}
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="dd/mm/yyyy"
+                  className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.start_date ? 'border-rose-500' : 'border-primary-700/30'}`}
+                />
+                {errors.start_date && <p className="text-xs text-rose-400 mt-1">{errors.start_date}</p>}
+              </div>
 
-            {/* Ngày kết thúc */}
-            <div>
-              <label className="block text-sm font-semibold text-white mb-2">
-                Ngày kết thúc <span className="text-rose-400">*</span>
-              </label>
-              <DatePicker
-                selected={endDateObj}
-                onChange={(date) => {
-                  setEndDateObj(date);
-                  const iso = date ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}` : '';
-                  setForm(prev => ({ ...prev, end_date: iso }));
-                  if (errors.end_date) {
-                    setErrors(prev => { const c = { ...prev }; delete c.end_date; return c; });
-                  }
-                }}
-                minDate={startDateObj || null}
-                dateFormat="dd/MM/yyyy"
-                placeholderText="dd/mm/yyyy"
-                className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.end_date ? 'border-rose-500' : 'border-primary-700/30'}`}
-              />
-              {errors.end_date && <p className="text-xs text-rose-400 mt-1">{errors.end_date}</p>}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">
+                  Ngày kết thúc <span className="text-rose-400">*</span>
+                </label>
+                <DatePicker
+                  selected={endDateObj}
+                  onChange={(date) => {
+                    setEndDateObj(date);
+                    const iso = date ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}` : '';
+                    setForm(prev => ({ ...prev, end_date: iso }));
+                    if (errors.end_date) {
+                      setErrors(prev => { const c = { ...prev }; delete c.end_date; return c; });
+                    }
+                  }}
+                  minDate={startDateObj || null}
+                  dateFormat="dd/MM/yyyy"
+                  placeholderText="dd/mm/yyyy"
+                  className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.end_date ? 'border-rose-500' : 'border-primary-700/30'}`}
+                />
+                {errors.end_date && <p className="text-xs text-rose-400 mt-1">{errors.end_date}</p>}
+              </div>
             </div>
 
             {/* Phí đăng ký */}
@@ -538,6 +564,7 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
         {/* Phần thưởng - Full width */}
         <div className="border-t border-primary-700/20 pt-6">
           <label className="block text-sm font-semibold text-white mb-3">Phần thưởng <span className="text-rose-400">*</span></label>
+          {errors.rewards && <p className="text-sm text-rose-400 mb-3">{errors.rewards}</p>}
           <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
             {(form.rewards || []).map((r, idx) => (
               <div key={idx} className="grid grid-cols-[1fr_2fr_auto] gap-4 items-start bg-primary-900/20 p-4 rounded-lg border border-primary-700/20">

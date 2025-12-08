@@ -6,6 +6,7 @@ import Button from '../common/Button';
 import Card from '../common/Card'; 
 import { useAuth } from '../../context/AuthContext';
 import tournamentService from '../../services/tournamentService';
+import RegistrationButton from './RegistrationButton';
 
 export const TournamentCard = ({ tournament, compact = false }) => {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ export const TournamentCard = ({ tournament, compact = false }) => {
     return t?.prize || t?.prize_pool || t?.prizePool || 0;
   };
 
-  const [participantsCount, setParticipantsCount] = useState(() => normalizeParticipants(tournament?.participantsCount ?? tournament?.participants_count ?? tournament?.participants ?? tournament?.approved_participants));
+  const [participantsCount, setParticipantsCount] = useState(() => normalizeParticipants(tournament?.approved_participants ?? tournament?.participantsCount ?? tournament?.participants_count ?? tournament?.participants));
   const [prize, setPrize] = useState(() => normalizePrize(calculateTotalPrize(tournament)));
 
   const statusUpper = (tournament?.status || '').toString().toUpperCase();
@@ -84,7 +85,7 @@ export const TournamentCard = ({ tournament, compact = false }) => {
         
         setStartDate(prev => prev ?? (data.startDate ?? data.start_date ?? data.start_time ?? null));
         setEndDate(prev => prev ?? (data.endDate ?? data.end_date ?? data.end_time ?? null));
-        setParticipantsCount(prev => (prev || prev === 0) ? prev : normalizeParticipants(data.participantsCount ?? data.participants_count ?? data.participants ?? data.approved_participants));
+        setParticipantsCount(prev => (prev || prev === 0) ? prev : normalizeParticipants(data.approved_participants ?? data.participantsCount ?? data.participants_count ?? data.participants));
         setPrize(prev => (prev || prev === 0) ? prev : normalizePrize(calculateTotalPrize(data)));
       } catch (err) {
         console.debug('TournamentCard: fallback fetch error', err);
@@ -263,7 +264,7 @@ export const TournamentCard = ({ tournament, compact = false }) => {
           </div>
 
           {/* --- ACTION BUTTONS --- */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             {/* Nút Chi tiết */}
             <Button 
               variant="ghost" 
@@ -280,21 +281,9 @@ export const TournamentCard = ({ tournament, compact = false }) => {
               Xem chi tiết
             </Button>
 
-            {/* Nút Đăng ký - chỉ hiện khi user là team (role = 3) */}
+            {/* Registration Button Component */}
             {isRegisterOpen && isTeam && (
-              <Button 
-                variant="primary" 
-                fullWidth={true}
-                onClick={handleRegisterClick}
-                className="
-                  bg-gradient-to-r from-primary-500 to-primary-600
-                  shadow-lg shadow-primary-500/30 font-semibold text-sm py-2.5 min-h-[40px]
-                  hover:scale-105 hover:shadow-primary-500/50 
-                  transition-all duration-300 rounded-lg border border-primary-400/30
-                "
-              >
-                Đăng ký ngay
-              </Button>
+              <RegistrationButton tournament={tournament} isTeamView={true} />
             )}
           </div>
 

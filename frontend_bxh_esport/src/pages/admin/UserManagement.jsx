@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import userService from '../../services/userService';
 import Table from '../../components/common/Table';
 import Button from '../../components/common/Button';
@@ -10,6 +11,7 @@ import { useNotification } from '../../context/NotificationContext';
 import CreateAccountAdmin from '../../components/user/CreateAccountAdmin';
 
 export const UserManagement = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('users'); // 'users' | 'managers'
   const [users, setUsers] = useState([]);
   const [managers, setManagers] = useState([]);
@@ -110,13 +112,16 @@ export const UserManagement = () => {
     {
       header: 'Hành động',
       accessor: 'id',
-      render: (value, row) => (
-        <UserActions
-          onDetails={() => openDetailModal(row)}
-          onEdit={() => openEditModal(row)}
-          onDelete={() => handleDeleteUser(value)}
-        />
-      ),
+      render: (value, row) => {
+        const isActive = row.status === 1 || row.status === '1' || row.status === 'active' || row.status === 'ACTIVE';
+        return (
+          <UserActions
+            onDetails={() => openDetailModal(row)}
+            onEdit={() => openEditModal(row)}
+            onDelete={isActive ? null : () => handleDeleteUser(value)}
+          />
+        );
+      },
     },
   ];
 
@@ -129,11 +134,6 @@ export const UserManagement = () => {
       render: (value) => value || '-'
     },
     { header: 'Email', accessor: 'email' },
-    { 
-      header: 'Tên đội', 
-      accessor: 'team_name',
-      render: (value) => value || <span className="text-gray-500 italic">Chưa có đội</span>
-    },
     {
       header: 'Trạng thái',
       accessor: 'status',
@@ -149,13 +149,16 @@ export const UserManagement = () => {
     {
       header: 'Hành động',
       accessor: 'id',
-      render: (value, row) => (
-        <UserActions
-          onDetails={() => openTeamDetailModal(row)}
-          onEdit={() => openEditModal(row)}
-          onDelete={() => handleDeleteUser(value)}
-        />
-      ),
+      render: (value, row) => {
+        const isActive = row.status === 1 || row.status === '1' || row.status === 'active' || row.status === 'ACTIVE';
+        return (
+          <UserActions
+            onDetails={() => openTeamDetailModal(row)}
+            onEdit={() => openEditModal(row)}
+            onDelete={isActive ? null : () => handleDeleteUser(value)}
+          />
+        );
+      },
     },
   ];
 
@@ -175,6 +178,7 @@ export const UserManagement = () => {
   };
 
   const openTeamDetailModal = (user) => {
+    // Show team detail in modal instead of navigating
     setSelectedUser(user);
     setShowTeamDetailModal(true);
   };

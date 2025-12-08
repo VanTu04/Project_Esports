@@ -130,22 +130,11 @@ export default function EditUserModal({ user, onClose, onSaved }) {
           <input 
             name="username" 
             value={form.username || ''} 
-            onChange={handleChange}
-            onBlur={handleUsernameBlur}
-            className={`mt-1 w-full px-3 py-2 border rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-              usernameError ? 'border-red-500' : ''
-            }`}
-            required
+            className="mt-1 w-full px-3 py-2 border-2 rounded-lg bg-gray-100 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400 cursor-not-allowed"
+            disabled
+            readOnly
           />
-          {usernameChecking && (
-            <p className="text-xs text-gray-500 mt-1">Đang kiểm tra...</p>
-          )}
-          {usernameError && (
-            <p className="text-xs text-red-600 dark:text-red-400 mt-1">{usernameError}</p>
-          )}
-          {!usernameError && form.username && form.username !== user.username && !usernameChecking && (
-            <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ Tên tài khoản khả dụng</p>
-          )}
+          <p className="text-xs text-gray-500 mt-1">Tên tài khoản không thể thay đổi</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -155,7 +144,7 @@ export default function EditUserModal({ user, onClose, onSaved }) {
             name="full_name" 
             value={form.full_name || ''} 
             onChange={handleChange} 
-            className="mt-1 w-full px-3 py-2 border rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+            className="mt-1 w-full px-3 py-2 border-2 rounded-lg bg-white text-black focus:border-yellow-400 focus:outline-none" 
           />
         </div>
       </div>
@@ -170,7 +159,7 @@ export default function EditUserModal({ user, onClose, onSaved }) {
           value={form.email || ''} 
           onChange={handleChange}
           onBlur={handleEmailBlur}
-          className={`mt-1 w-full px-3 py-2 border rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+          className={`mt-1 w-full px-3 py-2 border-2 rounded-lg bg-white text-black focus:border-yellow-400 focus:outline-none ${
             emailError ? 'border-red-500' : ''
           }`}
         />
@@ -188,13 +177,13 @@ export default function EditUserModal({ user, onClose, onSaved }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Vai trò *
+            Vai trò <span className="text-red-500">*</span>
           </label>
           <select 
             name="role" 
             value={form.role || USER_ROLES.USER} 
             onChange={handleChange} 
-            className="mt-1 w-full px-3 py-2 border rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="mt-1 w-full px-3 py-2 border-2 rounded-lg bg-white text-black focus:border-yellow-400 focus:outline-none"
           >
             <option value={USER_ROLES.USER}>User</option>
             <option value={USER_ROLES.TEAM_MANAGER}>Team Manager</option>
@@ -202,13 +191,13 @@ export default function EditUserModal({ user, onClose, onSaved }) {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Trạng thái *
+            Trạng thái <span className="text-red-500">*</span>
           </label>
           <select 
             name="status" 
             value={form.status ?? 1} 
             onChange={handleChange} 
-            className="mt-1 w-full px-3 py-2 border rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="mt-1 w-full px-3 py-2 border-2 rounded-lg bg-white text-black focus:border-yellow-400 focus:outline-none"
           >
             <option value={1}>Active</option>
             <option value={0}>Inactive</option>

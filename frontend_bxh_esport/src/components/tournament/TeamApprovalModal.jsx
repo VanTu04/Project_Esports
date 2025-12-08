@@ -123,14 +123,7 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
   }, [show, tournament]);
 
   const handleApprove = async (participantId) => {
-    // Optimistic update: remove team and increment approved count immediately,
-    // revert if the API (or delegated handler) fails.
-    const teamObj = pendingTeams.find(t => t.id === participantId);
     const prevApproved = approvedCount;
-
-    // optimistic local update
-    if (teamObj) setPendingTeams(prev => prev.filter(t => t.id !== participantId));
-    setApprovedCount(prev => prev + 1);
     setProcessingTeamId(participantId);
 
     // If parent provided onApprove, delegate the approve action to parent
@@ -138,11 +131,11 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
       try {
         await onApprove(participantId);
         showSuccess(`Duyệt thành công — Đã duyệt ${prevApproved + 1} đội`);
+        // Remove team from list after success
+        setPendingTeams(prev => prev.filter(t => t.id !== participantId));
+        setApprovedCount(prev => prev + 1);
         if (typeof onActionComplete === 'function') onActionComplete();
       } catch (err) {
-        // revert optimistic changes
-        if (teamObj) setPendingTeams(prev => [teamObj, ...prev]);
-        setApprovedCount(prevApproved);
         console.error('Approve delegated error:', err);
         showError(err?.message || 'Duyệt thất bại');
       } finally {
@@ -156,17 +149,16 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
       const successMsg = res?.message || res?.data?.message || '';
       const low = String(successMsg || '').toLowerCase();
       if (low.includes('blockchain') || low.includes('đã xử lý') || low.includes('already')) {
-        // keep optimistic removal but show warning
         showWarning(successMsg || 'Trạng thái blockchain không hợp lệ. Có thể đã được xử lý rồi.');
       } else {
         showSuccess((successMsg || 'Duyệt thành công') + ` — Đã duyệt ${prevApproved + 1} đội`);
       }
+      // Remove team from list after success
+      setPendingTeams(prev => prev.filter(t => t.id !== participantId));
+      setApprovedCount(prev => prev + 1);
       if (res?.data?.blockchain) console.log('Blockchain approval info:', res.data.blockchain);
       if (typeof onActionComplete === 'function') onActionComplete();
     } catch (err) {
-      // revert optimistic changes on error
-      if (teamObj) setPendingTeams(prev => [teamObj, ...prev]);
-      setApprovedCount(prevApproved);
       console.error('Approve error:', err);
       const serverMsg = err?.response?.data?.message ?? err?.message ?? '';
       const low = String(serverMsg || '').toLowerCase();
@@ -204,8 +196,9 @@ export const TeamApprovalModal = ({ show, onClose, tournament, pendingTeams: pen
         if (typeof onActionComplete === 'function') onActionComplete();
       }
 
-      setPendingTeams(prev => prev.filter(t => t.id !== participantId));
       showSuccess('Đã từ chối');
+      // Remove team from list after success notification
+      setPendingTeams(prev => prev.filter(t => t.id !== participantId));
       setShowRejectModal(false);
       setRejectingId(null);
       setRejectReason('');

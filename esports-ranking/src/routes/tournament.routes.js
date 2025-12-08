@@ -64,13 +64,13 @@ router.get(
 
 /**
  * @route   PUT /api/tournaments/:id
- * @desc    Cập nhật thông tin giải đấu
+ * @desc    Cập nhật thông tin giải đấu và phần thưởng
  * @access  Admin
- * @note    (Bạn sẽ cần tạo hàm 'updateTournament' trong controller/service)
  */
 router.put(
   '/:id',
   checkRole([roles.ADMIN]),
+  uploadTournamentImage.single('image'),
   tournamentController.updateTournamentRewards
 );
 

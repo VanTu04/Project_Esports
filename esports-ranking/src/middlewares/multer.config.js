@@ -5,7 +5,9 @@ import fs from "fs";
 
 // Thư mục upload nằm ngang cấp src
 const uploadDir = path.join(process.cwd(), "uploads");
+const tournamentsDir = path.join(uploadDir, "tournaments");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+if (!fs.existsSync(tournamentsDir)) fs.mkdirSync(tournamentsDir, { recursive: true });
 
 // MIME types hợp lệ
 const allowedMimes = ["image/jpeg", "image/png", "image/webp"];
@@ -36,7 +38,14 @@ export const uploadAvatar = multer({
 });
 
 export const uploadTournamentImage = multer({
-  storage,
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, tournamentsDir),
+    filename: (req, file, cb) => {
+      const randomName = crypto.randomBytes(16).toString("hex");
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${randomName}_${Date.now()}${ext}`);
+    },
+  }),
   fileFilter,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB for tournament images
 });
