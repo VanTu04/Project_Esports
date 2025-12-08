@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PublicLayout from '../../components/layout/PublicLayout';
 import teamService from '../../services/teamService';
 import { TeamList } from '../../components/team/TeamList';
 import { normalizeImageUrl } from '../../utils/imageHelpers';
 
 export const TeamPublicView = () => {
+  const navigate = useNavigate();
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('rank'); // rank, points, wins, winRate, name, matches
@@ -216,7 +218,8 @@ export const TeamPublicView = () => {
                         return (
                           <tr 
                             key={team.id}
-                            className="hover:bg-primary-500/5 transition-colors duration-200"
+                            onClick={() => navigate(`/teams/${team.id}`)}
+                            className="hover:bg-primary-500/5 transition-colors duration-200 cursor-pointer"
                           >
                             <td className="px-6 py-4">
                               <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-primary-500/20 to-primary-600/10 border border-primary-500/30">

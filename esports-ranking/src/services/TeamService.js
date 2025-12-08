@@ -14,11 +14,162 @@ export const linkWallet = async (id, wallet_address) => {
 
 export const getTeamById = async (id) => {
   try {
-    const team = await models.Team.findByPk(id);
-    if (!team) {
+    // Lấy thông tin user với role TEAM_MANAGER
+    const user = await models.User.findOne({
+      where: { 
+        id: id,
+        role: 3, // TEAM_MANAGER
+        status: 1,
+        deleted: 0
+      },
+      attributes: ['id', 'username', 'full_name', 'email', 'avatar', 'phone', 'wallet_address', 'created_date', 'description']
+    });
+
+    if (!user) {
       throw new Error('Không tìm thấy đội tuyển');
     }
-    return team;
+
+    // Lấy tất cả participant của user này để tính stats
+    const participants = await models.Participant.findAll({
+      where: { user_id: id, status: 'APPROVED' },
+      attributes: ['id', 'team_name', 'total_points']
+    });
+
+    const participantIds = participants.map(p => p.id);
+    let wins = 0;
+    let losses = 0;
+    let draws = 0;
+    let teamName = participants[0]?.team_name || user.full_name;
+
+    if (participantIds.length > 0) {
+      // Đếm số trận thắng
+      wins = await models.Match.count({
+        where: {
+          status: 'DONE',
+          winner_participant_id: { [models.Sequelize.Op.in]: participantIds }
+        }
+      });
+
+      // Đếm số trận thua
+      losses = await models.Match.count({
+        where: {
+          status: 'DONE',
+          winner_participant_id: { [models.Sequelize.Op.ne]: null },
+          [models.Sequelize.Op.or]: [
+            { 
+              team_a_participant_id: { [models.Sequelize.Op.in]: participantIds },
+              winner_participant_id: { [models.Sequelize.Op.notIn]: participantIds }
+            },
+            { 
+              team_b_participant_id: { [models.Sequelize.Op.in]: participantIds },
+              winner_participant_id: { [models.Sequelize.Op.notIn]: participantIds }
+            }
+          ]
+        }
+      });
+
+      // Đếm số trận hòa (nếu có)
+      draws = await models.Match.count({
+        where: {
+          status: 'DONE',
+          winner_participant_id: null,
+          [models.Sequelize.Op.or]: [
+            { team_a_participant_id: { [models.Sequelize.Op.in]: participantIds } },
+            { team_b_participant_id: { [models.Sequelize.Op.in]: participantIds } }
+          ]
+        }
+      });
+    }
+
+    // Đếm followers/following dựa trên bảng FavoriteTeam
+    const followersCount = await models.FavoriteTeam.count({ where: { team_id: id } });
+    const followingCount = await models.FavoriteTeam.count({ where: { user_id: id } });
+
+    // Lấy danh sách thành viên
+    const members = await models.TeamMember.findAll({
+      where: {
+        team_id: id,
+        status: 'APPROVED'
+      }
+    });
+
+    const formattedMembers = members.map(m => ({
+      id: m.id,
+      name: m.full_name || '',
+      full_name: m.full_name || null,
+      avatar: null,
+      phone: m.phone || null,
+      email: m.email || null,
+      position: m.position || null,
+      in_game_name: m.in_game_name || null,
+      role: 'Player',
+      status: m.status
+    }));
+
+    // Lấy danh sách giải đấu đã tham gia
+    const tournaments = await models.Tournament.findAll({
+      include: [{
+        model: models.Participant,
+        as: 'participants',
+        where: { 
+          user_id: id,
+          status: 'APPROVED'
+        },
+        required: true,
+        attributes: ['id', 'team_name', 'total_points']
+      }],
+      attributes: ['id', 'name', 'start_date', 'end_date', 'status', 'image']
+    });
+
+    // Lấy danh sách trận đấu
+    const matches = await models.Match.findAll({
+      where: {
+        [models.Sequelize.Op.or]: [
+          { team_a_participant_id: { [models.Sequelize.Op.in]: participantIds } },
+          { team_b_participant_id: { [models.Sequelize.Op.in]: participantIds } }
+        ]
+      },
+      attributes: ['id', 'match_time', 'status', 'team_a_participant_id', 'team_b_participant_id', 'winner_participant_id'],
+      order: [['match_time', 'DESC']],
+      limit: 20
+    });
+
+    // Lấy tên đội cho từng trận đấu
+    const formattedMatches = await Promise.all(matches.map(async (match) => {
+      const teamA = await models.Participant.findByPk(match.team_a_participant_id, { attributes: ['team_name'] });
+      const teamB = await models.Participant.findByPk(match.team_b_participant_id, { attributes: ['team_name'] });
+      
+      return {
+        id: match.id,
+        match_time: match.match_time,
+        status: match.status,
+        team_a_name: teamA?.team_name || 'TBD',
+        team_b_name: teamB?.team_name || 'TBD',
+        winner_participant_id: match.winner_participant_id
+      };
+    }));
+
+    return {
+      id: user.id,
+      name: user.full_name,
+      team_name: teamName,
+      username: user.username,
+      email: user.email,
+      avatar: user.avatar,
+      phone: user.phone,
+      wallet_address: user.wallet_address,
+      created_at: user.created_date,
+      wins: wins,
+      losses: losses,
+      draws: draws,
+      total_matches: wins + losses + draws,
+      followers: followersCount,
+      following: followingCount,
+      description: user.description || `Đội ${teamName}`,
+      members: formattedMembers,
+      tournaments: tournaments || [],
+      matches: formattedMatches || []
+    };
   } catch (error) {
     throw new Error(`getTeamById error: ${error.message}`);
   }

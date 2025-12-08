@@ -1,71 +1,138 @@
 import React, { useState, useMemo } from 'react';
-import { resolveTeamLogo } from '../../utils/imageHelpers';
-import { Edit, Heart, UserCheck } from 'lucide-react';
-import { API_CONFIG } from '../../config';
+import { normalizeImageUrl } from '../../utils/imageHelpers';
+import { Edit, Heart, UserCheck, Users, Trophy, Calendar } from 'lucide-react';
+import { THEME_COLORS } from '../../utils/constants';
+import { Card } from '../common/Card';
+import Button from '../common/Button';
 
-const TeamHeader = ({ team, onEdit, onShowFollowers, onShowFollowing }) => {
+const TeamHeader = ({ 
+  team, 
+  members = [],
+  tournaments = [],
+  onEdit, 
+  onShowFollowers, 
+  onShowFollowing, 
+  onToggleFavorite, 
+  isFavorite,
+  isPublicMode = false
+}) => {
   const stats = {
-    winRate: team?.total_matches ? Math.round((team.wins || 0) / team.total_matches * 100) : 0,
+    totalMatches: team?.total_matches || 0,
     wins: team?.wins || 0,
     losses: team?.losses || 0,
+    winRate: team?.total_matches > 0 
+      ? ((team.wins / team.total_matches) * 100).toFixed(0) 
+      : 0
   };
 
   return (
-    <div className="bg-gradient-to-r from-cyan-900/40 to-blue-900/40 rounded-3xl p-8 mb-8 border border-cyan-500/20 overflow-hidden">
-      <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-8">
-        <div className="relative">
-          {(() => {
-            const avatar = team?.avatar;
-
-            const buildCandidates = (url) => {
-              if (!url) return [];
-              const candidates = [];
-              if (/^https?:\/\//.test(url)) candidates.push(url);
-              else {
-                // try API base origin
-                const base = API_CONFIG?.baseURL || '';
-                const origin = base.replace(/\/api\/?$/, '') || '';
-                if (origin) candidates.push(`${origin}${url.startsWith('/') ? url : `/${url}`}`);
-                // try current origin
-                try { candidates.push(`${window.location.origin}${url.startsWith('/') ? url : `/${url}`}`); } catch(e){}
-                // finally raw value
-                candidates.push(url);
-              }
-              return candidates;
-            };
-
-            // Use centralized resolver
-            const src = resolveTeamLogo(team) || null;
-            if (!src) return (<div className="w-32 h-32 md:w-40 md:h-40 bg-gradient-to-br from-cyan-600 to-blue-700 rounded-2xl flex items-center justify-center text-6xl">🏆</div>);
-            return (
-              <img src={src} alt={team.team_name || team.name} className="w-32 h-32 md:w-40 md:h-40 rounded-2xl object-cover border-4 border-cyan-500/30" />
-            );
-          })()}
-        </div>
-
-        <div className="flex-1 text-center md:text-left">
-          <div className="flex flex-col md:flex-row items-center gap-4 mb-4">
-            <h1 className="text-4xl md:text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white via-cyan-100 to-cyan-400 uppercase tracking-tight">{team.team_name || team.name}</h1>
+    <div className="bg-gradient-to-br from-yellow-900/20 via-gray-900 to-black rounded-2xl overflow-hidden mb-8 shadow-2xl" style={{
+      borderWidth: '2px',
+      borderColor: THEME_COLORS.primary,
+      boxShadow: `0 20px 50px -12px ${THEME_COLORS.primary}40`
+    }}>
+      <div className="p-8">
+        <div className="flex flex-col md:flex-row gap-6 items-start">
+          {/* Team Avatar */}
+          <div className="relative">
+            {team.avatar ? (
+              <img 
+                src={normalizeImageUrl(team.avatar)} 
+                alt={team.team_name || team.name}
+                className="w-40 h-40 rounded-2xl object-cover border-4 shadow-2xl shadow-primary-500/20"
+                style={{ borderColor: THEME_COLORS.primary }}
+              />
+            ) : (
+              <div className="w-40 h-40 rounded-2xl bg-gradient-to-br border-4 flex items-center justify-center shadow-2xl shadow-primary-500/20" style={{ 
+                borderColor: THEME_COLORS.primary,
+                background: `linear-gradient(135deg, ${THEME_COLORS.primary}40, ${THEME_COLORS.primaryDark}40)`
+              }}>
+                <span className="text-6xl font-bold text-primary-400">
+                  {(team.team_name || team.name)?.charAt(0)?.toUpperCase() || 'T'}
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="flex flex-wrap justify-center md:justify-start gap-4 md:gap-8">
-            <div className="text-center"><div className="text-3xl font-bold text-green-400">{stats.winRate}%</div><div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Tỉ lệ thắng</div></div>
-            <div className="text-center"><div className="text-3xl font-bold text-white">{team.total_matches || 0}</div><div className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Trận đấu</div></div>
-            <div className="text-center flex gap-4"><div><div className="text-2xl font-bold text-blue-400">{stats.wins}W</div><div className="text-xs text-gray-500 font-bold">Thắng</div></div><div><div className="text-2xl font-bold text-red-400">{stats.losses}L</div><div className="text-xs text-gray-500 font-bold">Thua</div></div></div>
-          </div>
-        </div>
+          {/* Team Info */}
+          <div className="flex-1">
+            <h1 className="text-4xl font-bold mb-3 bg-clip-text text-transparent" style={{
+              backgroundImage: `linear-gradient(135deg, ${THEME_COLORS.primary}, ${THEME_COLORS.primaryLight})`
+            }}>
+              {team.team_name || team.name}
+            </h1>
+            
+            <p className="text-gray-300 text-lg mb-4 leading-relaxed">
+              {team.description || 'Chưa có mô tả'}
+            </p>
 
-        <div className="flex gap-4">
-          <button onClick={() => onShowFollowers && onShowFollowers()} className="bg-black/20 p-4 rounded-xl border border-white/5 text-center min-w-[100px] hover:bg-white/5 transition-colors" aria-label="Xem followers">
-            <Heart className="w-6 h-6 text-pink-500 mx-auto mb-1" />
-            <div className="font-bold text-xl">{team.followers || 0}</div>
-            <div className="text-[10px] text-gray-400 uppercase">Fans</div>
-          </button>
-          <button onClick={() => onShowFollowing && onShowFollowing()} className="bg-black/20 p-4 rounded-xl border border-white/5 text-center min-w-[100px] hover:bg-white/5 transition-colors" aria-label="Xem following">
-            <UserCheck className="w-6 h-6 text-purple-500 mx-auto mb-1" />
-            <div className="font-bold text-xl">{team.following || 0}</div>
-            <div className="text-[10px] text-gray-400 uppercase">Following</div>
-          </button>
+            <div className="flex flex-wrap gap-4 mb-4">
+              <div className="flex items-center gap-2 text-gray-300 hover:text-primary-400 transition-colors">
+                <Users className="w-5 h-5" style={{ color: THEME_COLORS.secondary }} />
+                <span>{members?.length || 0} thành viên</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-300 hover:text-primary-400 transition-colors">
+                <Trophy className="w-5 h-5" style={{ color: THEME_COLORS.warning }} />
+                <span>{tournaments?.length || 0} giải đấu</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-300 hover:text-primary-400 transition-colors">
+                <Calendar className="w-5 h-5" style={{ color: THEME_COLORS.primary }} />
+                <span>Tham gia {new Date(team.created_at).toLocaleDateString('vi-VN')}</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-300 cursor-pointer hover:text-pink-400 transition-colors" onClick={onShowFollowers}>
+                <Heart className="w-5 h-5" style={{ color: THEME_COLORS.live }} />
+                <span>{team.followers || 0} followers</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-300 cursor-pointer hover:text-green-400 transition-colors" onClick={onShowFollowing}>
+                <UserCheck className="w-5 h-5" style={{ color: THEME_COLORS.success }} />
+                <span>{team.following || 0} following</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              {isPublicMode ? (
+                onToggleFavorite && (
+                  <Button 
+                    onClick={onToggleFavorite}
+                    variant={isFavorite ? "secondary" : "primary"}
+                    leftIcon={isFavorite ? <UserCheck className="w-4 h-4" /> : <Heart className="w-4 h-4" />}
+                    className="shadow-lg hover:shadow-xl transition-shadow"
+                    style={{ boxShadow: isFavorite ? `0 4px 14px ${THEME_COLORS.secondary}60` : `0 4px 14px ${THEME_COLORS.primary}60` }}
+                  >
+                    {isFavorite ? 'Đang theo dõi' : 'Theo dõi đội'}
+                  </Button>
+                )
+              ) : (
+                onEdit && (
+                  <Button 
+                    onClick={onEdit}
+                    variant="secondary"
+                    leftIcon={<Edit className="w-4 h-4" />}
+                    className="shadow-lg hover:shadow-xl transition-shadow"
+                    style={{ boxShadow: `0 4px 14px ${THEME_COLORS.secondary}60` }}
+                  >
+                    Chỉnh sửa thông tin
+                  </Button>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="p-4 text-center bg-gradient-to-br from-green-900/30 to-green-800/20 border border-green-500/30 hover:shadow-lg hover:shadow-green-500/20 transition-all">
+              <div className="text-3xl font-bold mb-1" style={{ color: THEME_COLORS.success }}>{stats.wins}</div>
+              <div className="text-xs text-gray-400">Thắng</div>
+            </Card>
+            <Card className="p-4 text-center bg-gradient-to-br from-red-900/30 to-red-800/20 border border-red-500/30 hover:shadow-lg hover:shadow-red-500/20 transition-all">
+              <div className="text-3xl font-bold mb-1" style={{ color: THEME_COLORS.error }}>{stats.losses}</div>
+              <div className="text-xs text-gray-400">Thua</div>
+            </Card>
+            <Card className="p-4 text-center bg-gradient-to-br from-yellow-900/30 to-yellow-800/20 border border-yellow-500/30 col-span-2 hover:shadow-lg hover:shadow-yellow-500/20 transition-all">
+              <div className="text-3xl font-bold mb-1" style={{ color: THEME_COLORS.primary }}>{stats.winRate}%</div>
+              <div className="text-xs text-gray-400">Tỷ lệ thắng</div>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

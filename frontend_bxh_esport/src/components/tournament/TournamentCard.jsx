@@ -9,7 +9,7 @@ import tournamentService from '../../services/tournamentService';
 
 export const TournamentCard = ({ tournament, compact = false }) => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   // ==========================================
   // 1. LOGIC XỬ LÝ DỮ LIỆU
@@ -65,6 +65,9 @@ export const TournamentCard = ({ tournament, compact = false }) => {
     e.stopPropagation();
     navigate(`/tournaments/${tournament.id}`);
   }
+
+  // Check if user is a team (role = 3)
+  const isTeam = user?.role === 3 || user?.role === '3';
 
   useEffect(() => {
     const missing = !startDate || !endDate || participantsCount === undefined || participantsCount === null || prize === undefined || prize === null;
@@ -271,14 +274,14 @@ export const TournamentCard = ({ tournament, compact = false }) => {
                 bg-dark-300/50 border border-primary-500/30 text-gray-200
                 hover:bg-primary-500/10 hover:border-primary-500/60 hover:text-white
                 transition-all duration-300 rounded-lg
-                ${isRegisterOpen ? '' : 'col-span-2'}
+                ${(isRegisterOpen && isTeam) ? '' : 'col-span-2'}
               `}
             >
               Xem chi tiết
             </Button>
 
-            {/* Nút Đăng ký */}
-            {isRegisterOpen && (
+            {/* Nút Đăng ký - chỉ hiện khi user là team (role = 3) */}
+            {isRegisterOpen && isTeam && (
               <Button 
                 variant="primary" 
                 fullWidth={true}

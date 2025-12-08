@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
   Trophy, Users, Calendar, Target, TrendingUp, 
-  Edit, Plus, Save, X, UserPlus, Trash2, Heart, UserCheck, Award, Clock
+  Edit, Plus, Save, X, UserPlus, Trash2, Heart, UserCheck, Award, Clock,
+  BarChart3, Activity, Gamepad2, Zap
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { USER_ROLES } from '../../utils/constants';
+import { USER_ROLES, THEME_COLORS } from '../../utils/constants';
 import { useNotification } from '../../context/NotificationContext';
 import teamService from '../../services/teamService';
 import matchService from '../../services/matchService'; // ✅ THÊM IMPORT
 import favoriteTeamService from '../../services/favoriteTeamService';
 import { normalizeImageUrl } from '../../utils/imageHelpers';
+import PublicLayout from '../../components/layout/PublicLayout';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
@@ -22,8 +24,16 @@ import ScheduleList from '../../components/team/ScheduleList';
 
 export const TeamManagerDashboard = () => {
   const navigate = useNavigate();
+  const { id: teamIdParam } = useParams(); // Lấy team ID từ URL nếu có
   const { user } = useAuth();
   const { showSuccess, showError } = useNotification();
+  
+  // Xác định chế độ: public (xem đội khác) hoặc manager (quản lý đội của mình)
+  const isPublicMode = !!teamIdParam;
+  const teamIdToLoad = teamIdParam || user?.id;
+  
+  // Kiểm tra có hiển thị nút theo dõi không (admin và team manager không hiện)
+  const canFollow = user?.role !== USER_ROLES.ADMIN && user?.role !== USER_ROLES.TEAM_MANAGER;
   
   // --- STATE QUẢN LÝ UI ---
   const [activeTab, setActiveTab] = useState('overview');
@@ -44,6 +54,7 @@ export const TeamManagerDashboard = () => {
   const [followingList, setFollowingList] = useState([]);
   const [followingLoading, setFollowingLoading] = useState(false);
   const [favoriteMap, setFavoriteMap] = useState({});
+  const [isFavorite, setIsFavorite] = useState(false);
   
   // --- STATE FORM ---
   const [editData, setEditData] = useState({
@@ -68,13 +79,14 @@ export const TeamManagerDashboard = () => {
   // --- USE EFFECT ---
   useEffect(() => {
     console.debug('[Dashboard] current user from AuthContext:', user);
-    if (user) {
+    console.debug('[Dashboard] teamIdParam:', teamIdParam, 'isPublicMode:', isPublicMode);
+    if (isPublicMode || user) {
       loadData();
     }
-  }, [user]);
+  }, [user, teamIdParam]);
 
-  // If logged in user isn't a team manager, show a friendly message
-  if (user && user.role !== USER_ROLES.TEAM_MANAGER) {
+  // If logged in user isn't a team manager and NOT in public mode, show a friendly message
+  if (!isPublicMode && user && user.role !== USER_ROLES.TEAM_MANAGER) {
     return (
       <div className="min-h-screen bg-dark-500 text-white flex items-center justify-center">
         <div className="bg-gray-800/50 p-8 rounded-2xl border border-gray-700">
@@ -91,9 +103,16 @@ export const TeamManagerDashboard = () => {
       setIsLoading(true);
       setApiError(null);
       
-      // Gọi API lấy thông tin team
-      const teamRes = await teamService.getMyTeamInfo();
-      console.debug('[Dashboard] raw API response for getMyTeamInfo:', teamRes);
+      // Gọi API lấy thông tin team - public mode dùng getTeamById, manager mode dùng getMyTeamInfo
+      let teamRes;
+      if (isPublicMode) {
+        console.debug('[Dashboard] Loading team by ID:', teamIdToLoad);
+        teamRes = await teamService.getTeamById(teamIdToLoad);
+      } else {
+        console.debug('[Dashboard] Loading my team info');
+        teamRes = await teamService.getMyTeamInfo();
+      }
+      console.debug('[Dashboard] raw API response:', teamRes);
       
       const raw = teamRes?.data?.data || teamRes?.data || teamRes;
 
@@ -206,11 +225,18 @@ export const TeamManagerDashboard = () => {
         setMatches(matchesArr);
         setTournaments(tournamentsArr);
         
-        console.debug('[Dashboard] 📊 Final state:', {
-          members: membersArr.length,
-          matches: matchesArr.length,
-          tournaments: tournamentsArr.length
-        });
+        // Check favorite status in public mode
+        if (isPublicMode && user) {
+          try {
+            const status = await favoriteTeamService.getFavoriteStatus([team.id]);
+            const favIds = status?.favoriteTeamIds || [];
+            setIsFavorite(favIds.includes(parseInt(team.id)));
+          } catch (error) {
+            console.error('Error checking favorite status:', error);
+          }
+        }
+        
+     
       }
     } catch (error) {
       console.error("Lỗi tải dữ liệu đội:", error);
@@ -383,57 +409,71 @@ export const TeamManagerDashboard = () => {
       }
   };
 
-    const toggleFavorite = async (teamId) => {
-      try {
-        const currently = !!favoriteMap[teamId];
-        await favoriteTeamService.toggleFavoriteTeam(teamId, currently);
-        setFavoriteMap(prev => ({ ...prev, [teamId]: !currently }));
-      } catch (err) {
-        console.error('toggleFavorite error', err);
-      }
-    };
+  const toggleFavorite = async (teamId) => {
+    try {
+      const currently = !!favoriteMap[teamId];
+      await favoriteTeamService.toggleFavoriteTeam(teamId, currently);
+      setFavoriteMap(prev => ({ ...prev, [teamId]: !currently }));
+    } catch (err) {
+      console.error('toggleFavorite error', err);
+    }
+  };
+
+  const toggleTeamFavorite = async () => {
+    if (!user) {
+      showError('Vui lòng đăng nhập để theo dõi đội');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      await favoriteTeamService.toggleFavoriteTeam(teamData.id, isFavorite);
+      setIsFavorite(!isFavorite);
+      showSuccess(isFavorite ? 'Đã bỏ theo dõi đội' : 'Đã theo dõi đội');
+    } catch (error) {
+      showError('Không thể cập nhật trạng thái theo dõi');
+    }
+  };
 
   // --- RENDER: LOADING ---
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-dark-500 text-white flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-          <div className="text-primary-400 font-semibold">Đang tải dữ liệu đội...</div>
+    const loadingContent = (
+      <div className="min-h-screen text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Đang tải thông tin đội...</p>
         </div>
       </div>
     );
+    return isPublicMode ? <PublicLayout>{loadingContent}</PublicLayout> : loadingContent;
   }
 
   // --- RENDER: ERROR ---
   if (apiError) {
-    return (
-      <div className="min-h-screen bg-dark-500 text-white flex items-start justify-center p-6">
-        <div className="max-w-4xl w-full">
-          <Card className="p-6">
-            <h3 className="text-xl font-bold text-accent-red mb-4">Lỗi khi lấy thông tin đội</h3>
-            <pre className="whitespace-pre-wrap text-sm text-gray-200 bg-dark-400 p-4 rounded">{JSON.stringify(apiError, null, 2)}</pre>
-            <div className="mt-4">
-              <Button onClick={() => { setApiError(null); loadData(); }} className="px-4 py-2">Thử lại</Button>
-            </div>
-          </Card>
+    const errorContent = (
+      <div className="min-h-screen text-white flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-400 mb-4">Không tìm thấy đội</p>
+          <Button onClick={() => navigate('/teams')}>Quay lại danh sách</Button>
         </div>
       </div>
     );
+    return isPublicMode ? <PublicLayout>{errorContent}</PublicLayout> : errorContent;
   }
 
   // --- RENDER: NO TEAM ---
   if (!teamData) {
-    return (
-      <div className="min-h-screen bg-dark-500 text-white flex items-center justify-center">
-        <Card className="text-center p-10 max-w-md">
-          <Trophy className="w-20 h-20 text-gray-400 mx-auto mb-6" />
-          <div className="text-white text-2xl font-bold mb-2">Bạn chưa có đội tuyển</div>
-          <p className="text-gray-300 mb-8">Hãy tạo một đội mới để bắt đầu thi đấu.</p>
-          <Button onClick={() => navigate('/team-manager/create')} className="px-8 py-3" variant="primary">+ Tạo Đội Mới</Button>
-        </Card>
+    const noTeamContent = (
+      <div className="min-h-screen text-white flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-400 mb-4">Không tìm thấy đội</p>
+          <Button onClick={() => navigate(isPublicMode ? '/teams' : '/team-manager/create')}>
+            {isPublicMode ? 'Quay lại danh sách' : '+ Tạo Đội Mới'}
+          </Button>
+        </div>
       </div>
     );
+    return isPublicMode ? <PublicLayout>{noTeamContent}</PublicLayout> : noTeamContent;
   }
 
   // --- TÍNH TOÁN THỐNG KÊ ---
@@ -447,17 +487,26 @@ export const TeamManagerDashboard = () => {
   };
 
   // --- RENDER: MAIN DASHBOARD ---
-  return (
-    <div className="min-h-screen bg-dark-500 text-white bg-[url('/assets/grid-pattern.png')] bg-repeat">
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-        
+  const mainContent = (
+    <div className="min-h-screen text-white">
+      <div className="max-w-7xl mx-auto px-4 py-8">
         {/* === HEADER SECTION === */}
-        <TeamHeader team={teamData} onEdit={() => setIsEditingDesc(true)} onShowFollowers={openFollowersModal} onShowFollowing={openFollowingModal} />
+        <TeamHeader 
+          team={teamData}
+          members={members}
+          tournaments={tournaments}
+          onEdit={() => setIsEditingDesc(true)}
+          onShowFollowers={openFollowersModal}
+          onShowFollowing={openFollowingModal}
+          onToggleFavorite={canFollow ? toggleTeamFavorite : null}
+          isFavorite={isFavorite}
+          isPublicMode={isPublicMode}
+        />
 
         {/* === NAVIGATION TABS === */}
         <TabNav
           tabs={[
-            { id: 'overview', label: 'Tổng Quan', icon: <Target className="w-4 h-4"/> },
+            { id: 'overview', label: 'Tổng Quan', icon: <BarChart3 className="w-4 h-4"/> },
             { id: 'players', label: 'Tuyển Thủ', icon: <Users className="w-4 h-4"/> },
             { id: 'achievements', label: 'Thành Tích', icon: <Trophy className="w-4 h-4"/> },
             { id: 'schedule', label: 'Lịch Thi Đấu', icon: <Calendar className="w-4 h-4"/> }
@@ -472,9 +521,58 @@ export const TeamManagerDashboard = () => {
             
             {/* TAB: OVERVIEW */}
             {activeTab === 'overview' && (
-              <Card className="rounded-2xl p-8">
-                <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-primary-400">
-                  <span className="w-1 h-6 bg-primary-500 rounded-full" /> 
+              <>
+                {/* Thống kê trực quan */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                  <Card className="rounded-2xl p-6 bg-gradient-to-br from-blue-900/30 to-blue-800/20 border border-blue-500/30 hover:shadow-xl hover:shadow-blue-500/20 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl" style={{ backgroundColor: `${THEME_COLORS.secondary}30` }}>
+                        <Activity className="w-8 h-8" style={{ color: THEME_COLORS.secondary }} />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold" style={{ color: THEME_COLORS.secondary }}>{stats.wins + stats.losses}</div>
+                        <div className="text-sm text-gray-400">Trận đã đấu</div>
+                      </div>
+                    </div>
+                  </Card>
+                  <Card className="rounded-2xl p-6 bg-gradient-to-br from-green-900/30 to-green-800/20 border border-green-500/30 hover:shadow-xl hover:shadow-green-500/20 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl" style={{ backgroundColor: `${THEME_COLORS.success}30` }}>
+                        <Trophy className="w-8 h-8" style={{ color: THEME_COLORS.success }} />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold" style={{ color: THEME_COLORS.success }}>{stats.wins}</div>
+                        <div className="text-sm text-gray-400">Chiến thắng</div>
+                      </div>
+                    </div>
+                  </Card>
+                  <Card className="rounded-2xl p-6 bg-gradient-to-br from-purple-900/30 to-purple-800/20 border border-purple-500/30 hover:shadow-xl hover:shadow-purple-500/20 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl" style={{ backgroundColor: `${THEME_COLORS.primary}30` }}>
+                        <Gamepad2 className="w-8 h-8" style={{ color: THEME_COLORS.primary }} />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold" style={{ color: THEME_COLORS.primary }}>{tournaments?.length || 0}</div>
+                        <div className="text-sm text-gray-400">Giải đấu</div>
+                      </div>
+                    </div>
+                  </Card>
+                  <Card className="rounded-2xl p-6 bg-gradient-to-br from-orange-900/30 to-orange-800/20 border border-orange-500/30 hover:shadow-xl hover:shadow-orange-500/20 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl" style={{ backgroundColor: `${THEME_COLORS.warning}30` }}>
+                        <Zap className="w-8 h-8" style={{ color: THEME_COLORS.warning }} />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold" style={{ color: THEME_COLORS.warning }}>{members?.length || 0}</div>
+                        <div className="text-sm text-gray-400">Tuyển thủ</div>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+                
+                <Card className="rounded-2xl p-8">
+                <h2 className="text-xl font-bold mb-6 flex items-center gap-3" style={{ color: THEME_COLORS.primary }}>
+                  <BarChart3 className="w-6 h-6" style={{ color: THEME_COLORS.primary }} />
                   Giới Thiệu Đội Tuyển
                 </h2>
                 <div className="prose prose-invert max-w-none">
@@ -494,9 +592,11 @@ export const TeamManagerDashboard = () => {
                   ) : (
                     <>
                       <p className="text-gray-300 leading-loose whitespace-pre-wrap text-lg">{teamData.description || 'Chưa có mô tả giới thiệu về đội.'}</p>
-                      <div className="mt-3">
-                        <Button onClick={handleStartEditDesc} variant="secondary" size="sm" leftIcon={<Edit className="w-4 h-4" />}>Chỉnh sửa mô tả</Button>
-                      </div>
+                      {!isPublicMode && (
+                        <div className="mt-3">
+                          <Button onClick={handleStartEditDesc} variant="secondary" size="sm" leftIcon={<Edit className="w-4 h-4" />}>Chỉnh sửa mô tả</Button>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -527,34 +627,39 @@ export const TeamManagerDashboard = () => {
                   </div>
                 </div>
               </Card>
+              </>
             )}
 
             {/* TAB: PLAYERS */}
             {activeTab === 'players' && (
               <div className="space-y-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h2 className="text-xl font-bold flex items-center gap-3">
-                    <span className="w-1 h-6 bg-primary-500 rounded-full" /> 
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold flex items-center gap-3" style={{ color: THEME_COLORS.primary }}>
+                    <Users className="w-7 h-7" style={{ color: THEME_COLORS.primary }} />
                     Đội Hình Chính Thức
                   </h2>
-                  <Button 
-                    onClick={() => setShowAddMemberModal(true)} 
-                    variant="secondary" 
-                    size="sm" 
-                    leftIcon={<Plus className="w-4 h-4" />}
-                  >
-                    Thêm Thành Viên
-                  </Button>
+                  {!isPublicMode && (
+                    <Button 
+                      onClick={() => setShowAddMemberModal(true)} 
+                      variant="primary" 
+                      size="sm" 
+                      leftIcon={<Plus className="w-4 h-4" />}
+                      className="shadow-lg hover:shadow-xl transition-shadow"
+                      style={{ boxShadow: `0 4px 14px ${THEME_COLORS.primary}60` }}
+                    >
+                      Thêm Tuyển Thủ
+                    </Button>
+                  )}
                 </div>
-                <MembersList members={members} onRemove={handleRemoveMember} />
+                <MembersList members={members} onRemove={isPublicMode ? null : handleRemoveMember} />
               </div>
             )}
 
             {/* TAB: ACHIEVEMENTS */}
             {activeTab === 'achievements' && (
               <div className="space-y-6">
-                <h2 className="text-xl font-bold flex items-center gap-3">
-                  <span className="w-1 h-6 bg-yellow-500 rounded-full" /> 
+                <h2 className="text-2xl font-bold flex items-center gap-3" style={{ color: THEME_COLORS.warning }}>
+                  <Trophy className="w-7 h-7" style={{ color: THEME_COLORS.warning }} />
                   Lịch Sử Giải Đấu
                 </h2>
                 <TournamentsList tournaments={teamData.tournaments || tournaments} />
@@ -564,8 +669,8 @@ export const TeamManagerDashboard = () => {
             {/* TAB: SCHEDULE */}
             {activeTab === 'schedule' && (
               <div className="space-y-6">
-                <h2 className="text-xl font-bold flex items-center gap-3">
-                  <span className="w-1 h-6 bg-blue-500 rounded-full" /> 
+                <h2 className="text-2xl font-bold flex items-center gap-3" style={{ color: THEME_COLORS.secondary }}>
+                  <Calendar className="w-7 h-7" style={{ color: THEME_COLORS.secondary }} />
                   Lịch Thi Đấu Sắp Tới
                 </h2>
                 <ScheduleList matches={matches} />
@@ -725,4 +830,6 @@ export const TeamManagerDashboard = () => {
       </Modal>
     </div>
   );
+
+  return isPublicMode ? <PublicLayout>{mainContent}</PublicLayout> : mainContent;
 };

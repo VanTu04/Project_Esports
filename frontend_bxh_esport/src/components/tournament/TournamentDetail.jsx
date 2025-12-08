@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Card } from '../common/Card';
 import { Loading } from '../common/Loading';
 import Button from '../common/Button';
@@ -13,11 +13,16 @@ import { resolveTeamLogo } from '../../utils/imageHelpers';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import { USER_ROLES, ROUTES } from '../../utils/constants';
+import PublicLayout from '../layout/PublicLayout';
 
 export const TournamentDetail = () => {
   const { tournamentId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { showSuccess, showError } = useNotification();
+
+  // Check if this is a public route (not admin/dashboard route)
+  const isPublicRoute = location.pathname.startsWith('/tournaments') && !location.pathname.includes('/admin');
 
   const [loading, setLoading] = useState(true);
   const [tournament, setTournament] = useState(null);
@@ -34,9 +39,11 @@ export const TournamentDetail = () => {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [creatingRound, setCreatingRound] = useState(false);
   const [selectedRound, setSelectedRound] = useState(1);
+  const [isUserTeamRegistered, setIsUserTeamRegistered] = useState(false);
   const { user } = useAuth();
   const isAdmin = user && Number(user.role) === USER_ROLES.ADMIN;
   const isTeamManager = user && Number(user.role) === USER_ROLES.TEAM_MANAGER;
+  const isTeam = user && (Number(user.role) === 3 || Number(user.role) === USER_ROLES.TEAM_MANAGER);
 
   useEffect(() => {
     loadData();
@@ -91,6 +98,12 @@ export const TournamentDetail = () => {
           }
         });
         setTeamLogos(map);
+        
+        // Check if current user's team is registered
+        if (user && isTeam) {
+          const userTeamRegistered = normalizedTeams.some(t => t.user_id === user.id || t.id === user.id);
+          setIsUserTeamRegistered(userTeamRegistered);
+        }
       } catch {
         setTeams([]);
       }
@@ -176,8 +189,7 @@ export const TournamentDetail = () => {
       scheduledReachedFlag = !!matchOrStatus.__scheduledReached;
     }
 
-    // BYE detection: if this is a BYE/walkover match, show a BYE badge and
-    // do not surface scheduling-related labels like 'Chưa diễn ra' or 'Chưa có lịch'.
+    // BYE detection: if this is a BYE/walkover match, don't show any badge
     const isBye = (obj) => {
       if (!obj || typeof obj !== 'object') return false;
       if (obj.is_bye || obj.bye || obj.walkover || obj.isWalkover) return true;
@@ -187,7 +199,7 @@ export const TournamentDetail = () => {
       return false;
     };
     if (isBye(matchOrStatus)) {
-      return (<span className={`px-2 py-1 rounded-full text-xs font-medium border bg-amber-300/20 text-amber-300 border-amber-300/30`}>Miễn thi đấu</span>);
+      return null;
     }
 
     // If there's no scheduled time or scheduled time is in the future, show 'Chưa diễn ra'
@@ -201,11 +213,11 @@ export const TournamentDetail = () => {
 
     const badges = {
       // PENDING: treat as ongoing and editable
-      PENDING: { bg: 'bg-gray-500/20', text: 'text-gray-300', border: 'border-gray-500/30', label: 'Đang diễn ra' },
+      PENDING: { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/30', label: 'Đang diễn ra' },
       // COMPLETED: finished but still editable (allow result edits)
-      COMPLETED: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', label: 'Đã kết thúc' },
+      COMPLETED: { bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30', label: 'Hoàn thành' },
       // DONE: finished and locked (no edits allowed)
-      DONE: { bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30', label: 'Đã kết thúc' },
+      DONE: { bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/30', label: 'Hoàn thành' },
     };
     const badge = badges[status] || badges.PENDING;
     return (
@@ -478,22 +490,24 @@ export const TournamentDetail = () => {
   }, {});
 
   if (loading) {
-    return (
+    const loadingContent = (
       <div className="flex items-center justify-center min-h-screen">
         <Loading size="lg" text="Đang tải dữ liệu..." />
       </div>
     );
+    return isPublicRoute ? <PublicLayout>{loadingContent}</PublicLayout> : loadingContent;
   }
 
   if (!tournament) {
-    return (
+    const errorContent = (
       <div className="p-8 text-center">
         <p className="text-gray-300">Không tìm thấy giải đấu</p>
-        <Button onClick={() => navigate('/admin/tournaments')} className="mt-4">
-          Quay lại danh sách
+        <Button onClick={() => navigate(-1)} className="mt-4">
+          Quay lại
         </Button>
       </div>
     );
+    return isPublicRoute ? <PublicLayout>{errorContent}</PublicLayout> : errorContent;
   }
 
   const groupedMatches = groupMatchesByRound();
@@ -510,41 +524,60 @@ export const TournamentDetail = () => {
 
   // Leaderboard normalization moved into `LeaderboardTable` for clarity.
 
-  return (
-    <div className="min-h-screen bg-dark-400 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+  // Check tournament status
+  const tournamentStatus = (tournament?.status || '').toString().toUpperCase();
+  const isPending = tournamentStatus === 'PENDING';
+  const isActive = tournamentStatus === 'ACTIVE';
+  const isCompleted = tournamentStatus === 'COMPLETED';
+  const showMatchesTab = isActive || isCompleted;
+  const showLeaderboardTab = tournament?.leaderboard_saved === 1 || tournament?.leaderboard_saved === true;
 
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                // Prefer going back in browser history when possible so users
-                // return to their previous page. Fall back to HOME route.
-                try {
-                  if (window && window.history && window.history.length > 1) {
-                    return navigate(-1);
+  // Wrap content with PublicLayout if user is not logged in
+  const content = (
+    <div className="min-h-screen text-white">
+      <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  // Prefer going back in browser history when possible so users
+                  // return to their previous page. Fall back to HOME route.
+                  try {
+                    if (window && window.history && window.history.length > 1) {
+                      return navigate(-1);
+                    }
+                  } catch (e) {
+                    // ignore and fallback
                   }
-                } catch (e) {
-                  // ignore and fallback
-                }
-                return navigate(ROUTES.HOME || '/');
-              }}
-            >
-              Quay lại
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-white">{tournament.name}</h1>
-              <p className="text-gray-300 text-sm">{tournament.game_name || 'Esports'}</p>
-              {tournament?.prize_pool != null && (
-                <div className="text-sm text-yellow-300 mt-1">Giải thưởng: {tournament.prize_pool} ETH</div>
-              )}
-              
+                  return navigate(ROUTES.HOME || '/');
+                }}
+              >
+                Quay lại
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold text-white">{tournament.name}</h1>
+                <p className="text-gray-300 text-sm">{tournament.game_name || 'Esports'}</p>
+                {tournament?.prize_pool != null && (
+                  <div className="text-sm text-yellow-300 mt-1">Giải thưởng: {tournament.prize_pool} ETH</div>
+                )}
+              </div>
             </div>
+            
+            {/* Register button - only show for teams who haven't registered and tournament is PENDING */}
+            {isPending && isTeam && !isUserTeamRegistered && (
+              <Button
+                variant="primary"
+                onClick={() => navigate(`/tournaments/${tournamentId}/register`)}
+                className="bg-gradient-to-r from-primary-500 to-primary-600 shadow-lg shadow-primary-500/30"
+              >
+                Đăng ký tham gia
+              </Button>
+            )}
           </div>
-        </div>
 
         {/* Thông tin giải đấu */}
         <TournamentInfo
@@ -553,17 +586,12 @@ export const TournamentDetail = () => {
           matchesLength={matches.length}
           normalizedRewards={normalizedRewards}
           formatDateTime={(d) => (d ? new Date(d).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '')}
-          isTeamView={isTeamManager}
+          isTeamView={false}
           isAdmin={isAdmin}
-          handleStartNewRound={handleStartNewRound}
+          handleStartNewRound={isAdmin ? handleStartNewRound : undefined}
           creatingRound={creatingRound}
           teams={teams}
         />
-
-       
-
-        {/* Show Register button for non-admin users when tournament is PENDING */}
-        
 
         {/* Tabs */}
         <div className="border-b border-primary-700/20">
@@ -571,45 +599,49 @@ export const TournamentDetail = () => {
             <button
               onClick={() => setActiveTab('teams')}
               className={`pb-4 px-2 border-b-2 font-medium transition-colors ${
-                activeTab === 'teams' ? 'border-cyan-300 text-cyan-300' : 'border-transparent text-gray-300 hover:text-cyan-200 hover:border-cyan-400/50'
+                activeTab === 'teams' ? 'border-primary-500 text-primary-400' : 'border-transparent text-gray-300 hover:text-primary-300 hover:border-primary-400/50'
               }`}
             >
               Danh sách đội
             </button>
-            <button
-              onClick={() => setActiveTab('matches')}
-              className={`pb-4 px-2 border-b-2 font-medium transition-colors ${
-                activeTab === 'matches' ? 'border-cyan-300 text-cyan-300' : 'border-transparent text-gray-300 hover:text-cyan-200 hover:border-cyan-400/50'
-              }`}
-            >
-              Danh sách trận
-            </button>
-            <button
-              onClick={async () => {
-                setActiveTab('leaderboard');
-                setLeaderboardLoading(true);
-                try {
-                  const resp = await tournamentService.getFinalLeaderboard(tournamentId);
-                  let raw = [];
-                  if (resp?.code === 0 && resp?.data?.leaderboard) raw = resp.data.leaderboard;
-                  else if (resp?.data && Array.isArray(resp.data.leaderboard)) raw = resp.data.leaderboard;
-                  else if (Array.isArray(resp)) raw = resp;
-                  else if (resp?.leaderboard) raw = resp.leaderboard;
+            {showMatchesTab && (
+              <button
+                onClick={() => setActiveTab('matches')}
+                className={`pb-4 px-2 border-b-2 font-medium transition-colors ${
+                  activeTab === 'matches' ? 'border-primary-500 text-primary-400' : 'border-transparent text-gray-300 hover:text-primary-300 hover:border-primary-400/50'
+                }`}
+              >
+                Danh sách trận
+              </button>
+            )}
+            {showLeaderboardTab && (
+              <button
+                onClick={async () => {
+                  setActiveTab('leaderboard');
+                  setLeaderboardLoading(true);
+                  try {
+                    const resp = await tournamentService.getFinalLeaderboard(tournamentId);
+                    let raw = [];
+                    if (resp?.code === 0 && resp?.data?.leaderboard) raw = resp.data.leaderboard;
+                    else if (resp?.data && Array.isArray(resp.data.leaderboard)) raw = resp.data.leaderboard;
+                    else if (Array.isArray(resp)) raw = resp;
+                    else if (resp?.leaderboard) raw = resp.leaderboard;
 
-                  setLeaderboard(Array.isArray(raw) ? raw : raw?.leaderboard ?? []);
-                } catch (err) {
-                  console.error('Failed to load leaderboard', err);
-                  setLeaderboard([]);
-                } finally {
-                  setLeaderboardLoading(false);
-                }
-              }}
-              className={`pb-4 px-2 border-b-2 font-medium transition-colors ${
-                activeTab === 'leaderboard' ? 'border-cyan-300 text-cyan-300' : 'border-transparent text-gray-300 hover:text-cyan-200 hover:border-cyan-400/50'
-              }`}
-            >
-              Bảng xếp hạng
-            </button>
+                    setLeaderboard(Array.isArray(raw) ? raw : raw?.leaderboard ?? []);
+                  } catch (err) {
+                    console.error('Failed to load leaderboard', err);
+                    setLeaderboard([]);
+                  } finally {
+                    setLeaderboardLoading(false);
+                  }
+                }}
+                className={`pb-4 px-2 border-b-2 font-medium transition-colors ${
+                  activeTab === 'leaderboard' ? 'border-primary-500 text-primary-400' : 'border-transparent text-gray-300 hover:text-primary-300 hover:border-primary-400/50'
+                }`}
+              >
+                Bảng xếp hạng
+              </button>
+            )}
           </div>
         </div>
 
@@ -642,15 +674,23 @@ export const TournamentDetail = () => {
         )}
 
         {/* Tab Content - Leaderboard */}
-        {activeTab === 'leaderboard' && (
+        {activeTab === 'leaderboard' && showLeaderboardTab && (
           <LeaderboardTable data={leaderboard} loading={leaderboardLoading} rewards={rewardsMap} showRewardColumn={false} />
         )}
+        </div>
+
+        {/* Modals moved into `TournamentMatches` to keep this container focused on data and tabs */}
+
       </div>
-
-      {/* Modals moved into `TournamentMatches` to keep this container focused on data and tabs */}
-
-    </div>
   );
+
+  // If this is a public route (/tournaments/:id), wrap with PublicLayout
+  if (isPublicRoute) {
+    return <PublicLayout>{content}</PublicLayout>;
+  }
+
+  // If this is an admin/dashboard route, return content directly (already wrapped by DashboardLayout)
+  return content;
 };
 
 export default TournamentDetail;

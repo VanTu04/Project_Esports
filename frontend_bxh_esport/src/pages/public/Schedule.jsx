@@ -621,7 +621,7 @@ const Schedule = () => {
           {/* Center: Matches or Leaderboard */}
           <section className="flex-1 p-6 border-r border-gray-800 overflow-y-auto h-full">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl text-white">{showLeaderboardInline ? '📊 Bảng xếp hạng' : '📅 Lịch thi đấu'}</h2>
+              <h2 className="text-xl text-white">{showLeaderboardInline ? 'Bảng xếp hạng' : 'Lịch thi đấu'}</h2>
               {selectedTournamentObj?.status === 'COMPLETED' && (
                 <button
                   onClick={() => setShowLeaderboardInline(prev => !prev)}
@@ -653,7 +653,7 @@ const Schedule = () => {
             ) : showLeaderboardInline ? (
               <div>
                 <div className="mb-4">
-                  <div className="text-lg font-bold text-white truncate">
+                  <div className="text-2xl font-bold text-white truncate">
                     {selectedTournamentObj?.tournament_name || selectedTournamentObj?.name || 'Giải đấu'}
                   </div>
                 </div>
@@ -673,7 +673,7 @@ const Schedule = () => {
             ) : (
               <div>
                 <div className="mb-4">
-                  <div className="text-lg font-bold text-white truncate">
+                  <div className="text-2xl font-bold text-white truncate">
                     {selectedTournamentObj?.tournament_name || selectedTournamentObj?.name || 'Giải đấu'}
                   </div>
                 </div>
