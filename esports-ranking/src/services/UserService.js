@@ -473,11 +473,10 @@ export const updateProfile = async (userId, { full_name, phone, avatar }) => {
   const user = await models.User.findByPk(userId);
 
   if (!user) throw new Error("User không tồn tại");
-  const baseUrl = process.env.BACKEND_URL || 'http://localhost:8081';
   await user.update({
     full_name,
     phone,
-    avatar: avatar ? `${baseUrl}${avatar}` : user.avatar
+    avatar: avatar ? `${avatar}` : user.avatar
   });
 
   return true;

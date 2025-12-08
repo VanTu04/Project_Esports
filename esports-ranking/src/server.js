@@ -56,7 +56,7 @@ app.use(cors({
 // 3. Rate Limiting - Prevent brute force attacks
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 1000, // Limit each IP to 1000 requests per 15 minutes (tăng lên cho production)
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -67,12 +67,12 @@ app.use('/api/', limiter);
 
 // Stricter rate limit for auth endpoints
 const authLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute (for easier testing)
-  max: 3, // Limit each IP to 3 attempts per minute
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 login attempts per 15 minutes (production value)
   message: {
     code: 429,
     status: 429,
-    message: 'Too many login attempts, please try again after 1 minute.',
+    message: 'Too many login attempts, please try again after 15 minutes.',
   },
   skipSuccessfulRequests: true,
   standardHeaders: true,
@@ -83,7 +83,7 @@ const authLimiter = rateLimit({
     res.status(429).json({
       code: 429,
       status: 429,
-      message: 'Too many login attempts, please try again after 1 minute.',
+      message: 'Too many login attempts, please try again after 15 minutes.',
     });
   },
 });
