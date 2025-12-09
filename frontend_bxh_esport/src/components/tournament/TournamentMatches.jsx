@@ -309,14 +309,20 @@
                         {(() => {
                           const statusUpper = (match.status || '').toString().toUpperCase();
                           const tournamentDone = ['DONE', 'COMPLETED'].includes((tournament?.status || '').toString().toUpperCase());
+                          const totalRounds = tournament?.total_rounds || 0;
+                          const isSingleRound = totalRounds === 1;
 
                           // Show "Cập nhật thời gian" for admins when the match is PENDING,
                           // or when it has no scheduled time and the status isn't COMPLETED/DONE/CANCELLED.
                           const showUpdateTime = isAdmin && !isTeamView && !tournamentDone && !['DONE', 'CANCELLED', 'COMPLETED'].includes(statusUpper) && (statusUpper === 'PENDING' || !match.match_time);
 
+                          // Nếu giải chỉ có 1 vòng, không cho cập nhật kết quả nếu tỷ số hòa
+                          const isDrawScore = scoreA != null && scoreB != null && scoreA === scoreB;
+                          const blockUpdateDueToDrawInSingleRound = isSingleRound && isDrawScore;
+
                           // Show "Cập nhật kết quả" only when the match is not DONE/CANCELLED
                           // AND either the scheduled time has been reached or the match is already COMPLETED.
-                          const showUpdateResult = isAdmin && !isTeamView && !tournamentDone && !['DONE', 'CANCELLED'].includes(statusUpper) && !!match.team_b_participant_id && (scheduledReached || statusUpper === 'COMPLETED');
+                          const showUpdateResult = isAdmin && !isTeamView && !tournamentDone && !['DONE', 'CANCELLED'].includes(statusUpper) && !!match.team_b_participant_id && (scheduledReached || statusUpper === 'COMPLETED') && !blockUpdateDueToDrawInSingleRound;
 
                           return (
                             <>
@@ -329,13 +335,19 @@
                                 </Button>
                               )}
 
-                              {showUpdateResult && (
+                              {showUpdateResult ? (
                                 <Button variant="primary" size="sm" onClick={() => { console.debug('open score modal', match.id, statusUpper, 'scheduledReached=', scheduledReached); handleOpenScoreModal(match); }} className="text-white">
                                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                   </svg>
                                   Cập nhật kết quả
                                 </Button>
+                              ) : (
+                                blockUpdateDueToDrawInSingleRound && isAdmin && !isTeamView && !tournamentDone && !['DONE', 'CANCELLED'].includes(statusUpper) && !!match.team_b_participant_id && (
+                                  <div className="text-sm text-yellow-400 px-3 py-1 bg-yellow-400/10 rounded">
+                                    Giải 1 vòng không cho phép tỷ số hòa
+                                  </div>
+                                )
                               )}
                             </>
                           );
