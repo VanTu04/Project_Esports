@@ -824,74 +824,151 @@ export const getMyRegistrationStatus = async (req, res) => {
 
 
 
-// === Helper: Ghép cặp Swiss ===
-const swissPairing = (participants, matchesSoFar) => {
-  // --- Sort by total_points DESC ---
-  participants.sort((a, b) => b.total_points - a.total_points);
+// ⭐ THUẬT TOÁN SWISS PAIRING CẢI TIẾN
+// Sử dụng backtracking để tìm cách ghép tối ưu, tránh deadlock
 
-  const pairs = [];
-  const used = new Set();
+/**
+ * Kiểm tra 2 đội đã gặp nhau chưa
+ */
+const hasPlayed = (p1Id, p2Id, matchHistory) => {
+  return matchHistory.some(m =>
+    (m.team_a_participant_id === p1Id && m.team_b_participant_id === p2Id) ||
+    (m.team_a_participant_id === p2Id && m.team_b_participant_id === p1Id)
+  );
+};
 
-  for (let i = 0; i < participants.length; i++) {
-    if (used.has(participants[i].id)) continue;
+/**
+ * Thuật toán backtracking để tìm cách ghép cặp tối ưu
+ */
+const findOptimalPairing = (participants, used, matchHistory, currentPairs = []) => {
+  // Tìm đội chưa ghép đầu tiên
+  const unpairedIndex = participants.findIndex(p => !used.has(p.id));
+  
+  // Nếu tất cả đã ghép → thành công
+  if (unpairedIndex === -1) {
+    return { success: true, pairs: currentPairs };
+  }
 
-    for (let j = i + 1; j < participants.length; j++) {
-      if (used.has(participants[j].id)) continue;
+  const p1 = participants[unpairedIndex];
 
-      // Check if they already played together
-      const alreadyPlayed = matchesSoFar.some(
-        m =>
-          (m.team_a_participant_id === participants[i].id &&
-            m.team_b_participant_id === participants[j].id) ||
-          (m.team_a_participant_id === participants[j].id &&
-            m.team_b_participant_id === participants[i].id)
-      );
+  // Thử ghép với tất cả đội phía sau
+  for (let i = unpairedIndex + 1; i < participants.length; i++) {
+    const p2 = participants[i];
+    
+    // Bỏ qua nếu đã dùng hoặc đã gặp nhau
+    if (used.has(p2.id) || hasPlayed(p1.id, p2.id, matchHistory)) {
+      continue;
+    }
 
-      if (!alreadyPlayed) {
-        pairs.push([participants[i], participants[j]]);
-        used.add(participants[i].id);
-        used.add(participants[j].id);
-        break;
-      }
+    // Thử ghép cặp này
+    const newUsed = new Set(used);
+    newUsed.add(p1.id);
+    newUsed.add(p2.id);
+
+    const newPairs = [...currentPairs, [p1, p2]];
+
+    // Đệ quy tìm cách ghép tiếp
+    const result = findOptimalPairing(participants, newUsed, matchHistory, newPairs);
+    
+    if (result.success) {
+      return result;
     }
   }
 
-  // Nếu còn 1 đội -> Bye
-  const remaining = participants.filter(p => !used.has(p.id));
-
-  // Ưu tiên đội chưa nhận bye
-  const byeTeam = remaining.length > 0
-    ? remaining.find(t => t.has_received_bye === false) || remaining[0]
-    : null;
-
-  return { pairs, byeTeam };
+  // Không tìm được cách ghép → backtrack
+  return { success: false, pairs: [] };
 };
-// === ADMIN TẠO VÒNG THỤY SĨ ===
-// === ADMIN: Bắt đầu giải đấu Thụy Sĩ ===
-// Bạn cần import sequelize instance để dùng transaction
-// Ví dụ: import models from '../models'; const sequelize = models.sequelize;
-// Hoặc import { sequelize } from '../models';
 
+/**
+ * Ghép cặp Swiss với xử lý BYE thông minh
+ */
+const swissPairing = (participants, matchHistory) => {
+  // Sắp xếp theo điểm giảm dần
+  const sorted = [...participants].sort((a, b) => b.total_points - a.total_points);
+
+  // Trường hợp đặc biệt: chỉ 1 đội
+  if (sorted.length === 1) {
+    return { 
+      pairs: [], 
+      byeTeam: sorted[0] 
+    };
+  }
+
+  // Trường hợp số lẻ: tách đội yếu nhất làm BYE
+  let candidates = sorted;
+  let byeTeam = null;
+
+  if (sorted.length % 2 === 1) {
+    // Tìm đội yếu nhất chưa nhận BYE
+    const noBye = sorted.filter(p => !p.has_received_bye);
+    
+    if (noBye.length > 0) {
+      // Lấy đội yếu nhất chưa nhận BYE
+      byeTeam = noBye[noBye.length - 1];
+    } else {
+      // Tất cả đã nhận BYE → lấy đội yếu nhất
+      byeTeam = sorted[sorted.length - 1];
+    }
+
+    // Loại đội BYE khỏi danh sách ghép cặp
+    candidates = sorted.filter(p => p.id !== byeTeam.id);
+  }
+
+  // Thử ghép cặp với backtracking
+  const result = findOptimalPairing(candidates, new Set(), matchHistory);
+
+  // Nếu ghép được → trả về kết quả
+  if (result.success) {
+    return {
+      pairs: result.pairs,
+      byeTeam
+    };
+  }
+
+  // 🚨 Nếu không ghép được (rất hiếm) → ghép bắt buộc cho phép lặp lại đối thủ
+  console.warn('⚠️ Không thể ghép cặp mà không lặp đối thủ. Cho phép lặp lại.');
+  
+  const forcedPairs = [];
+  const used = new Set();
+
+  for (let i = 0; i < candidates.length; i++) {
+    if (used.has(candidates[i].id)) continue;
+
+    // Tìm đối thủ gần nhất về điểm
+    for (let j = i + 1; j < candidates.length; j++) {
+      if (used.has(candidates[j].id)) continue;
+
+      forcedPairs.push([candidates[i], candidates[j]]);
+      used.add(candidates[i].id);
+      used.add(candidates[j].id);
+      break;
+    }
+  }
+
+  return {
+    pairs: forcedPairs,
+    byeTeam
+  };
+};
+
+// ⭐ CẬP NHẬT HÀM START TOURNAMENT
 export const startTournamentSwiss = async (req, res) => {
   const t = await models.sequelize.transaction();
 
   try {
     const { id: tournament_id } = req.params;
 
-    // 🟡 1. Lấy tournament
     const tournament = await models.Tournament.findByPk(tournament_id, { transaction: t });
     if (!tournament) {
       await t.rollback();
       return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại.'));
     }
 
-    // ⛔ Check status
     if (tournament.status === 'COMPLETED') {
       await t.rollback();
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Giải đấu đã kết thúc.'));
     }
 
-    // 🟡 2. Lấy danh sách team APPROVED
     const participants = await models.Participant.findAll({
       where: { tournament_id, status: 'APPROVED' },
       transaction: t
@@ -906,26 +983,22 @@ export const startTournamentSwiss = async (req, res) => {
       await t.rollback();
       return res.json(responseWithError(
         ErrorCodes.ERROR_REQUEST_DATA_INVALID,
-        `Số lượng đội đã duyệt (${participants.length}) chưa đủ (${tournament.total_team}). Không thể bắt đầu.`
+        `Số lượng đội đã duyệt (${participants.length}) chưa đủ (${tournament.total_team}).`
       ));
     }
 
-    // 🟡 3. Lấy lịch sử match để tránh trùng đối thủ
     const matchesSoFar = await models.Match.findAll({
       where: { tournament_id },
       transaction: t
     });
 
-    // 🟡 4. Xác định round_number
-    const round_number =
-      matchesSoFar.length === 0
-        ? 1
-        : Math.max(...matchesSoFar.map(m => m.round_number)) + 1;
+    const round_number = matchesSoFar.length === 0
+      ? 1
+      : Math.max(...matchesSoFar.map(m => m.round_number)) + 1;
 
-    // 🟡 5. Swiss pairing
+    // ⭐ Sử dụng thuật toán Swiss cải tiến
     const { pairs, byeTeam } = swissPairing(participants, matchesSoFar);
 
-    // 🟡 6. Tạo danh sách match
     const matchesData = pairs.map(pair => ({
       tournament_id,
       round_number,
@@ -934,9 +1007,9 @@ export const startTournamentSwiss = async (req, res) => {
       status: 'PENDING'
     }));
 
-    // 🟡 7. Xử lý BYE
+    // Xử lý BYE
     if (byeTeam) {
-      const BYE_POINTS = 2; // đồng bộ với quy tắc: thắng = 2 điểm, hòa = 1 điểm
+      const BYE_POINTS = 2;
 
       matchesData.push({
         tournament_id,
@@ -949,31 +1022,25 @@ export const startTournamentSwiss = async (req, res) => {
         point_team_b: 0
       });
 
-      // đánh dấu đã nhận bye
       await models.Participant.update(
         { has_received_bye: true },
         { where: { id: byeTeam.id }, transaction: t }
       );
 
-      // cộng điểm vào total_points
       await models.Participant.increment(
         { total_points: BYE_POINTS },
         { where: { id: byeTeam.id }, transaction: t }
       );
     }
 
-    // 🟡 8. Lưu match
     await models.Match.bulkCreate(matchesData, { transaction: t });
 
-    // 🟡 9. Update tournament
-    const updateData =
-      tournament.status === 'PENDING'
-        ? { status: 'ACTIVE', current_round: round_number }
-        : { current_round: round_number };
+    const updateData = tournament.status === 'PENDING'
+      ? { status: 'ACTIVE', current_round: round_number }
+      : { current_round: round_number };
 
     await tournament.update(updateData, { transaction: t });
 
-    // 🟢 10. Commit
     await t.commit();
 
     return res.json(
@@ -981,7 +1048,14 @@ export const startTournamentSwiss = async (req, res) => {
         {
           round_number,
           matches_created: matchesData.length,
-          bye_team: byeTeam?.team_name || null
+          total_pairs: pairs.length,
+          bye_team: byeTeam?.team_name || null,
+          // 🔍 Debug info
+          debug: {
+            total_participants: participants.length,
+            is_odd: participants.length % 2 === 1,
+            expected_matches: Math.floor(participants.length / 2)
+          }
         },
         `Đã tạo vòng ${round_number} thành công`
       )
@@ -1189,12 +1263,12 @@ export const updateMatchScore = async (req, res) => {
 };
 
 
+// ⭐ CẬP NHẬT HÀM START NEXT ROUND
 export const startNextRound = async (req, res) => {
-  const t = await models.sequelize.transaction(); // Bắt đầu transaction
+  const t = await models.sequelize.transaction();
   try {
     const { tournament_id } = req.params;
 
-    // 1️⃣ Lấy tournament
     const tournament = await models.Tournament.findByPk(tournament_id, { transaction: t });
     if (!tournament) {
       await t.rollback();
@@ -1212,7 +1286,6 @@ export const startNextRound = async (req, res) => {
 
     const currentRound = tournament.current_round;
 
-    // 2️⃣ Kiểm tra còn trận PENDING không
     const incomplete = await models.Match.count({
       where: { tournament_id, round_number: currentRound, status: "PENDING" },
       transaction: t
@@ -1225,7 +1298,6 @@ export const startNextRound = async (req, res) => {
       );
     }
 
-    // 2.5️⃣ Chuyển tất cả match vòng trước COMPLETED sang DONE
     await models.Match.update(
       { status: "DONE" },
       {
@@ -1236,14 +1308,12 @@ export const startNextRound = async (req, res) => {
 
     const nextRound = currentRound + 1;
 
-    // 3️⃣ Kiểm tra vượt số vòng tối đa
     if (nextRound > tournament.total_rounds) {
       await tournament.update({ status: "COMPLETED" }, { transaction: t });
       await t.commit();
       return res.json(responseSuccess({}, "Giải đấu đã kết thúc."));
     }
 
-    // 4️⃣ Lấy danh sách participant APPROVED (trong transaction)
     const participants = await models.Participant.findAll({
       where: { tournament_id, status: "APPROVED" },
       transaction: t
@@ -1256,16 +1326,14 @@ export const startNextRound = async (req, res) => {
       );
     }
 
-    // 5️⃣ Lấy lịch sử match
     const matchHistory = await models.Match.findAll({
       where: { tournament_id },
       transaction: t
     });
 
-    // 6️⃣ Ghép cặp Swiss
+    // ⭐ Sử dụng thuật toán Swiss cải tiến
     const { pairs, byeTeam } = swissPairing(participants, matchHistory);
 
-    // 7️⃣ Chuẩn bị match mới
     const newMatches = [];
     for (const pair of pairs) {
       newMatches.push({
@@ -1277,7 +1345,6 @@ export const startNextRound = async (req, res) => {
       });
     }
 
-    // 8️⃣ Xử lý BYE
     if (byeTeam) {
       newMatches.push({
         tournament_id,
@@ -1301,10 +1368,7 @@ export const startNextRound = async (req, res) => {
       );
     }
 
-    // 9️⃣ Lưu match mới
     await models.Match.bulkCreate(newMatches, { transaction: t });
-
-    // 🔟 Cập nhật tournament sang vòng mới
     await tournament.update({ current_round: nextRound, status: "ACTIVE" }, { transaction: t });
 
     await t.commit();
@@ -1314,7 +1378,13 @@ export const startNextRound = async (req, res) => {
         {
           round_number: nextRound,
           matches_created: newMatches.length,
-          bye_team: byeTeam?.team_name || null
+          total_pairs: pairs.length,
+          bye_team: byeTeam?.team_name || null,
+          // 🔍 Debug
+          debug: {
+            total_participants: participants.length,
+            expected_matches: Math.floor(participants.length / 2)
+          }
         },
         `Đã tạo vòng ${nextRound} thành công.`
       )
