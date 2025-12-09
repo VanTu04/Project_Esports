@@ -24,6 +24,7 @@ const LeaderboardTable = ({ data, loading, rewards, showRewardColumn = true }) =
       draws: row?.draws ?? 0,
       totalMatches: row?.totalMatches ?? 0,
       buchholzScore: row?.buchholzScore ?? 0,
+      sonnebornBerger: row?.sonnebornBerger ?? 0,
       team: { logo: row?.avatar ?? null, name: row?.teamName ?? row?.username ?? '' }
     };
   });
@@ -113,6 +114,15 @@ const LeaderboardTable = ({ data, loading, rewards, showRewardColumn = true }) =
       accessor: 'buchholzScore',
       render: (value) => (
         <span className="text-cyan-400 font-semibold" title="Tổng điểm của các đối thủ đã gặp">
+          {value ?? 0}
+        </span>
+      ),
+    },
+    {
+      header: 'Sonneborn-Berger',
+      accessor: 'sonnebornBerger',
+      render: (value) => (
+        <span className="text-cyan-400 font-semibold" title="Buchholz có trọng số kết quả">
           {value ?? 0}
         </span>
       ),
