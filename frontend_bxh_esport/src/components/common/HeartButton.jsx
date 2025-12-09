@@ -61,6 +61,9 @@ export const HeartButton = ({ teamId, initialIsFavorite = false, size = 'md', on
       if (onToggle) {
         onToggle(newIsFavorite);
       }
+      
+      // Keep loading for a short moment to show feedback
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
       console.error('Toggle favorite error:', error);
       showError('Có lỗi xảy ra. Vui lòng thử lại');

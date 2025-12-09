@@ -7,6 +7,7 @@ import TournamentInfo from './TournamentInfo';
 import TournamentTeams from './TournamentTeams';
 import TournamentMatches from './TournamentMatches';
 import LeaderboardTable from './LeaderboardTable';
+import RegistrationButton from './RegistrationButton';
 import tournamentService from '../../services/tournamentService';
 import rewardService from '../../services/rewardService';
 import { resolveTeamLogo } from '../../utils/imageHelpers';
@@ -78,7 +79,8 @@ export const TournamentDetail = () => {
 
       // Lấy danh sách đội và chuẩn hoá logo
       try {
-        const teamsRes = await tournamentService.getParticipants(tournamentId, 'APPROVED');
+        // Lấy tất cả participants (cả WAITING_APPROVAL và APPROVED)
+        const teamsRes = await tournamentService.getParticipants(tournamentId);
         const rawTeams = teamsRes.data || [];
         const normalizedTeams = (Array.isArray(rawTeams) ? rawTeams : []).map(t => ({
           ...t,
@@ -86,11 +88,16 @@ export const TournamentDetail = () => {
           logo: resolveTeamLogo(t),
           logo_url: t.logo_url ?? t.avatar ?? t.logo ?? null
         }));
-        setTeams(normalizedTeams);
+        
+        // Filter chỉ lấy APPROVED để hiển thị
+        const approvedTeams = normalizedTeams.filter(t => 
+          (t.status || '').toString().toUpperCase() === 'APPROVED'
+        );
+        setTeams(approvedTeams);
 
         // Build a quick map id -> normalized logo URL for fast lookup when matches only contain participant ids
         const map = {};
-        normalizedTeams.forEach(t => {
+        approvedTeams.forEach(t => {
           if (t && (t.id || t.user_id)) {
             const logoUrl = t.logo || resolveTeamLogo(t);
             if (t.id) map[t.id] = logoUrl;
@@ -99,9 +106,12 @@ export const TournamentDetail = () => {
         });
         setTeamLogos(map);
         
-        // Check if current user's team is registered
+        // Check if current user's team is registered (bất kể status)
         if (user && isTeam) {
-          const userTeamRegistered = normalizedTeams.some(t => t.user_id === user.id || t.id === user.id);
+          const userTeamRegistered = normalizedTeams.some(t => 
+            (t.user_id === user.id || t.id === user.id) && 
+            ['WAITING_APPROVAL', 'APPROVED'].includes((t.status || '').toString().toUpperCase())
+          );
           setIsUserTeamRegistered(userTeamRegistered);
         }
       } catch {
@@ -569,13 +579,19 @@ export const TournamentDetail = () => {
             
             {/* Register button - only show for teams who haven't registered and tournament is PENDING */}
             {isPending && isTeam && !isUserTeamRegistered && (
-              <Button
-                variant="primary"
-                onClick={() => navigate(`/tournaments/${tournamentId}/register`)}
-                className="bg-gradient-to-r from-primary-500 to-primary-600 shadow-lg shadow-primary-500/30"
-              >
-                Đăng ký tham gia
-              </Button>
+              <div className="min-w-[200px]">
+                <RegistrationButton 
+                  tournament={tournament} 
+                  isTeamView={true}
+                  onRegistrationChange={(status) => {
+                    // Sau khi đăng ký thành công, chỉ cập nhật state local
+                    if (status?.status === 'WAITING_APPROVAL' || status?.status === 'APPROVED') {
+                      // Set ngay để ẩn nút đăng ký
+                      setIsUserTeamRegistered(true);
+                    }
+                  }}
+                />
+              </div>
             )}
           </div>
 

@@ -58,6 +58,7 @@ export const TeamManagerDashboard = ({ teamIdOverride = null }) => {
   const [followingLoading, setFollowingLoading] = useState(false);
   const [favoriteMap, setFavoriteMap] = useState({});
   const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
   
   // --- STATE FORM ---
   const [editData, setEditData] = useState({
@@ -468,12 +469,20 @@ export const TeamManagerDashboard = ({ teamIdOverride = null }) => {
       return;
     }
 
+    if (favoriteLoading) return;
+
     try {
+      setFavoriteLoading(true);
       await favoriteTeamService.toggleFavoriteTeam(teamData.id, isFavorite);
       setIsFavorite(!isFavorite);
       showSuccess(isFavorite ? 'Đã bỏ theo dõi đội' : 'Đã theo dõi đội');
+      
+      // Keep loading for a short moment to show feedback
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
       showError('Không thể cập nhật trạng thái theo dõi');
+    } finally {
+      setFavoriteLoading(false);
     }
   };
 
@@ -559,6 +568,7 @@ export const TeamManagerDashboard = ({ teamIdOverride = null }) => {
           onShowFollowing={openFollowingModal}
           onToggleFavorite={canFollow ? toggleTeamFavorite : null}
           isFavorite={isFavorite}
+          favoriteLoading={favoriteLoading}
           isPublicMode={isPublicMode}
         />
 

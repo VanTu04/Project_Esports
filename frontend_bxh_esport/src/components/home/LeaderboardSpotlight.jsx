@@ -203,9 +203,12 @@ const LeaderboardSpotlight = ({ mvpPlayer = null }) => {
             </svg>
             Bảng Vinh Danh
           </h2>
-          <a href="/leaderboard" className="text-primary-400 hover:text-primary-300 text-sm font-semibold transition-colors">
+          <button 
+            onClick={() => navigate('/teams')}
+            className="text-primary-400 hover:text-primary-300 text-sm font-semibold transition-colors"
+          >
             Xem BXH đầy đủ →
-          </a>
+          </button>
         </div>
 
         {/* Top 3 Teams Podium */}
