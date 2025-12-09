@@ -110,16 +110,27 @@ export const getProfile = async (userId) => {
     attributes: ['id', 'username', 'full_name', 'email', 'role', 'wallet_address', 'private_key', 'avatar', 'phone', 'two_factor_enabled', 'email_two_factor_enabled', 'totp_secret']
   });
 
-  const backendUrl = process.env.BACKEND_URL || 'https://api.vawndev.online';
   if (!user) {
     throw new Error('User not found');
   }
 
+  // Calculate total rewards received from TransactionHistory
+  const totalRewards = await models.TransactionHistory.sum('amount', {
+    where: {
+      user_id: userId,
+      type: ['REWARD', 'RECEIVE_REWARD'],
+      status: 'SUCCESS'
+    }
+  }) || 0;
+
+  console.log(`[UserService] Total rewards for user ${userId}:`, totalRewards);
+
+  // Return relative path for avatar, let frontend handle full URL construction with CORS-enabled domain
   user = {
     id: user.id,
     username: user.username,
     full_name: user.full_name,
-    avatar: user.avatar ? `${backendUrl}${user.avatar}` : null,
+    avatar: user.avatar || null, // Return relative path like /uploads/xxx.png
     phone: user.phone,
     email: user.email,
     role: user.role,
@@ -127,10 +138,11 @@ export const getProfile = async (userId) => {
     private_key: decrypt(user.private_key),
     two_factor_enabled: user.two_factor_enabled,
     email_two_factor_enabled: user.email_two_factor_enabled,
-    totp_secret: !!user.totp_secret
+    totp_secret: !!user.totp_secret,
+    total_rewards: totalRewards
   }
 
-  console.log("user:", user);
+  console.log("[UserService] User profile with total_rewards:", user);
 
   return user;
 };
@@ -469,15 +481,24 @@ export const deleteUser = async (userId, adminId) => {
   }
 };
 
-export const updateProfile = async (userId, { full_name, phone, avatar }) => {
+export const updateProfile = async (userId, { full_name, phone, avatar, description }) => {
   const user = await models.User.findByPk(userId);
 
   if (!user) throw new Error("User không tồn tại");
-  await user.update({
+
+  
+  const updateData = {
     full_name,
     phone,
     avatar: avatar ? `${avatar}` : user.avatar
-  });
+  };
+  
+  if (description !== undefined) {
+    updateData.description = description;
+  }
+  
+  await user.update(updateData);
+
 
   return true;
 };

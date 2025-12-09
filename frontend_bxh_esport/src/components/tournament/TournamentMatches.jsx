@@ -40,11 +40,10 @@
       if (!match) return false;
       // Common backend flags
       if (match.is_bye || match.bye || match.walkover || match.isWalkover) return true;
-      // If one side is missing (no participant id) and name contains 'bye'
-      if (!match.team_b_participant_id && typeof match.team_b_name === 'string' && /bye/i.test(match.team_b_name)) return true;
-      if (!match.team_b_participant_id && typeof match.team_a_name === 'string' && /bye/i.test(match.team_a_name)) return true;
       // Some backends label result_type or code
       if (match.result_type === 'BYE' || match.result === 'BYE') return true;
+      // If one side is missing (no participant id), it's a BYE match
+      if (!match.team_b_participant_id && (match.team_a_participant_id || match.teamA || match.team_a_name)) return true;
       return false;
     };
 
@@ -197,14 +196,25 @@
               {(groupedMatchesMap[selectedRound] || []).map(match => {
                 const scoreA = match.score_team_a ?? match.score_a ?? match.score1 ?? null;
                 const scoreB = match.score_team_b ?? match.score_b ?? match.score2 ?? null;
+                const isBye = isByeMatch(match);
                 // determine whether scheduled time has been reached/passed
                 const scheduledReachedFromTime = match.match_time ? (new Date(match.match_time).getTime() <= Date.now()) : false;
                 const scheduledReached = !!match.__scheduledReached || scheduledReachedFromTime;
                 return (
                   <div key={match.id} className="rounded-lg p-4 border border-primary-500/30 bg-primary-500/10">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-gray-300 text-sm">{match.match_time ? new Date(match.match_time).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : (isByeMatch(match) ? '' : 'Chưa có lịch')}</span>
-                      {(() => getMatchStatusBadge(match))()}
+                      {!isBye && match.match_time ? (
+                        <span className="text-gray-300 text-sm">{new Date(match.match_time).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                      ) : (
+                        <div></div>
+                      )}
+                      {isBye ? (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium border bg-amber-500/20 text-amber-300 border-amber-500/30">
+                          Miễn thi đấu
+                        </span>
+                      ) : (
+                        (() => getMatchStatusBadge(match))()
+                      )}
                     </div>
 
                     {match.team_b_participant_id ? (
@@ -286,7 +296,6 @@
                             return (
                               <>
                                 <div>{name}</div>
-                                {bye && <div className="text-xs text-amber-300 mt-1">Miễn thi đấu (BYE)</div>}
                               </>
                             );
                           })()}

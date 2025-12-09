@@ -16,6 +16,7 @@ export const create = async (data, options = {}) => {
     end_date: data.end_date || null,
     description: data.description || null,
     registration_fee: data.registration_fee || null,
+    image: data.image || null,
     status: 'PENDING',
     current_round: 0
   }, options);
@@ -76,6 +77,12 @@ export const findById = async (id) => {
         as: 'game',
         attributes: ['id', 'game_name', 'status'],
         required: false
+      },
+      {
+        model: models.TournamentReward,
+        as: 'rewards',
+        attributes: ['id', 'rank', 'reward_amount'],
+        required: false
       }
     ]
   });
@@ -106,6 +113,18 @@ export const findById = async (id) => {
 
   const result = tournament.get({ plain: true });
   result.participants = participants;
+  
+  // Tính total_prize từ rewards
+  let totalPrize = 0;
+  if (result.rewards && Array.isArray(result.rewards)) {
+    totalPrize = result.rewards.reduce((sum, reward) => {
+      return sum + (parseFloat(reward.reward_amount) || 0);
+    }, 0);
+  }
+  result.total_prize = totalPrize;
+  
+  // Đếm số đội đã được duyệt
+  result.approved_participants = participants.filter(p => p.status === 'APPROVED').length;
 
   return result;
 };
@@ -137,7 +156,7 @@ export const findAllByAdmin = async (status, page = 1, limit = 10, filters = {})
   const queryOptions = {
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-    attributes: ['id', 'name', 'status', 'total_rounds', 'total_team', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'game_id', 'createdAt', 'updatedAt'],
+    attributes: ['id', 'name', 'status', 'total_rounds', 'total_team', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'game_id', 'image', 'createdAt', 'updatedAt'],
     distinct: true,
     include: [
       {
@@ -178,7 +197,7 @@ export const findAllByAdmin = async (status, page = 1, limit = 10, filters = {})
   };
 };
 
-export const findAll = async (status, page = 1, limit = 10) => {
+export const findAll = async (status, page = 1, limit = 10, filters = {}) => {
   const whereCondition = {
     deleted: 0,  // Exclude deleted tournaments
     isReady: 1
@@ -187,12 +206,25 @@ export const findAll = async (status, page = 1, limit = 10) => {
     whereCondition.status = status;
   }
 
+  // Add search filter for tournament name
+  if (filters.search) {
+    whereCondition.name = {
+      [models.Sequelize.Op.like]: `%${filters.search}%`
+    };
+  }
+
+  // Add game_id filter
+  if (filters.game_id) {
+    whereCondition.game_id = filters.game_id;
+  }
+
   const offset = (page - 1) * limit;
 
-  const { count, rows: tournaments } = await models.Tournament.findAndCountAll({
+  // Base query options
+  const queryOptions = {
     where: whereCondition,
     order: [['createdAt', 'DESC']],
-  attributes: ['id', 'name', 'status', 'total_rounds', 'total_team', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'game_id', 'createdAt', 'updatedAt'],
+    attributes: ['id', 'name', 'status', 'total_rounds', 'total_team', 'current_round', 'start_date', 'isReady', 'leaderboard_saved', 'reward_distributed', 'end_date', 'start_time', 'end_time', 'registration_fee', 'game_id', 'image', 'createdAt', 'updatedAt'],
     distinct: true,  // Count only unique tournaments (avoid duplicates from joins)
     include: [
       {
@@ -210,19 +242,58 @@ export const findAll = async (status, page = 1, limit = 10) => {
     ],
     limit: parseInt(limit),
     offset: parseInt(offset)
-  });
+  };
+
+  // Support hasMatches filter: only return tournaments which have at least 1 match
+  if (filters && (filters.hasMatches === '1' || filters.hasMatches === 1 || filters.hasMatches === true)) {
+    queryOptions.include.push({
+      model: models.Match,
+      as: 'matches',
+      attributes: [],
+      required: true // INNER JOIN to only get tournaments with matches
+    });
+  }
+
+  const { count, rows: tournaments } = await models.Tournament.findAndCountAll(queryOptions);
+
+  // Tính total_prize và approved_participants cho mỗi tournament
+  const tournamentsWithPrize = await Promise.all(tournaments.map(async (tournament) => {
+    const tournamentData = tournament.get({ plain: true });
+    
+    // Tính tổng giải thưởng từ rewards
+    let totalPrize = 0;
+    if (tournamentData.rewards && Array.isArray(tournamentData.rewards)) {
+      totalPrize = tournamentData.rewards.reduce((sum, reward) => {
+        return sum + (parseFloat(reward.reward_amount) || 0);
+      }, 0);
+    }
+    
+    // Đếm số đội đã được duyệt (APPROVED)
+    const approvedCount = await models.Participant.count({
+      where: {
+        tournament_id: tournamentData.id,
+        status: 'APPROVED'
+      }
+    });
+    
+    return {
+      ...tournamentData,
+      total_prize: totalPrize,
+      approved_participants: approvedCount
+    };
+  }));
 
   try {
     // Log a compact sample to help debug missing date fields (removed in production later)
-    const sample = tournaments.slice(0, 5).map(t => (t && typeof t.get === 'function') ? t.get({ plain: true }) : t);
-    console.log('[TournamentService.findAll] sample tournaments (id, start_date, end_date, start_time, end_time):',
-      sample.map(s => ({ id: s.id, start_date: s.start_date, end_date: s.end_date, start_time: s.start_time, end_time: s.end_time })));
+    const sample = tournamentsWithPrize.slice(0, 5).map(t => ({ id: t.id, start_date: t.start_date, end_date: t.end_date, start_time: t.start_time, end_time: t.end_time, total_prize: t.total_prize }));
+    console.log('[TournamentService.findAll] sample tournaments (id, start_date, end_date, start_time, end_time, total_prize):',
+      sample);
   } catch (e) {
     console.warn('Could not log tournaments sample', e);
   }
 
   return {
-    tournaments,
+    tournaments: tournamentsWithPrize,
     totalItems: count,
     totalPages: Math.ceil(count / limit),
     currentPage: parseInt(page)

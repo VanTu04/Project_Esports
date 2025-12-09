@@ -197,9 +197,7 @@ export const findMatchesByStatus = async (status) => {
     ]
   });
 
-  // Format response with avatar URLs
-  const backendUrl = process.env.BACKEND_URL || 'https://api.vawndev.online';
-  
+  // Return relative paths for avatars (frontend will build full URLs)
   return matches.map(match => ({
     id: match.id,
     tournament_id: match.tournament_id,
@@ -218,7 +216,7 @@ export const findMatchesByStatus = async (status) => {
     tournament: match.tournament,
     team_a_name: match.teamA?.team_name || 'N/A',
     team_b_name: match.teamB?.team_name || 'BYE',
-    team_a_avatar: match.teamA?.team?.avatar ? `${backendUrl}${match.teamA.team.avatar}` : null,
-    team_b_avatar: match.teamB?.team?.avatar ? `${backendUrl}${match.teamB.team.avatar}` : null,
+    team_a_avatar: match.teamA?.team?.avatar || null,
+    team_b_avatar: match.teamB?.team?.avatar || null,
   }));
 };

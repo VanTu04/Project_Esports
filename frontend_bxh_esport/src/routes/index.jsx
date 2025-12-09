@@ -49,13 +49,13 @@ const AppRoutes = () => {
                   />
                 ))}
 
-                {/* Team Manager Routes */}
+                {/* Team Manager Routes - allow ADMIN to view as well */}
                 {teamManagerRoutes.map((route, index) => (
                   <Route
                     key={index}
                     path={route.path}
                     element={
-                      <ProtectedRoute allowedRoles={[USER_ROLES.TEAM_MANAGER]}>
+                      <ProtectedRoute allowedRoles={[USER_ROLES.TEAM_MANAGER, USER_ROLES.ADMIN]}>
                         {route.element}
                       </ProtectedRoute>
                     }

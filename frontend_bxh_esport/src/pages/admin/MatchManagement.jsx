@@ -130,6 +130,17 @@ export const MatchManagement = () => {
               onClick={() => navigate(`/admin/tournaments/${tournament.id}/matches`)}
             >
               <div className="space-y-4">
+                {/* Tournament Image */}
+                {tournament.image && (
+                  <div className="w-full h-32 rounded-lg overflow-hidden">
+                    <img
+                      src={tournament.image.startsWith('http') ? tournament.image : `${import.meta.env.VITE_API_URL}${tournament.image}`}
+                      alt={tournament.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  </div>
+                )}
                 {/* Header */}
                 <div className="flex items-start justify-between">
                   <div className="flex-1">

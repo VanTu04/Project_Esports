@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import PublicLayout from '../../components/layout/PublicLayout';
 import tournamentService from '../../services/tournamentService';
+import { getAllGames } from '../../services/gameService';
 import { TournamentList } from '../../components/tournament/TournamentList';
 
 export const TournamentPublic = () => {
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showRaw, setShowRaw] = useState(false);
+  const [games, setGames] = useState([]);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -16,10 +17,15 @@ export const TournamentPublic = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(''); // '' = all
+  const [gameFilter, setGameFilter] = useState(''); // '' = all
 
   useEffect(() => {
-    loadTournaments(page, pageSize, debouncedSearch, statusFilter);
-  }, [page, pageSize, debouncedSearch, statusFilter]);
+    loadGames();
+  }, []);
+
+  useEffect(() => {
+    loadTournaments(page, pageSize, debouncedSearch, statusFilter, gameFilter);
+  }, [page, pageSize, debouncedSearch, statusFilter, gameFilter]);
 
   // debounce search input
   useEffect(() => {
@@ -33,13 +39,38 @@ export const TournamentPublic = () => {
     if (page > totalPages) setPage(totalPages);
   }, [total, pageSize, tournaments.length]);
 
-  const loadTournaments = async (p = 1, size = 10, q = '', status = '') => {
+  const loadGames = async () => {
+    try {
+      const response = await getAllGames();
+      console.log('Games API response:', response);
+      
+      // Backend returns { data: { code, status, message, data: [...] } }
+      // The actual games array is in response.data.data
+      let gamesList = [];
+      if (response?.data?.data && Array.isArray(response.data.data)) {
+        gamesList = response.data.data;
+      } else if (response?.data && Array.isArray(response.data)) {
+        gamesList = response.data;
+      } else if (Array.isArray(response)) {
+        gamesList = response;
+      }
+      
+      setGames(gamesList);
+      console.log('Games loaded:', gamesList);
+    } catch (error) {
+      console.error('Lỗi load games:', error);
+      setGames([]);
+    }
+  };
+
+  const loadTournaments = async (p = 1, size = 10, q = '', status = '', gameId = '') => {
     setLoading(true);
     try {
-      // Request with pagination + search + status
-      const params = { page: p, pageSize: size };
-      if (q) params.q = q; // backend may expect `q` or `search`
+      // Request with pagination + search + status + game
+      const params = { page: p, limit: size };
+      if (q) params.search = q;
       if (status) params.status = status;
+      if (gameId) params.game_id = gameId;
       const data = await tournamentService.getAllTournaments(params);
 
       let list = [];
@@ -64,8 +95,9 @@ export const TournamentPublic = () => {
 
       // Try to extract total count from common locations
       let totalCount = 0;
-      if (typeof data.total === 'number') totalCount = data.total;
-      else if (typeof data.totalItems === 'number') totalCount = data.totalItems;
+      if (typeof data.totalItems === 'number') totalCount = data.totalItems;
+      else if (typeof data.total === 'number') totalCount = data.total;
+      else if (data && data.data && typeof data.data.totalItems === 'number') totalCount = data.data.totalItems;
       else if (data && data.data && typeof data.data.total === 'number') totalCount = data.data.total;
       else if (data && data.meta && typeof data.meta.total === 'number') totalCount = data.meta.total;
       else if (data && data.pagination && typeof data.pagination.total === 'number') totalCount = data.pagination.total;
@@ -73,7 +105,7 @@ export const TournamentPublic = () => {
 
       setTournaments(list || []);
       setTotal(totalCount);
-      console.debug('TournamentPublic: api response', { raw: data, normalized: list, total: totalCount });
+      console.debug('TournamentPublic: api response', { raw: data, normalized: list, total: totalCount, page: p, limit: size });
     } catch (error) {
       console.error('Lỗi load tournaments:', error);
       setTournaments([]);
@@ -88,38 +120,77 @@ export const TournamentPublic = () => {
       <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
         <main className="flex-1">
         <div className="max-w-7xl mx-auto px-4 py-8">
-          <h1 className="text-3xl font-bold mb-4">Giải đấu</h1>
+          <h1 className="text-3xl font-bold mb-6">Giải đấu</h1>
 
-          <div className="mb-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <div className="text-sm font-medium">Lọc:</div>
-                <div className="flex items-center bg-gray-900 rounded overflow-hidden">
-                  {[
-                    { v: '', label: 'Tất cả' },
-                    { v: 'PENDING', label: 'Đang mở đăng ký' },
-                    { v: 'ACTIVE', label: 'Đang diễn ra' },
-                    { v: 'COMPLETED', label: 'Đã kết thúc' },
-                  ].map((s) => {
-                    const active = statusFilter === s.v;
+          {/* Filters section */}
+          <div className="mb-6 space-y-4">
+            {/* Status filter */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="text-sm font-medium text-gray-300">Trạng thái:</div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { v: '', label: 'Tất cả' },
+                  { v: 'PENDING', label: 'Đang mở đăng ký' },
+                  { v: 'ACTIVE', label: 'Đang diễn ra' },
+                  { v: 'COMPLETED', label: 'Đã kết thúc' },
+                ].map((s) => {
+                  const active = statusFilter === s.v;
+                  return (
+                    <button
+                      key={s.v || 'all'}
+                      onClick={() => { setStatusFilter(s.v); setPage(1); }}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        active 
+                          ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/30' 
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >{s.label}</button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Game filter and Search box */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="text-sm font-medium text-gray-300">Game:</div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => { setGameFilter(''); setPage(1); }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      gameFilter === '' 
+                        ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/30' 
+                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    }`}
+                  >Tất cả</button>
+                  {games.map((game) => {
+                    const active = gameFilter === String(game.id);
                     return (
                       <button
-                        key={s.v || 'all'}
-                        onClick={() => { setStatusFilter(s.v); setPage(1); }}
-                        className={`px-3 py-1 text-sm ${active ? 'bg-primary-500 text-black' : 'text-gray-300 hover:bg-gray-800'}`}
-                      >{s.label}</button>
+                        key={game.id}
+                        onClick={() => { setGameFilter(String(game.id)); setPage(1); }}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          active 
+                            ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/30' 
+                            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                        }`}
+                      >{game.game_name}</button>
                     );
                   })}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 w-full md:w-1/3">
+              {/* Search box - moved to right */}
+              <div className="relative w-full lg:w-80">
                 <input
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-                  placeholder="Tìm theo tên giải đấu..."
-                  className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm focus:border-primary-500"
+                  placeholder="Tìm kiếm giải đấu..."
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
                 />
+                <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
               </div>
             </div>
           </div>
@@ -127,15 +198,8 @@ export const TournamentPublic = () => {
           <TournamentList tournaments={tournaments} loading={loading} />
 
           {!loading && tournaments.length === 0 && (
-            <div className="mt-6 text-sm text-gray-400">
-              <div>Không tìm thấy giải đấu nào.</div>
-              <div className="mt-2 flex gap-2">
-                <button onClick={loadTournaments} className="px-3 py-1.5 bg-purple-600 rounded text-sm">Tải lại</button>
-                <button onClick={() => setShowRaw(s => !s)} className="px-3 py-1.5 border border-gray-700 rounded text-sm">{showRaw ? 'Ẩn JSON' : 'Xem JSON'}</button>
-              </div>
-              {showRaw && (
-                <pre className="mt-3 max-h-64 overflow-auto text-xs text-gray-300 bg-black/30 p-3 rounded">{JSON.stringify(tournaments, null, 2)}</pre>
-              )}
+            <div className="text-center py-12 text-gray-400">
+              <div className="text-lg">Không tìm thấy giải đấu nào.</div>
             </div>
           )}
 

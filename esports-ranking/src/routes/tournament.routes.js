@@ -2,6 +2,7 @@ import express from 'express';
 import * as tournamentController from '../controllers/TournamentController.js';
 import { checkAccessToken, checkRole } from '../middlewares/jwt_token.js';
 import roles from '../constant/roles.js';
+import { uploadTournamentImage } from '../middlewares/multer.config.js';
 
 const router = express.Router();
 
@@ -13,6 +14,7 @@ const router = express.Router();
 router.post(
   '/',
   checkRole([roles.ADMIN]),
+  uploadTournamentImage.single('image'),
   tournamentController.createTournamentWithRewards
 );
 
@@ -62,13 +64,13 @@ router.get(
 
 /**
  * @route   PUT /api/tournaments/:id
- * @desc    Cập nhật thông tin giải đấu
+ * @desc    Cập nhật thông tin giải đấu và phần thưởng
  * @access  Admin
- * @note    (Bạn sẽ cần tạo hàm 'updateTournament' trong controller/service)
  */
 router.put(
   '/:id',
   checkRole([roles.ADMIN]),
+  uploadTournamentImage.single('image'),
   tournamentController.updateTournamentRewards
 );
 

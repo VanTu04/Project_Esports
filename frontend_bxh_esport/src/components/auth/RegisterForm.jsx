@@ -7,7 +7,7 @@ import { useUserValidation } from '../../hooks/useUserValidation';
 import { validateForm } from '../../utils/validators';
 import Button from '../common/Button';
 // PasswordRequirements removed per request
-import { API_BASE_URL, TURNSTILE_SITE_KEY } from '../../utils/constants';
+import { API_URL, TURNSTILE_SITE_KEY } from '../../utils/constants';
 
 export const RegisterForm = () => {
   const navigate = useNavigate();
@@ -311,7 +311,7 @@ export const RegisterForm = () => {
           type="button"
           aria-label="Đăng ký với Google"
           onClick={() => {
-            window.location.href = `${API_BASE_URL}/auth/google`;
+            window.location.href = `${API_URL}/auth/google`;
           }}
           className="p-2 rounded-md bg-white hover:opacity-90 transition-opacity"
           title="Google"
@@ -340,7 +340,7 @@ export const RegisterForm = () => {
           type="button"
           aria-label="Đăng ký với Facebook"
           onClick={() => {
-            window.location.href = `${API_BASE_URL}/auth/facebook`;
+            window.location.href = `${API_URL}/auth/facebook`;
           }}
           className="p-2 rounded-md bg-[#1877F2] hover:opacity-90 transition-opacity"
           title="Facebook"

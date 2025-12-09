@@ -13,7 +13,6 @@ export default function CreateAccountAdmin({ onClose, onCreated }) {
     full_name: '',
     team_name: '',
     role: USER_ROLES.USER,
-    status: 1,
   });
 
   const [loading, setLoading] = useState(false);
@@ -133,8 +132,7 @@ export default function CreateAccountAdmin({ onClose, onCreated }) {
         confirm_password: '', 
         full_name: '', 
         team_name: '', 
-        role: USER_ROLES.USER, 
-        status: 1 
+        role: USER_ROLES.USER
       });
     } catch (err) {
       console.error('Create account error:', err);
@@ -163,15 +161,15 @@ export default function CreateAccountAdmin({ onClose, onCreated }) {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Tên đăng nhập *
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Tên đăng nhập <span className="text-red-500">*</span>
             </label>
             <input 
               name="username" 
               value={form.username} 
               onChange={handleChange}
               onBlur={handleUsernameBlur}
-              className={`mt-1 w-full px-3 py-2 border rounded bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white ${
+              className={`w-full px-3 py-2 border-2 rounded-lg bg-white text-black focus:border-yellow-400 focus:outline-none ${
                 usernameError ? 'border-red-500' : ''
               }`}
               required
@@ -187,21 +185,21 @@ export default function CreateAccountAdmin({ onClose, onCreated }) {
             )}
           </div>
           <div>
-            <label className="block text-sm text-gray-700 dark:text-gray-300">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Họ và tên
             </label>
             <input 
               name="full_name" 
               value={form.full_name} 
               onChange={handleChange} 
-              className="mt-1 w-full px-3 py-2 border rounded bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" 
+              className="w-full px-3 py-2 border-2 rounded-lg bg-white text-black focus:border-yellow-400 focus:outline-none" 
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm text-gray-700 dark:text-gray-300">
-            Email*
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Email <span className="text-red-500">*</span>
           </label>
           <input 
             name="email" 
@@ -209,9 +207,10 @@ export default function CreateAccountAdmin({ onClose, onCreated }) {
             value={form.email || ''} 
             onChange={handleChange}
             onBlur={handleEmailBlur}
-            className={`mt-1 w-full px-3 py-2 border rounded bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white ${
+            className={`w-full px-3 py-2 border-2 rounded-lg bg-white text-black focus:border-yellow-400 focus:outline-none ${
               emailError ? 'border-red-500' : ''
             }`}
+            required
           />
           {emailChecking && (
             <p className="text-xs text-gray-500 mt-1">Đang kiểm tra...</p>
@@ -226,45 +225,45 @@ export default function CreateAccountAdmin({ onClose, onCreated }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Password *
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Mật khẩu <span className="text-red-500">*</span>
             </label>
             <input 
               name="password" 
               type="password" 
               value={form.password} 
               onChange={handleChange} 
-              className="mt-1 w-full px-3 py-2 border rounded bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" 
+              className="w-full px-3 py-2 border-2 rounded-lg bg-white text-black focus:border-yellow-400 focus:outline-none" 
               required
               minLength={6}
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Confirm password *
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Xác nhận mật khẩu <span className="text-red-500">*</span>
             </label>
             <input 
               name="confirm_password" 
               type="password" 
               value={form.confirm_password} 
               onChange={handleChange} 
-              className="mt-1 w-full px-3 py-2 border rounded bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white" 
+              className="w-full px-3 py-2 border-2 rounded-lg bg-white text-black focus:border-yellow-400 focus:outline-none" 
               required
               minLength={6}
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div>
           <div>
-            <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Role *
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Vai trò <span className="text-red-500">*</span>
             </label>
             <select 
               name="role" 
               value={form.role} 
               onChange={handleChange} 
-              className="mt-1 w-full px-3 py-2 border rounded bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full px-3 py-2 border-2 rounded-lg bg-white text-black focus:border-yellow-400 focus:outline-none"
               required
             >
               <option value={USER_ROLES.USER}>User</option>

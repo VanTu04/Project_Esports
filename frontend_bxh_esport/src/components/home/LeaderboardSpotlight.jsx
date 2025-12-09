@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import teamService from '../../services/teamService';
 import Loading from '../common/Loading';
-import { API_BACKEND } from '../../utils/constants';
+import { normalizeImageUrl } from '../../utils/imageHelpers';
 
 const LeaderboardSpotlight = ({ mvpPlayer = null }) => {
   const navigate = useNavigate();
@@ -17,37 +17,15 @@ const LeaderboardSpotlight = ({ mvpPlayer = null }) => {
     try {
       setLoading(true);
       const response = await teamService.getTopTeamsByWins(5);
-      console.log('Top teams response:', response);
-      console.log('Response data:', response.data);
-      console.log('Response data code:', response.data?.code);
-      console.log('Response data status:', response.data?.status);
       
       // Check if response is successful (code 0 means success in your API)
       if (response.data && response.data.code === 0) {
-        console.log('Top teams data:', response.data.data);
         setTopTeams(response.data.data || []);
-      } else {
-        console.log('Response not successful:', response.data);
       }
     } catch (error) {
       console.error('Error fetching top teams:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const normalizeLogoUrl = (raw) => {
-    if (!raw) return null;
-    try {
-      let url = String(raw).trim();
-      const lastHttp = url.lastIndexOf('http');
-      if (lastHttp > 0) url = url.substring(lastHttp);
-      if (url.startsWith('//')) url = (window?.location?.protocol || 'https:') + url;
-      if (url.startsWith('/')) return `${API_BACKEND || ''}${url}`;
-      if (!url.startsWith('http')) return `http://${url}`;
-      return url;
-    } catch (e) {
-      return raw;
     }
   };
 
@@ -90,7 +68,7 @@ const LeaderboardSpotlight = ({ mvpPlayer = null }) => {
             <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${colors.bg} flex items-center justify-center mb-3 ring-4 ${colors.ring} shadow-xl ${colors.glow} flex-shrink-0`}>
               {team?.logo || team?.avatar ? (
                 <img 
-                  src={normalizeLogoUrl(team.logo || team.avatar)} 
+                  src={normalizeImageUrl(team.logo || team.avatar)} 
                   alt={team.name} 
                   className="w-16 h-16 rounded-full object-cover"
                   onError={(e) => { 

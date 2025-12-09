@@ -1,10 +1,10 @@
 import axios from "axios";
 import { API_CONFIG } from "../config";
-import { STORAGE_KEYS } from "../utils/constants";
+import { STORAGE_KEYS, API_BASE_URL } from "../utils/constants";
 import storage from "../utils/storage";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BACKEND || API_CONFIG.baseURL,  
+  baseURL: API_BASE_URL,  
   timeout: API_CONFIG.timeout,
   withCredentials: true,
 });

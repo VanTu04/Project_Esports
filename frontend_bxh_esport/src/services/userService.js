@@ -1,5 +1,5 @@
 import { apiClient } from './api';
-import { API_ENDPOINTS } from '../utils/constants';
+import { API_ENDPOINTS, API_URL } from '../utils/constants';
 
 // Frontend user service for profile and admin user operations.
 const userService = {
@@ -14,29 +14,22 @@ const userService = {
       // normalized: if payload.data exists, take payload.data, else payload
       const data = payload && payload.data ? payload.data : payload;
 
-      // Normalize avatar URL: handle several backend shapes and malformed values
+      // Normalize avatar URL: handle backend relative paths
       if (data && data.avatar && typeof data.avatar === 'string') {
         let avatar = data.avatar.trim();
 
-        // Fix common typo: 'http//...' -> 'http://...'
-        avatar = avatar.replace(/^http:\/\//i, (m) => m); // noop to keep proper http://
-        avatar = avatar.replace(/^http\/\//i, 'http://');
-
-        // If avatar contains multiple 'http' occurrences due to double-prefixing
-        // (e.g. 'https://api.vawndev.onlinehttp://localhost:8081/uploads/...'),
-        // use the last occurrence (most specific full URL).
-        const idx = avatar.toLowerCase().lastIndexOf('http');
-        if (idx > 0) {
-          avatar = avatar.substring(idx);
+        // If avatar is already an absolute URL, use it as is
+        if (/^https?:\/\//i.test(avatar)) {
+          data.avatar = avatar;
+        } 
+        // If it's a relative path (starts with /), prepend backend URL (use API_URL for images)
+        else if (avatar.startsWith('/')) {
+          data.avatar = `${API_URL.replace(/\/$/, '')}${avatar}`;
         }
-
-        // If still not an absolute URL, prefix with VITE_API_BACKEND if available
-        if (!/^https?:\/\//i.test(avatar)) {
-          const backend = import.meta.env.VITE_API_BACKEND || '';
-          avatar = `${backend.replace(/\/$/, '')}${avatar}`;
+        // Otherwise, assume it needs backend prefix
+        else {
+          data.avatar = `${API_URL.replace(/\/$/, '')}/${avatar}`;
         }
-
-        data.avatar = avatar;
       }
 
       return data;
@@ -63,6 +56,7 @@ const userService = {
       const form = new FormData();
       if (fields.full_name !== undefined) form.append('full_name', fields.full_name);
       if (fields.phone !== undefined) form.append('phone', fields.phone);
+      if (fields.description !== undefined) form.append('description', fields.description);
       if (avatarFile) form.append('avatar', avatarFile);
       if (bannerFile) form.append('banner', bannerFile);
 
@@ -331,6 +325,28 @@ const userService = {
       return payload;
     } catch (error) {
       console.error('userService.getWalletBalance error', error);
+      throw error;
+    }
+  },
+
+  // Admin: update user
+  updateUser: async (userId, payload) => {
+    try {
+      const res = await apiClient.put(`${API_ENDPOINTS.USERS}/${userId}`, payload);
+      return res.data || res;
+    } catch (error) {
+      console.error('userService.updateUser error', error);
+      throw error;
+    }
+  },
+
+  // Admin: delete user
+  deleteUser: async (userId) => {
+    try {
+      const res = await apiClient.delete(`${API_ENDPOINTS.USERS}/${userId}`);
+      return res.data || res;
+    } catch (error) {
+      console.error('userService.deleteUser error', error);
       throw error;
     }
   },

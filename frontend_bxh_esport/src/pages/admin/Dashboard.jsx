@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { UsersIcon, UserGroupIcon, TrophyIcon, WalletIcon } from '@heroicons/react/24/outline';
 import Card from '../../components/common/Card';
 import { apiClient } from '../../services/api';
-import { API_BACKEND, API_ENDPOINTS } from '../../utils/constants';
+import { API_URL, API_ENDPOINTS } from '../../utils/constants';
 
 export const AdminDashboard = () => {
   const [stats, setStats] = useState({
@@ -36,10 +36,10 @@ export const AdminDashboard = () => {
 
         return;
       } catch (err) {
-        // If internal endpoints are unavailable, try the optional external stats endpoint (configured via API_BACKEND)
+        // If internal endpoints are unavailable, try the optional external stats endpoint (configured via API_URL)
         try {
-          if (API_BACKEND) {
-            const external = `${API_BACKEND.replace(/\/$/, '')}/admin/stats`;
+          if (API_URL) {
+            const external = `${API_URL.replace(/\/$/, '')}/admin/stats`;
             const resp = await apiClient.get(external);
             const payload = resp?.data ?? resp;
             setStats({

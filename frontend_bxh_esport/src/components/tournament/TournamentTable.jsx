@@ -25,6 +25,9 @@ export const TournamentTable = ({
               ID
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+              Hình ảnh
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
               Tên Giải đấu
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
@@ -59,11 +62,49 @@ export const TournamentTable = ({
                 #{tournament.id}
               </td>
 
+              {/* Hình ảnh */}
               <td className="px-6 py-4 whitespace-nowrap">
+                <div className="w-20 h-20 rounded-lg overflow-hidden bg-dark-300 border border-primary-700/30 flex items-center justify-center shadow-md hover:shadow-lg transition-shadow">
+                  {(() => {
+                    // Check multiple possible image field names
+                    const imageUrl = tournament.image_url || tournament.image || tournament.imageUrl || tournament.thumbnail || tournament.banner_url || tournament.banner;
+                    
+                    if (imageUrl) {
+                      // Construct full URL if it's a relative path
+                      const fullImageUrl = imageUrl.startsWith('http') 
+                        ? imageUrl 
+                        : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+                      
+                      return (
+                        <img 
+                          src={fullImageUrl}
+                          alt={tournament.name || tournament.tournament_name}
+                          className="w-full h-full object-cover hover:scale-110 transition-transform duration-200"
+                          onError={(e) => {
+                            console.log('Image load error for tournament', tournament.id, ':', fullImageUrl);
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement.innerHTML = '<div class="w-full h-full flex items-center justify-center text-3xl">🏆</div>';
+                          }}
+                        />
+                      );
+                    }
+                    
+                    // Fallback to trophy icon
+                    return (
+                      <div className="w-full h-full flex items-center justify-center text-3xl text-gray-400">
+                        🏆
+                      </div>
+                    );
+                  })()}
+                </div>
+              </td>
+
+              <td className="px-6 py-4">
                 <div className="flex items-center gap-2">
                   <div 
-                    className="text-sm font-medium text-white hover:text-primary-400 cursor-pointer transition-colors"
+                    className="text-sm font-medium text-white hover:text-primary-400 cursor-pointer transition-colors max-w-[200px] truncate"
                     onClick={() => navigate(`/admin/tournaments/${tournament.id}`)}
+                    title={tournament.name || tournament.tournament_name}
                   >
                     {tournament.name || tournament.tournament_name}
                   </div>
@@ -202,6 +243,7 @@ export const TournamentTable = ({
                   onEdit={onEdit}
                   isLastRow={index === tournaments.length - 1}
                 />
+
               </td>
             </tr>
           ))}

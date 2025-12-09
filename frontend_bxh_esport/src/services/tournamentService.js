@@ -86,6 +86,13 @@ const tournamentService = {
 
   updateTournament: async (id, updatedData) => {
     try {
+      // If caller passed FormData (contains image), send multipart headers
+      if (updatedData instanceof FormData) {
+        const res = await apiClient.put(`${API_ENDPOINTS.TOURNAMENTS}/${id}`, updatedData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return res?.data ?? res;
+      }
       const res = await apiClient.put(`${API_ENDPOINTS.TOURNAMENTS}/${id}`, updatedData);
       return res?.data ?? res;
     } catch (error) {

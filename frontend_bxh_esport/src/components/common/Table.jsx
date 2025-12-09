@@ -8,6 +8,7 @@ export const Table = ({
   emptyMessage = 'Không có dữ liệu',
   onRowClick,
   hoverable = true,
+  noHorizontalScroll = false,
 }) => {
   if (loading) {
     return <Loading />;
@@ -21,9 +22,12 @@ export const Table = ({
     );
   }
 
+  const wrapperClass = noHorizontalScroll ? '' : 'overflow-x-auto';
+  const tableClass = noHorizontalScroll ? 'w-full table-fixed divide-y divide-primary-700/20' : 'min-w-full divide-y divide-primary-700/20';
+
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-primary-700/20">
+    <div className={wrapperClass}>
+      <table className={tableClass}>
         <thead className="bg-dark-500">
           <tr>
             {columns.map((column, index) => (

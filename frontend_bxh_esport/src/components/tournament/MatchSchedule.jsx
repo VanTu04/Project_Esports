@@ -1,8 +1,7 @@
 import { formatDate } from '../../utils/helpers';
-import { formatMatchScore } from '../../utils/formatters';
 import Card from '../common/Card';
 import Loading from '../common/Loading';
-import { API_BACKEND } from '../../utils/constants';
+import { normalizeImageUrl } from '../../utils/imageHelpers';
 
 export const MatchSchedule = ({ matches, loading }) => {
   if (loading) {
@@ -17,132 +16,248 @@ export const MatchSchedule = ({ matches, loading }) => {
     );
   }
 
-  // Group matches by formatted scheduled time
-  const grouped = {};
+  const now = new Date();
+
+  // BƯỚC 1: Phân tách luồng - Tách Upcoming và History
+  const upcomingMatches = [];
+  const historyMatches = [];
+
   (matches || []).forEach((m) => {
     if (!m.scheduledAt) return;
-    const key = formatDate(m.scheduledAt, 'dd/MM HH:mm');
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(m);
+    const status = (m.status || '').toString().toUpperCase();
+    
+    if (status === 'PENDING') {
+      upcomingMatches.push(m);
+    } else if (['COMPLETED', 'DONE', 'CANCELLED'].includes(status)) {
+      historyMatches.push(m);
+    }
   });
 
-  // helper to normalize logo URLs (fix duplicated host, relative paths, etc.)
-  const normalizeLogoUrl = (raw) => {
-    if (!raw) return null;
-    try {
-      let url = String(raw).trim();
-      const lastHttp = url.lastIndexOf('http');
-      if (lastHttp > 0) url = url.substring(lastHttp);
-      if (url.startsWith('//')) url = (window?.location?.protocol || 'https:') + url;
-      if (url.startsWith('/')) return `${API_BACKEND || ''}${url}`;
-      if (!url.startsWith('http')) return `http://${url}`;
-      return url;
-    } catch (e) {
-      return raw;
-    }
+  // BƯỚC 2: Sắp xếp
+  // Upcoming: Tăng dần (gần nhất trước)
+  upcomingMatches.sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+  
+  // History: Giảm dần (mới nhất trước)
+  historyMatches.sort((a, b) => new Date(b.scheduledAt) - new Date(a.scheduledAt));
+
+  // BƯỚC 3: Gom nhóm theo ngày
+  const groupByDate = (matchList) => {
+    const grouped = {};
+    matchList.forEach((m) => {
+      const matchDate = new Date(m.scheduledAt);
+      const dateKey = formatDate(matchDate, 'EEEE, dd/MM/yyyy'); // "THỨ HAI, 09/12/2024"
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = {
+          date: matchDate,
+          matches: []
+        };
+      }
+      grouped[dateKey].matches.push(m);
+    });
+    return Object.keys(grouped).map(key => ({
+      title: key,
+      date: grouped[key].date,
+      matches: grouped[key].matches
+    }));
   };
 
-  // Convert to array and sort by actual date
-  const groupArray = Object.keys(grouped).map((k) => ({
-    time: k,
-    date: new Date(grouped[k][0].scheduledAt),
-    matches: grouped[k],
-  })).sort((a, b) => a.date - b.date);
+  const upcomingGroups = groupByDate(upcomingMatches);
+  const historyGroups = groupByDate(historyMatches);
 
-  return (
-    <div className="space-y-6">
-      {groupArray.map((grp) => (
-        <div key={grp.time} className="space-y-3">
-          <div className="max-w-6xl mx-auto w-full px-8">
-            <div className="text-xl text-gray-300 font-semibold mb-2">{grp.time}</div>
+  // Helper để xác định đội thắng
+  const getWinningSide = (match) => {
+    const scoreA = parseInt(match.team1Score || match.team_a_score) || 0;
+    const scoreB = parseInt(match.team2Score || match.team_b_score) || 0;
+    if (scoreA > scoreB) return 'A';
+    if (scoreB > scoreA) return 'B';
+    return 'DRAW';
+  };
+
+  // Component MatchRow với visual states
+  const MatchRow = ({ match }) => {
+    const status = (match.status || '').toString().toUpperCase();
+    const winner = getWinningSide(match);
+    const isCancelled = status === 'CANCELLED';
+    const isCompleted = ['COMPLETED', 'DONE', 'FINISHED'].includes(status);
+    const isPending = ['PENDING', 'SCHEDULED'].includes(status);
+
+    // Extract team data (support both field naming conventions)
+    const team1Name = match.team1?.name || match.team_a_name;
+    const team2Name = match.team2?.name || match.team_b_name;
+    const team1Logo = match.team1?.logo || match.team_a_avatar;
+    const team2Logo = match.team2?.logo || match.team_b_avatar;
+    const team1Score = match.team1Score ?? match.team_a_score ?? 0;
+    const team2Score = match.team2Score ?? match.team_b_score ?? 0;
+
+    // Styling logic
+    const rowOpacity = isCancelled ? 'opacity-40' : 'opacity-100';
+    const team1Bright = isCompleted && winner === 'A' ? 'text-white' : isCompleted ? 'text-gray-500' : 'text-white';
+    const team2Bright = isCompleted && winner === 'B' ? 'text-white' : isCompleted ? 'text-gray-500' : 'text-white';
+    const vsColor = isPending ? 'text-gray-500' : 'text-white';
+
+    return (
+      <Card className={`p-4 hover:border-purple-500/50 transition-colors ${rowOpacity}`}>
+        <div className="grid grid-cols-12 gap-4 items-center">
+          {/* LEFT: Time/Status (col-span-2) */}
+          <div className="col-span-2 text-sm">
+            {isPending ? (
+              <div className="text-gray-400">
+                {formatDate(new Date(match.scheduledAt), 'HH:mm')}
+              </div>
+            ) : isCancelled ? (
+              <div className="inline-block px-2 py-1 bg-red-900/20 text-red-400 rounded text-xs font-medium">
+                ĐÃ HỦY
+              </div>
+            ) : (
+              <div className="inline-block px-2 py-1 bg-green-900/20 text-green-400 rounded text-xs font-medium">
+                KẾT THÚC
+              </div>
+            )}
           </div>
 
-          {grp.matches.map((match) => (
-            <Card key={match.id} hover className="p-8 max-w-6xl mx-auto w-full">
-              <div className="flex items-center justify-center w-full">
-                <div className="flex-1 text-right pr-2">
-                  <h4 className="text-2xl font-semibold text-white">{match.team1?.name}</h4>
-                </div>
+          {/* CENTER: Teams & Score (col-span-8) */}
+          <div className="col-span-8">
+            <div className="flex items-center justify-between">
+              {/* Team A */}
+              <div className={`flex items-center space-x-3 flex-1 ${team1Bright} transition-colors`}>
+                {team1Logo ? (
+                  <img
+                    src={normalizeImageUrl(team1Logo)}
+                    alt={team1Name}
+                    className="w-10 h-10 rounded-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = '/default-logo.png';
+                    }}
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gray-700" />
+                )}
+                <span className="font-semibold truncate">
+                  {team1Name}
+                </span>
+              </div>
 
-                <div className="flex-none flex items-center gap-3">
-                  {match.team1?.logo ? (
-                    <img
-                      src={normalizeLogoUrl(match.team1.logo)}
-                      alt={match.team1?.name}
-                      className="w-10 h-10 rounded-full object-cover"
-                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/default-avatar.png'; }}
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-primary-700/20" />
-                  )}
-
-                  <div className="flex flex-col items-center px-3">
-                    {(() => {
-                      const st = (match.status || '').toString().toLowerCase();
-                      const isPending = ['pending', 'scheduled'].includes(st);
-                      const t1 = (match.team1Score ?? 0);
-                      const t2 = (match.team2Score ?? 0);
-                      const isLive = ['live', 'in_progress', 'ongoing', 'running'].includes((match.status || '').toString().toLowerCase());
-
-                      if (isPending) {
-                        return (
-                          <>
-                            <div className="text-3xl font-bold text-gray-300">VS</div>
-                            <div className="text-base text-gray-400 mt-1">Sắp diễn ra</div>
-                          </>
-                        );
-                      }
-
-                      return (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <div className={`text-3xl font-bold transition-colors duration-300 ${isLive ? 'text-red-400 animate-pulse' : (t1 > t2 ? 'text-primary-500' : 'text-white')}`}>{t1}</div>
-                            <div className="text-sm text-gray-300">/</div>
-                            <div className={`text-3xl font-bold transition-colors duration-300 ${isLive ? 'text-red-400 animate-pulse' : (t2 > t1 ? 'text-primary-500' : 'text-white')}`}>{t2}</div>
-                          </div>
-                          <div className="text-base text-gray-400 mt-1">{(() => {
-                            const isCompleted = ['completed', 'done', 'finished'].includes(st);
-                            const isLive = ['live', 'in_progress', 'ongoing', 'running'].includes(st);
-                            if (isCompleted) return 'Kết thúc';
-                            if (isLive) return 'Đang diễn ra';
-                            return 'Sắp diễn ra';
-                          })()}</div>
-                        </>
-                      );
-                    })()}
+              {/* Score or VS */}
+              <div className="mx-6 text-center min-w-[80px]">
+                {isPending ? (
+                  <span className={`${vsColor} font-medium text-sm`}>VS</span>
+                ) : isCancelled ? (
+                  <span className="text-gray-600 text-sm">- : -</span>
+                ) : (
+                  <div className="flex items-center justify-center space-x-2">
+                    <span className={`text-xl font-bold ${team1Bright}`}>
+                      {team1Score}
+                    </span>
+                    <span className="text-gray-600">:</span>
+                    <span className={`text-xl font-bold ${team2Bright}`}>
+                      {team2Score}
+                    </span>
                   </div>
-
-                  {match.team2?.logo ? (
-                    <img
-                      src={normalizeLogoUrl(match.team2.logo)}
-                      alt={match.team2?.name}
-                      className="w-10 h-10 rounded-full object-cover"
-                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/default-avatar.png'; }}
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-primary-700/20" />
-                  )}
-                </div>
-
-                <div className="flex-1 text-left pl-2">
-                  <h4 className="text-2xl font-semibold text-white">{match.team2?.name}</h4>
-                </div>
+                )}
               </div>
 
-              <div className="border-t border-primary-500/10 mt-4 pt-3">
-                <div className="text-center text-base text-primary-500 font-semibold">
-                  {match.tournamentName ? (
-                    <>
-                      {match.tournamentName}
-                      {match.round ? <span className="text-gray-300 font-medium"> &bull; Vòng {match.round}</span> : null}
-                    </>
-                  ) : ''}
-                </div>
+              {/* Team B */}
+              <div className={`flex items-center space-x-3 flex-1 justify-end ${team2Bright} transition-colors`}>
+                <span className="font-semibold truncate">
+                  {team2Name}
+                </span>
+                {team2Logo ? (
+                  <img
+                    src={normalizeImageUrl(team2Logo)}
+                    alt={team2Name}
+                    className="w-10 h-10 rounded-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = '/default-logo.png';
+                    }}
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gray-700" />
+                )}
               </div>
-            </Card>
-          ))}
+            </div>
+
+            {/* Tournament & Round Info */}
+            {(match.tournamentName || match.round) && (
+              <div className="mt-2 text-xs text-gray-500 text-center">
+                {match.tournamentName} {match.round && `• Vòng ${match.round}`}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Action Button (col-span-2) */}
+          <div className="col-span-2 flex justify-end">
+            <button 
+              className="text-gray-400 hover:text-purple-400 transition-colors"
+              onClick={() => {/* TODO: Navigate to match detail */}}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
         </div>
-      ))}
+      </Card>
+    );
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* UPCOMING MATCHES SECTION */}
+      {upcomingGroups.length > 0 && (
+        <div>
+          <h3 className="text-lg font-bold text-white mb-4 flex items-center">
+            <span className="w-1 h-6 bg-purple-500 mr-3"></span>
+            Trận đấu sắp diễn ra
+          </h3>
+          <div className="space-y-6">
+            {upcomingGroups.map((group, idx) => (
+              <div key={idx}>
+                <div className="text-sm text-gray-400 mb-3 font-medium uppercase">
+                  {group.title}
+                </div>
+                <div className="space-y-3">
+                  {group.matches.map((m) => (
+                    <MatchRow key={m.id} match={m} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* HISTORY MATCHES SECTION */}
+      {historyGroups.length > 0 && (
+        <div>
+          <h3 className="text-lg font-bold text-white mb-4 flex items-center">
+            <span className="w-1 h-6 bg-gray-600 mr-3"></span>
+            Lịch sử trận đấu
+          </h3>
+          <div className="space-y-6">
+            {historyGroups.map((group, idx) => (
+              <div key={idx}>
+                <div className="text-sm text-gray-400 mb-3 font-medium uppercase">
+                  {group.title}
+                </div>
+                <div className="space-y-3">
+                  {group.matches.map((m) => (
+                    <MatchRow key={m.id} match={m} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state when both sections are empty */}
+      {upcomingGroups.length === 0 && historyGroups.length === 0 && (
+        <div className="text-center py-12 text-gray-400">
+          Không có trận đấu nào
+        </div>
+      )}
     </div>
   );
 };

@@ -20,6 +20,8 @@ export const getStatusBadge = (status) => {
   );
 };
 
+import { API_URL } from '../../utils/constants';
+
 const TournamentInfo = ({
   tournament,
   teamsLength,
@@ -42,7 +44,27 @@ const TournamentInfo = ({
 
   return (
     <Card padding="lg">
-      <h2 className="text-xl font-bold text-white mb-4">Thông tin giải đấu</h2>
+      {/* Header với ảnh */}
+      <div className="flex items-center gap-6 mb-6">
+        {tournament.image && (
+          <div className="w-32 h-32 rounded-xl overflow-hidden border-2 border-primary-500/50 bg-dark-400 flex-shrink-0 shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300">
+            <img 
+              src={tournament.image.startsWith('http') ? tournament.image : `${API_URL}${tournament.image}`}
+              alt={tournament.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23334155" width="100" height="100"/%3E%3Ctext x="50" y="50" font-size="40" text-anchor="middle" dominant-baseline="middle" fill="%23cbd5e1"%3E🏆%3C/text%3E%3C/svg%3E';
+              }}
+            />
+          </div>
+        )}
+        <div>
+          <h2 className="text-2xl font-bold text-white mb-2">Thông tin giải đấu</h2>
+          {tournament.description && (
+            <p className="text-sm text-gray-400 max-w-2xl line-clamp-2">{tournament.description}</p>
+          )}
+        </div>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-lg p-4 border border-primary-500/30 bg-primary-500/10">
           <span className="text-gray-300 text-sm">Vòng đấu</span>
@@ -105,16 +127,26 @@ const TournamentInfo = ({
           <div className={`${rewardsColClass} p-4 rounded-lg border border-primary-700/10 bg-gradient-to-r from-primary-900/5 to-primary-700/5`}>
             <h4 className="text-sm font-bold text-gray-400 mb-2 text-center">Phần thưởng</h4>
             <div className="w-full">
+              {/* Debug info - remove after checking */}
+              {console.log('🎁 Rewards Debug:', { normalizedRewards, prize_pool: tournament.prize_pool })}
+              
               {(!normalizedRewards || normalizedRewards.length === 0) ? (
-                tournament.prize_pool ? <div className="text-sm text-gray-200 text-center">Tổng: {tournament.prize_pool}</div> : <div className="text-sm text-gray-500 text-center">Chưa có thông tin</div>
+                tournament.prize_pool ? (
+                  <div className="text-center space-y-2">
+                    <div className="text-3xl font-extrabold text-yellow-300">{tournament.prize_pool} ETH</div>
+                    <div className="text-xs text-gray-400">Tổng giải thưởng</div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500 text-center py-4">Chưa có thông tin phần thưởng</div>
+                )
               ) : (
                 <div className="w-full overflow-x-auto">
                   <table className="w-full text-xs text-left table-fixed">
                     <caption className="sr-only">Top rewards</caption>
                     <thead>
                       <tr>
-                        <th className={`${rankHeaderWidth} px-3 py-2 text-xs font-semibold text-white bg-primary-700/95`}>Rank</th>
-                        <th className={`${rewardHeaderWidth} px-3 py-2 text-xs font-semibold text-white bg-primary-700/95`}>Reward</th>
+                        <th className={`${rankHeaderWidth} px-3 py-2 text-xs font-semibold text-white bg-primary-700/95`}>Hạng</th>
+                        <th className={`${rewardHeaderWidth} px-3 py-2 text-xs font-semibold text-white bg-primary-700/95`}>Phần thưởng</th>
                         {showDistribution && (
                           <th className={`${distributionHeaderWidth} px-3 py-2 text-xs font-semibold text-white bg-primary-700/95`}>Phân phối</th>
                         )}

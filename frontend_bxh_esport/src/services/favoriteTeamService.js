@@ -78,6 +78,31 @@ const favoriteTeamService = {
       throw error;
     }
   },
+  // Get followers of a team (users who favorited this team)
+  getFollowers: async (teamId) => {
+    try {
+      const res = await apiClient.get(`${API_ENDPOINTS.TEAMS}/${teamId}/followers`);
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.data) return payload.data;
+      return payload;
+    } catch (error) {
+      console.error('favoriteTeamService.getFollowers error', error);
+      throw error;
+    }
+  },
+
+  // Get following list for a user/team (teams that user follows)
+  getFollowing: async (userId) => {
+    try {
+      const res = await apiClient.get(`${API_ENDPOINTS.TEAMS}/${userId}/following`);
+      const payload = res && res.data ? res.data : res;
+      if (payload && payload.data) return payload.data;
+      return payload;
+    } catch (error) {
+      console.error('favoriteTeamService.getFollowing error', error);
+      throw error;
+    }
+  }
 };
 
 export default favoriteTeamService;

@@ -21,9 +21,26 @@ const normalizeImageUrl = (url) => {
 // 1. Tạo một giải đấu mới
 export const createTournamentWithRewards = async (req, res) => {
   try {
-    const { name, game_id, total_rounds, total_team, rewards, start_date, end_date, registration_fee } = req.body;
-    // rewards = [{ rank: 1, reward_amount: 50 }, { rank: 2, reward_amount: 30 }, ...]
+    let { name, game_id, total_rounds, total_team, rewards, start_date, end_date, registration_fee, description } = req.body;
+    
+    // Parse rewards nếu là JSON string từ FormData
+    if (typeof rewards === 'string') {
+      try {
+        rewards = JSON.parse(rewards);
+      } catch (e) {
+        console.warn('Failed to parse rewards:', e.message);
+        rewards = [];
+      }
+    }
+    
     console.log("Creating tournament with data:", req.body);
+    console.log("Parsed rewards:", rewards);
+    console.log("Uploaded file:", req.file);
+    
+    // Handle uploaded image - tournaments are saved in uploads/tournaments/
+    const image = req.file ? `/uploads/tournaments/${req.file.filename}` : null;
+    console.log("Image path to save:", image);
+    
     if (!name || !total_rounds || !total_team) {
       return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Tên, tổng số vòng và tổng số đội là bắt buộc.'));
     }
@@ -49,7 +66,7 @@ export const createTournamentWithRewards = async (req, res) => {
 
     console.log("BODY:", req.body);
     const result = await models.sequelize.transaction(async (t) => {
-      const tournament = await tournamentService.create({ name, game_id, total_rounds, total_team, start_date, end_date, registration_fee }, { transaction: t });
+      const tournament = await tournamentService.create({ name, game_id, total_rounds, total_team, start_date, end_date, registration_fee, description, image }, { transaction: t });
       if (Array.isArray(rewards) && rewards.length > 0) {
         const rewardsData = rewards.map(r => ({
           tournament_id: tournament.id,
@@ -197,9 +214,10 @@ export const getTournamentStatistics = async (req, res) => {
 
 export const getAllTournaments = async (req, res) => {
   try {
-    const { status, page, limit } = req.query;
-    
-    const result = await tournamentService.findAll(status, page, limit);
+    const { status, page, limit, hasMatches, search, game_id } = req.query;
+    const filters = { hasMatches, search, game_id };
+
+    const result = await tournamentService.findAll(status, page, limit, filters);
     return res.json(responseSuccess(result, 'Lấy danh sách giải đấu thành công'));
   } catch (error) {
     console.error('getAllTournaments error', error);
@@ -278,25 +296,92 @@ export const updateTournamentRewards = async (req, res) => {
   try {
     // Support both `:tournament_id` and `:id` route parameter names (frontend uses /:id)
     const tournamentId = req.params.tournament_id ?? req.params.id;
-    const { rewards } = req.body; // [{ rank, reward_amount }]
+    
+    console.log('📝 updateTournamentRewards called for tournament:', tournamentId);
+    console.log('📝 req.body:', req.body);
+    console.log('📝 req.file:', req.file);
+    
+    // Extract tournament fields and rewards from request body
+    let { name, game_id, total_rounds, total_team, start_date, end_date, description, registration_fee, rewards, image, delete_image } = req.body;
 
-    if (!Array.isArray(rewards)) {
-      return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Cần gửi mảng rewards.'));
+    // Parse rewards if it's a JSON string from FormData
+    if (typeof rewards === 'string') {
+      try {
+        rewards = JSON.parse(rewards);
+        console.log('📝 Parsed rewards from JSON string:', rewards);
+      } catch (e) {
+        console.warn('Failed to parse rewards:', e.message);
+        rewards = [];
+      }
     }
 
-    // Xóa reward cũ
-    await models.TournamentReward.destroy({ where: { tournament_id: tournamentId } });
-
-    // Tạo reward mới
-    for (const r of rewards) {
-      await models.TournamentReward.create({
-        tournament_id: tournamentId,
-        rank: r.rank,
-        reward_amount: r.reward_amount
-      });
+    // Check if tournament exists
+    const tournament = await models.Tournament.findByPk(tournamentId);
+    if (!tournament) {
+      return res.json(responseWithError(ErrorCodes.ERROR_CODE_DATA_NOT_EXIST, 'Giải đấu không tồn tại.'));
     }
 
-    return res.json(responseSuccess(rewards, 'Cập nhật reward thành công'));
+    // Prepare update data for tournament (only update provided fields)
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (game_id !== undefined) updateData.game_id = game_id;
+    if (total_rounds !== undefined) updateData.total_rounds = total_rounds;
+    if (total_team !== undefined) updateData.total_team = total_team;
+    if (start_date !== undefined) updateData.start_date = start_date;
+    if (end_date !== undefined) updateData.end_date = end_date;
+    if (description !== undefined) updateData.description = description;
+    if (registration_fee !== undefined) updateData.registration_fee = registration_fee;
+    
+    // Handle image update
+    if (req.file) {
+      // New image uploaded via multer
+      updateData.image = `/uploads/tournaments/${req.file.filename}`;
+      console.log('📸 New image uploaded:', updateData.image);
+    } else if (delete_image === true || delete_image === 'true') {
+      // User wants to delete the image
+      updateData.image = null;
+      console.log('🗑️ Image marked for deletion');
+    } else if (image !== undefined) {
+      // Keep the existing image URL (sent from frontend)
+      updateData.image = image;
+      console.log('🖼️ Keeping existing image:', image);
+    }
+    // If none of the above, don't update the image field (keep current value in DB)
+
+    // Update tournament information
+    if (Object.keys(updateData).length > 0) {
+      await tournament.update(updateData);
+      console.log('✅ Tournament updated:', updateData);
+    }
+
+    // Update rewards if provided
+    if (Array.isArray(rewards) && rewards.length > 0) {
+      // Delete old rewards
+      await models.TournamentReward.destroy({ where: { tournament_id: tournamentId } });
+
+      // Create new rewards
+      for (const r of rewards) {
+        await models.TournamentReward.create({
+          tournament_id: tournamentId,
+          rank: r.rank,
+          reward_amount: r.reward_amount
+        });
+      }
+      console.log('🎁 Rewards updated:', rewards.length, 'rewards');
+    }
+
+    // Fetch updated tournament with rewards
+    const updatedTournament = await models.Tournament.findByPk(tournamentId, {
+      include: [
+        {
+          model: models.TournamentReward,
+          as: 'rewards',
+          attributes: ['id', 'rank', 'reward_amount']
+        }
+      ]
+    });
+
+    return res.json(responseSuccess(updatedTournament, 'Cập nhật giải đấu và phần thưởng thành công'));
   } catch (err) {
     console.error('updateTournamentRewards error', err);
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, err.message));

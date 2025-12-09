@@ -34,9 +34,9 @@ const Home = () => {
       try {
         // Fetch all tournaments in parallel
         const [pendingResp, ongoingResp, completedResp] = await Promise.all([
-          tournamentService.getAllTournaments({ status: 'pending', isReady: 1 }).catch(() => ({ data: [] })),
-          tournamentService.getAllTournaments({ status: 'ongoing' }).catch(() => ({ data: [] })),
-          tournamentService.getAllTournaments({ status: 'completed' }).catch(() => ({ data: [] })),
+          tournamentService.getAllTournaments({ status: 'PENDING', isReady: 1 }).catch(() => ({ data: [] })),
+          tournamentService.getAllTournaments({ status: 'ACTIVE', isReady: 1 }).catch(() => ({ data: [] })),
+          tournamentService.getAllTournaments({ status: 'COMPLETED' }).catch(() => ({ data: [] })),
         ]);
 
         const extractArray = (resp) => {

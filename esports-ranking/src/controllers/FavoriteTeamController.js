@@ -85,3 +85,29 @@ export const getFavoriteStatus = async (req, res, next) => {
     return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi lấy trạng thái đội yêu thích', error.message));
   }
 };
+
+// Get followers (users who favorited a specific team)
+export const getFollowers = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'Team ID không được để trống'));
+    const result = await favoriteTeamService.getFollowersOfTeam(parseInt(id));
+    return res.json(responseSuccess(result, 'Lấy danh sách followers thành công'));
+  } catch (error) {
+    console.error('getFollowers error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi lấy followers', error.message));
+  }
+};
+
+// Get following (teams followed by a specific user/team)
+export const getFollowing = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!id) return res.json(responseWithError(ErrorCodes.ERROR_REQUEST_DATA_INVALID, 'User ID không được để trống'));
+    const result = await favoriteTeamService.getFollowingByUser(parseInt(id));
+    return res.json(responseSuccess(result, 'Lấy danh sách following thành công'));
+  } catch (error) {
+    console.error('getFollowing error', error);
+    return res.json(responseWithError(ErrorCodes.ERROR_CODE_SYSTEM_ERROR, 'Lỗi lấy following', error.message));
+  }
+};

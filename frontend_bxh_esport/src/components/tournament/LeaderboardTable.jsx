@@ -45,12 +45,10 @@ const LeaderboardTable = ({ data, loading, rewards, showRewardColumn = true }) =
         const rank = Number(value) || 0;
         const colorClass = rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-400' : rank === 3 ? 'text-amber-700' : 'text-gray-400';
         return (
-          <div className="flex flex-col items-start">
-            <div className="flex items-center">
-              <TrophyIcon className={`w-5 h-5 mr-2 ${colorClass}`} />
-              <span className="text-xl">{formatRank(value)}</span>
-            </div>
-              </div>
+          <div className="flex items-center">
+            <TrophyIcon className={`w-5 h-5 mr-2 ${colorClass}`} />
+            <span className="text-lg font-semibold">{formatRank(value)}</span>
+          </div>
         );
       },
     },
@@ -84,15 +82,6 @@ const LeaderboardTable = ({ data, loading, rewards, showRewardColumn = true }) =
           <div className="font-medium text-white">{value || row?.username || '-'}</div>
           {row?.username && <div className="text-xs text-gray-400">@{row.username}</div>}
         </div>
-      ),
-    },
-    {
-      header: 'Ví',
-      accessor: 'wallet',
-      render: (value) => (
-        <span className="text-xs text-gray-400 font-mono">
-          {value ? `${value.slice(0, 6)}...${value.slice(-4)}` : '-'}
-        </span>
       ),
     },
     {
@@ -132,8 +121,6 @@ const LeaderboardTable = ({ data, loading, rewards, showRewardColumn = true }) =
       {
         header: 'Phần thưởng (ETH)',
         accessor: 'reward',
-        headerClassName: 'sticky left-20 bg-dark-500 z-20 text-white',
-        cellClassName: 'sticky left-20 bg-dark-400 z-10 font-medium',
         render: (value, row) => {
           const rank = Number(row?.rank) || 0;
           const colorClass = rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-400' : rank === 3 ? 'text-amber-700' : 'text-gray-200';
@@ -147,9 +134,16 @@ const LeaderboardTable = ({ data, loading, rewards, showRewardColumn = true }) =
         }
       }
     ] : []),
+    {
+      header: 'Ví',
+      accessor: 'wallet',
+      render: (value) => {
+        return value ? `${value.slice(0, 6)}...${value.slice(-4)}` : '-';
+      },
+    },
   ];
 
-  return <Table columns={columns} data={rows} loading={loading} />;
+  return <Table columns={columns} data={rows} loading={loading} noHorizontalScroll={false} />;
 };
 
 export default LeaderboardTable;

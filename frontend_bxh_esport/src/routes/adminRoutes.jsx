@@ -8,6 +8,7 @@ import { MatchResultUpdate } from '../pages/admin/MatchResultUpdate';
 import { RewardDistribution } from '../pages/admin/RewardDistribution';
 import { BlockchainTransactions } from '../pages/admin/BlockchainTransactions';
 import { SystemStatistics } from '../pages/admin/SystemStatistics';
+import { TeamManagerDashboard } from '../pages/team-manager/Dashboard';
 
 export const adminRoutes = [
   { path: '/admin', element: <AdminDashboard /> },

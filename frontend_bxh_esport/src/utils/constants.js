@@ -1,7 +1,7 @@
 // API Base URL
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ;
-// External backend (for stats or alternate API). Use VITE_API_BACKEND in .env to override.
-export const API_BACKEND = import.meta.env.VITE_API_BACKEND ;
+// Default to relative '/api' so Vite dev server proxy (vite.config.js) works
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+export const API_URL = import.meta.env.VITE_API_URL || '';
 
 // Cloudflare Turnstile Site Key
 export const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAAAyourdummysitekey';

@@ -39,6 +39,7 @@ app.use(helmet({
     },
   },
   crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
 // 2. CORS Configuration - MUST be before rate limiting
@@ -108,6 +109,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // 6. XSS Protection - Sanitize all user inputs
 app.use(sanitizeInput);
 
+// Serve uploads (static). CORP is handled by Helmet's crossOriginResourcePolicy above.
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // --- Session middleware ---

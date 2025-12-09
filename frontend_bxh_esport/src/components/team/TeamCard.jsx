@@ -2,24 +2,23 @@ import { Link } from 'react-router-dom';
 import { UsersIcon, TrophyIcon } from '@heroicons/react/24/outline';
 import Card from '../common/Card';
 import { HeartButton } from '../common/HeartButton';
+import { normalizeImageUrl, resolveTeamLogo } from '../../utils/imageHelpers';
 
-export const TeamCard = ({ team, isFavorite = false, onFavoriteChange }) => {
+export const TeamCard = ({ team, isFavorite = false, onFavoriteChange, baseUrl = '/teams' }) => {
   // Support both team object and user object (user with role = team)
   const displayName = team.full_name || team.name || team.username;
   const displaySubtitle = team.email || team.region || team.username;
-  const displayAvatar = team.avatar || team.logo;
-  
-  console.log(`TeamCard - Team ${team.id} (${displayName}) - isFavorite:`, isFavorite);
-  
+  const resolvedAvatar = resolveTeamLogo(team) || normalizeImageUrl(team.avatar || team.logo || team.image) || null;
+
   return (
     <Card hover>
       <div className="flex items-start gap-4">
-        {displayAvatar ? (
+        {resolvedAvatar ? (
           <img
-            src={displayAvatar}
+            src={resolvedAvatar}
             alt={displayName}
             className="w-20 h-20 rounded-lg object-cover"
-            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.style.display = 'none'; }}
+            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/default-logo.png'; }}
           />
         ) : (
           <div className="w-20 h-20 rounded-lg bg-primary-700/20 flex items-center justify-center">
@@ -72,7 +71,7 @@ export const TeamCard = ({ team, isFavorite = false, onFavoriteChange }) => {
       </div>
       
       <Link
-        to={`/teams/${team.id}`}
+        to={`${baseUrl}/${team.id}`}
         className="block w-full mt-4 py-2 text-center bg-primary-500 hover:bg-primary-600 text-white rounded-md transition-colors"
       >
         Xem chi tiết

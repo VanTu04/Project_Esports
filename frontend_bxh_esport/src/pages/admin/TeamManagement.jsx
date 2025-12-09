@@ -73,7 +73,7 @@ export const TeamManagement = () => {
           initialData={editingTeam}
         />
       ) : (
-        <TeamList teams={teams} loading={loading} onEdit={handleEdit} onDelete={handleDelete} />
+        <TeamList teams={teams} loading={loading} onEdit={handleEdit} onDelete={handleDelete} baseUrl="/admin/teams" />
       )}
     </div>
   );

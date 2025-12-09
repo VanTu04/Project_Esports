@@ -33,7 +33,6 @@ const Sidebar = ({ isOpen, onClose, isDashboard = false }) => {
       case USER_ROLES.TEAM_MANAGER:
         return [
           { icon: HomeIcon, label: 'Dashboard', path: ROUTES.TEAM_MANAGER_DASHBOARD },
-          { icon: UserGroupIcon, label: 'Thông tin đội', path: ROUTES.TEAM_MANAGER_INFO },
           { icon: TrophyIcon, label: 'Giải đấu', path: ROUTES.TEAM_MANAGER_TOURNAMENTS },
           { icon: FlagIcon, label: 'Lịch thi đấu', path: ROUTES.TEAM_MANAGER_MATCHES },
           { icon: WalletIcon, label: 'Ví blockchain', path: ROUTES.TEAM_MANAGER_WALLET },
