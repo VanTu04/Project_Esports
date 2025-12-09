@@ -44,8 +44,8 @@ const Header = ({ onMenuClick }) => {
       <div className="max-w-7xl mx-auto flex items-center justify-between px-8 h-20">
         {/* Logo */}
         <div className="flex items-center gap-4">
-          {/* Menu button - chỉ hiển thị khi đã đăng nhập */}
-          {user && (
+          {/* Menu button - chỉ hiển thị khi đã đăng nhập và không phải user thường */}
+          {user && user.role !== USER_ROLES.USER && (
             <button
               onClick={onMenuClick}
               className="p-2 text-gray-400 hover:text-white transition"
@@ -57,12 +57,7 @@ const Header = ({ onMenuClick }) => {
 
           {/* Logo - chỉ hiển thị, không điều hướng */}
           <div className="flex items-center gap-3">
-            <img
-              src="https://cdn-icons-png.flaticon.com/512/5968/5968705.png"
-              alt="EsportChain Logo"
-              className="h-10 w-10"
-            />
-            <span className="text-2xl font-bold text-white tracking-wide">EsportChain</span>
+            <span className="text-2xl font-bold bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent tracking-wide">EsportChain</span>
           </div>
         </div>
 
@@ -70,32 +65,32 @@ const Header = ({ onMenuClick }) => {
         <nav className="hidden lg:flex items-center gap-6 text-base font-semibold text-gray-300">
           <Link 
             to="/" 
-            className={`hover:text-white transition px-2 py-1 rounded ${
-              location.pathname === '/' ? 'text-primary-500 bg-primary-500/10' : ''
+            className={`hover:text-white transition px-2 py-1 relative ${
+              location.pathname === '/' ? 'text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary-500' : ''
             }`}
           >
             Trang chủ
           </Link>
           <Link 
             to="/tournaments" 
-            className={`hover:text-white transition px-2 py-1 rounded ${
-              location.pathname === '/tournaments' ? 'text-primary-500 bg-primary-500/10' : ''
+            className={`hover:text-white transition px-2 py-1 relative ${
+              location.pathname === '/tournaments' ? 'text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary-500' : ''
             }`}
           >
             Giải đấu
           </Link>
           <Link 
             to="/teams" 
-            className={`hover:text-white transition px-2 py-1 rounded ${
-              location.pathname === '/teams' ? 'text-primary-500 bg-primary-500/10' : ''
+            className={`hover:text-white transition px-2 py-1 relative ${
+              location.pathname === '/teams' ? 'text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary-500' : ''
             }`}
           >
             Đội tuyển
           </Link>
           <Link 
             to="/schedule" 
-            className={`hover:text-white transition px-2 py-1 rounded ${
-              location.pathname === '/schedule' ? 'text-primary-500 bg-primary-500/10' : ''
+            className={`hover:text-white transition px-2 py-1 relative ${
+              location.pathname === '/schedule' ? 'text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary-500' : ''
             }`}
           >
             Lịch thi đấu
@@ -162,6 +157,18 @@ const Header = ({ onMenuClick }) => {
                         </Link>
                       )}
                     </Menu.Item>
+                    {user.role === USER_ROLES.USER && (
+                      <Menu.Item>
+                        {({ active }) => (
+                          <Link
+                            to="/users/favorites"
+                            className={`${active ? "bg-neutral-800" : ""} block px-4 py-2 text-base text-gray-300 hover:text-white`}
+                          >
+                            Yêu thích
+                          </Link>
+                        )}
+                      </Menu.Item>
+                    )}
                     <Menu.Item>
                       {({ active }) => (
                         <Link

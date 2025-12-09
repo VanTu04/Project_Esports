@@ -95,14 +95,53 @@ const RegistrationButton = ({ tournament, isTeamView = true, onRegistrationChang
           const confirmRes = await tournamentService.confirmBlockchainRegistration(participant_id, tx.hash);
           const payload = confirmRes?.data?.data ?? confirmRes?.data ?? confirmRes;
           const participant = payload?.data?.participant ?? payload?.participant ?? null;
-          const newStatus = participant ? { status: participant.status, participant } : { status: 'PENDING' };
-          setMyRegistration(newStatus);
-          if (onRegistrationChange) onRegistrationChange(newStatus);
+          
+          if (participant) {
+            const newStatus = { status: participant.status, participant };
+            setMyRegistration(newStatus);
+            if (onRegistrationChange) onRegistrationChange(newStatus);
+          } else {
+            // Nếu không có participant, load lại status
+            const statusRes = await tournamentService.getMyRegistrationStatus(tournament.id);
+            const statusPayload = statusRes?.data?.data ?? statusRes?.data ?? statusRes;
+            const registered = statusPayload?.data?.registered ?? statusPayload?.registered ?? false;
+            const updatedParticipant = statusPayload?.data?.participant ?? statusPayload?.participant ?? null;
+            
+            if (updatedParticipant) {
+              const newStatus = { status: updatedParticipant.status, participant: updatedParticipant };
+              setMyRegistration(newStatus);
+              if (onRegistrationChange) onRegistrationChange(newStatus);
+            } else if (registered) {
+              const pendingStatus = { status: 'WAITING_APPROVAL' };
+              setMyRegistration(pendingStatus);
+              if (onRegistrationChange) onRegistrationChange(pendingStatus);
+            }
+          }
         } catch (e) {
           console.warn('Xác nhận backend thất bại:', e);
-          const pendingStatus = { status: 'PENDING' };
-          setMyRegistration(pendingStatus);
-          if (onRegistrationChange) onRegistrationChange(pendingStatus);
+          // Vẫn cố gắng load lại status từ API
+          try {
+            const statusRes = await tournamentService.getMyRegistrationStatus(tournament.id);
+            const statusPayload = statusRes?.data?.data ?? statusRes?.data ?? statusRes;
+            const registered = statusPayload?.data?.registered ?? statusPayload?.registered ?? false;
+            const updatedParticipant = statusPayload?.data?.participant ?? statusPayload?.participant ?? null;
+            
+            if (updatedParticipant) {
+              const newStatus = { status: updatedParticipant.status, participant: updatedParticipant };
+              setMyRegistration(newStatus);
+              if (onRegistrationChange) onRegistrationChange(newStatus);
+            } else if (registered) {
+              const pendingStatus = { status: 'WAITING_APPROVAL' };
+              setMyRegistration(pendingStatus);
+              if (onRegistrationChange) onRegistrationChange(pendingStatus);
+            }
+          } catch (loadError) {
+            console.warn('Không thể load lại status:', loadError);
+            // Fallback: set WAITING_APPROVAL
+            const pendingStatus = { status: 'WAITING_APPROVAL' };
+            setMyRegistration(pendingStatus);
+            if (onRegistrationChange) onRegistrationChange(pendingStatus);
+          }
         }
       } else {
         showError('Giao dịch thất bại trên blockchain');
@@ -148,33 +187,33 @@ const RegistrationButton = ({ tournament, isTeamView = true, onRegistrationChang
   }
 
   return (
-    <div>
+    <div className="w-full">
       {myRegistration?.status === 'WAITING_APPROVAL' ? (
-        <Button disabled className="w-full bg-yellow-500/20 border-yellow-500/50 text-yellow-300 cursor-not-allowed">
+        <Button disabled className="w-full py-3 bg-yellow-500/20 border-yellow-500/50 text-yellow-300 cursor-not-allowed">
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           Đã đăng ký
         </Button>
       ) : myRegistration?.status === 'APPROVED' ? (
-        <Button disabled className="w-full bg-green-500/20 border-green-500/50 text-green-300 cursor-not-allowed">
+        <Button disabled className="w-full py-3 bg-green-500/20 border-green-500/50 text-green-300 cursor-not-allowed">
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           Đang tham gia
         </Button>
       ) : myRegistration?.status === 'REJECTED' ? (
-        <Button disabled className="w-full bg-red-500/20 border-red-500/50 text-red-300 cursor-not-allowed">
+        <Button disabled className="w-full py-3 bg-red-500/20 border-red-500/50 text-red-300 cursor-not-allowed">
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           Đã bị từ chối
         </Button>
       ) : (
-        <Button onClick={() => handleRegister(tournament)} disabled={registering === tournament.id} className="w-full py-3 text-lg" variant="primary">
+        <Button onClick={() => handleRegister(tournament)} disabled={registering === tournament.id} className="w-full py-3" variant="primary">
           {registering === tournament.id ? (
             <>
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>

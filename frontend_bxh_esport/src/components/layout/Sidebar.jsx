@@ -17,6 +17,11 @@ const Sidebar = ({ isOpen, onClose, isDashboard = false }) => {
   const location = useLocation();
   const { user } = useAuth();
 
+  // Don't render sidebar for regular users
+  if (!user || user.role === USER_ROLES.USER) {
+    return null;
+  }
+
   const getMenuItems = () => {
     const role = user?.role;
 

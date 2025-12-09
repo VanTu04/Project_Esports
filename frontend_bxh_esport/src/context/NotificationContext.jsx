@@ -77,6 +77,9 @@ export const NotificationProvider = ({ children }) => {
     <NotificationContext.Provider value={value}>
       <Toaster
         position="top-right"
+        containerStyle={{
+          top: 90,
+        }}
         // limit visible to 2 to avoid spam
         limit={2}
         toastOptions={toastConfig}

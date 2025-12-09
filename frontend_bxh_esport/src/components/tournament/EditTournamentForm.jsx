@@ -157,11 +157,27 @@ export default function EditTournamentForm({ initialData = {}, onSave, onCancel,
     if (errors[name]) setErrors(prev => { const c = { ...prev }; delete c[name]; return c; });
   };
 
-  const computeSwissBounds = (rounds) => {
-    const r = Number(rounds) || 0;
-    const maxTeams = Math.pow(2, r);
-    const minTeams = Math.max(2, r + 1);
-    return { minTeams, maxTeams };
+  // Tính số vòng Swiss theo công thức chuẩn dựa trên số đội
+  const computeSwissRounds = (n) => {
+    const teams = Number(n) || 0;
+
+    if (teams < 2) {
+      return {
+        min: 0,
+        max: 0,
+        recommendedMin: 0,
+        recommendedMax: 0
+      };
+    }
+
+    const log2Val = Math.ceil(Math.log2(teams));
+
+    return {
+      min: log2Val,            // rounds tối thiểu: log2(n)
+      max: teams - 1,          // rounds tối đa: n-1
+      recommendedMin: log2Val,     // khuyến nghị thấp nhất
+      recommendedMax: log2Val + 2  // khuyến nghị cao nhất
+    };
   };
 
   const validate = () => {
@@ -354,14 +370,20 @@ export default function EditTournamentForm({ initialData = {}, onSave, onCancel,
             />
             {errors.total_rounds && <p className="text-xs text-rose-400 mt-1">{errors.total_rounds}</p>}
             <p className="text-xs text-gray-400 mt-1">Số vòng đấu trong giải (1-20 vòng)</p>
-            <div className="mt-2 text-sm text-gray-300">
-              {(() => {
-                const { minTeams, maxTeams } = computeSwissBounds(form.total_rounds);
-                return (
-                  <div>Gợi ý cho chế độ Thụy Sĩ: tối thiểu <strong>{minTeams}</strong> đội, tối đa khuyến nghị <strong>{maxTeams}</strong> đội (dựa trên {form.total_rounds} vòng).</div>
-                );
-              })()}
-            </div>
+            {form.total_rounds && (
+              <div className="mt-1 text-xs text-gray-300">
+                {(() => {
+                  const rounds = parseInt(form.total_rounds);
+                  if (!rounds || rounds < 1) return null;
+                  // Calculate suggested team range for given rounds
+                  const minTeams = Math.pow(2, rounds - 1) + 1;
+                  const maxTeams = Math.pow(2, rounds);
+                  return (
+                    <div>💡 Với <strong>{rounds}</strong> vòng, gợi ý: <strong>{minTeams}–{maxTeams}</strong> đội tham gia</div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           <div>
@@ -375,17 +397,22 @@ export default function EditTournamentForm({ initialData = {}, onSave, onCancel,
               className={`w-full px-4 py-2.5 border rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors ${errors.expected_teams ? 'border-rose-500' : 'border-primary-700/30'}`}
             />
             {errors.expected_teams && <p className="text-xs text-rose-400 mt-1">{errors.expected_teams}</p>}
-            {form.expected_teams && (() => {
+            <p className="text-xs text-gray-400 mt-1">Số đội dự kiến tham gia giải đấu</p>
+            {form.expected_teams && form.total_rounds && (() => {
               const t = parseInt(form.expected_teams);
-              const { minTeams, maxTeams } = computeSwissBounds(form.total_rounds);
-              if (!t) return null;
-              if (t < minTeams) {
-                return <p className="text-xs text-amber-300 mt-1">Số đội {t} nhỏ hơn tối thiểu khuyến nghị {minTeams} cho {form.total_rounds} vòng. Bạn nên giảm số vòng hoặc thêm đội.</p>;
+              const rounds = parseInt(form.total_rounds);
+              const { min, max, recommendedMin, recommendedMax } = computeSwissRounds(form.expected_teams);
+              if (!t || !rounds) return null;
+              if (rounds < min) {
+                return <p className="text-xs text-amber-300 mt-1">⚠️ Số vòng {rounds} nhỏ hơn tối thiểu ({min} vòng) cho {t} đội</p>;
               }
-              if (t > maxTeams) {
-                return <p className="text-xs text-amber-300 mt-1">Số đội {t} lớn hơn tối đa khuyến nghị {maxTeams} cho {form.total_rounds} vòng. Xem xét tăng số vòng để phân định thứ hạng tốt hơn.</p>;
+              if (rounds > max) {
+                return <p className="text-xs text-amber-300 mt-1">⚠️ Số vòng {rounds} lớn hơn tối đa ({max} vòng) cho {t} đội</p>;
               }
-              return <p className="text-xs text-green-400 mt-1">Số đội {t} nằm trong khoảng khuyến nghị.</p>;
+              if (rounds >= recommendedMin && rounds <= recommendedMax) {
+                return <p className="text-xs text-green-400 mt-1">✓ Số vòng {rounds} phù hợp (khuyến nghị: {recommendedMin}–{recommendedMax} vòng)</p>;
+              }
+              return <p className="text-xs text-blue-400 mt-1">ℹ️ Số vòng {rounds} hợp lệ (khuyến nghị tốt nhất: {recommendedMin}–{recommendedMax} vòng)</p>;
             })()}
           </div>
 

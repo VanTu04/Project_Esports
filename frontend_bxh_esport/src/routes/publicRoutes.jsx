@@ -7,6 +7,7 @@ import { TeamManagerDashboard } from '../pages/team-manager/Dashboard';
 import Wallet from '../pages/public/Wallet';
 import TournamentDetailPage from '../pages/public/TournamentDetailPage';
 import News from '../pages/public/News';
+import { FavoriteTeams } from '../pages/user/FavoriteTeams';
 
 export const publicRoutes = [
   { path: '/', element: <Home /> },
@@ -18,4 +19,5 @@ export const publicRoutes = [
   { path: '/leaderboard', element: <Leaderboard /> },
   { path: '/teams', element: <TeamPublicView /> },
   { path: '/teams/:id', element: <TeamManagerDashboard /> },
+  { path: '/users/favorites', element: <FavoriteTeams /> },
 ];

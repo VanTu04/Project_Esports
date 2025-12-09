@@ -271,7 +271,7 @@ export const TournamentCard = ({ tournament, compact = false }) => {
               fullWidth={true}
               onClick={handleDetailClick}
               className={`
-                text-sm py-2.5 min-h-[40px] font-semibold
+                py-3 min-h-[40px] font-semibold
                 bg-dark-300/50 border border-primary-500/30 text-gray-200
                 hover:bg-primary-500/10 hover:border-primary-500/60 hover:text-white
                 transition-all duration-300 rounded-lg
