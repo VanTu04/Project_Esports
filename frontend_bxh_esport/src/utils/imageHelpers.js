@@ -9,7 +9,7 @@ export function normalizeImageUrl(url) {
   if (!url) return null;
   const path = String(url).trim();
   if (!path) return null;
-  
+  console.log(`[normalizeImageUrl] Normalizing image URL: ${path}`);
   // Already absolute URL
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;

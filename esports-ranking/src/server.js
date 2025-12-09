@@ -64,7 +64,7 @@ const limiter = rateLimit({
   // Skip OPTIONS requests (CORS preflight)
   skip: (req) => req.method === 'OPTIONS',
 });
-app.use('/api/', limiter);
+// app.use('/api/', limiter);
 
 // Stricter rate limit for auth endpoints
 const authLimiter = rateLimit({
@@ -88,8 +88,8 @@ const authLimiter = rateLimit({
     });
   },
 });
-app.use('/api/users/login', authLimiter);
-app.use('/api/users/register', authLimiter);
+// app.use('/api/users/login', authLimiter);
+// app.use('/api/users/register', authLimiter);
 
 // 4. Prevent HTTP Parameter Pollution
 app.use(hpp());
