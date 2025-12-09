@@ -73,7 +73,7 @@ const authLimiter = rateLimit({
   message: {
     code: 429,
     status: 429,
-    message: 'Too many login attempts, please try again after 1 minute.',
+    message: 'Too many login attempts, please try again after 15 minutes.',
   },
   skipSuccessfulRequests: true,
   standardHeaders: true,
@@ -84,7 +84,7 @@ const authLimiter = rateLimit({
     res.status(429).json({
       code: 429,
       status: 429,
-      message: 'Too many login attempts, please try again after 1 minute.',
+      message: 'Too many login attempts, please try again after 15 minutes.',
     });
   },
 });

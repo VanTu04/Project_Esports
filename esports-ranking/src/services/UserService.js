@@ -485,6 +485,7 @@ export const updateProfile = async (userId, { full_name, phone, avatar, descript
   const user = await models.User.findByPk(userId);
 
   if (!user) throw new Error("User không tồn tại");
+
   
   const updateData = {
     full_name,
@@ -497,6 +498,7 @@ export const updateProfile = async (userId, { full_name, phone, avatar, descript
   }
   
   await user.update(updateData);
+
 
   return true;
 };
