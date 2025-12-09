@@ -106,6 +106,7 @@ export const LeaderboardModal = ({
           const avatar = item.avatar ?? resolveTeamLogo(item) ?? null;
           const totalMatches = item.totalMatches ?? item.total_matches ?? item.total_match ?? item.matches ?? item.total ?? 0;
           const buchholzScore = item.buchholzScore ?? item.buchholz_score ?? item.buchholz ?? 0;
+          const sonnebornBerger = item.sonnebornBerger ?? item.sonneborn_berger ?? item.sb ?? 0;
 
           return {
             id: item.userId ?? item.wallet ?? item.id ?? item.team_id ?? `t${idx}`,
@@ -118,12 +119,14 @@ export const LeaderboardModal = ({
             logo: avatar,
             wins: item.wins ?? item.wins_count ?? 0,
             losses: item.losses ?? 0,
+            draws: item.draws ?? 0,
             // normalize score field expected by LeaderboardTable
             points: Number(item.score ?? item.points ?? 0),
             score: Number(item.score ?? item.points ?? 0),
             reward: (rMap ? rMap[idx + 1] : null),
             totalMatches: Number(totalMatches || 0),
             buchholzScore: Number(buchholzScore || 0),
+            sonnebornBerger: Number(sonnebornBerger || 0),
             team: { logo: avatar, name: teamName }
           };
         });
