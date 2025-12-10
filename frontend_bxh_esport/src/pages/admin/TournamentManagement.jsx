@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import tournamentService from '../../services/tournamentService';
 import { getAllGames } from '../../services/gameService';
+import { formatETH } from '../../utils/formatters';
 import CreateTournamentForm from '../../components/tournament/CreateTournamentForm';
 import EditTournamentForm from '../../components/tournament/EditTournamentForm';
 import rewardService from '../../services/rewardService';
@@ -790,7 +791,7 @@ export const TournamentManagement = () => {
               <div>
                 <p className="text-sm text-yellow-300 font-medium">Giải thưởng</p>
                 <p className="text-2xl font-bold text-white mt-1">
-                  {stats.totalPrizePool.toLocaleString()} ETH
+                  {formatETH(stats.totalPrizePool)} ETH
                 </p>
                 <p className="text-xs text-yellow-200 mt-1">Đã phân phối</p>
               </div>

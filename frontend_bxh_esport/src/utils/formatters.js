@@ -1,4 +1,17 @@
 /**
+ * Format ETH amount consistently across the app
+ * @param {number|string} amount - The ETH amount to format
+ * @param {number} decimals - Number of decimal places (default: 4)
+ * @returns {string} Formatted ETH string
+ */
+export const formatETH = (amount, decimals = 4) => {
+  if (amount == null || amount === '') return '0';
+  const num = Number(amount);
+  if (isNaN(num)) return '0';
+  return num.toFixed(decimals);
+};
+
+/**
  * Format match score
  */
 export const formatMatchScore = (team1Score, team2Score) => {
