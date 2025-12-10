@@ -992,6 +992,59 @@ export const startTournamentSwiss = async (req, res) => {
       ));
     }
 
+    // ⭐ Từ chối và hoàn tiền cho các đội WAITING_APPROVAL khi bắt đầu giải đấu
+    const waitingParticipants = await models.Participant.findAll({
+      where: { tournament_id, status: 'WAITING_APPROVAL' },
+      transaction: t
+    });
+
+    if (waitingParticipants.length > 0) {
+      console.log(`Rejecting ${waitingParticipants.length} waiting participants and refunding...`);
+      
+      for (const participant of waitingParticipants) {
+        try {
+          // Cập nhật status = REJECTED
+          await participant.update({
+            status: 'REJECTED',
+            rejection_reason: 'Giải đấu đã đủ số lượng đội và bắt đầu thi đấu.'
+          }, { transaction: t });
+
+          // Hoàn tiền qua blockchain (rejectRegistration tự động hoàn tiền)
+          if (participant.wallet_address && participant.registration_fee) {
+            const refundAmountInEth = participant.registration_fee;
+
+            try {
+              const result = await rejectRegistration(tournament_id, participant.wallet_address);
+              console.log(`Refunded ${refundAmountInEth} ETH to ${participant.wallet_address}, tx: ${result.txHash}`);
+
+              // Lưu transaction history
+              await models.TransactionHistory.create({
+                user_id: participant.user_id,
+                tournament_id: tournament_id,
+                type: 'REFUND',
+                amount: refundAmountInEth,
+                tx_hash: result.txHash,
+                status: 'SUCCESS'
+              }, { transaction: t });
+            } catch (refundError) {
+              console.error(`Failed to refund for participant ${participant.id}:`, refundError);
+              // Không rollback transaction chính, chỉ log lỗi
+              await models.TransactionHistory.create({
+                user_id: participant.user_id,
+                tournament_id: tournament_id,
+                type: 'REFUND',
+                amount: refundAmountInEth,
+                status: 'FAILED',
+                error_message: refundError.message
+              }, { transaction: t });
+            }
+          }
+        } catch (err) {
+          console.error(`Error processing waiting participant ${participant.id}:`, err);
+        }
+      }
+    }
+
     const matchesSoFar = await models.Match.findAll({
       where: { tournament_id },
       transaction: t
