@@ -28,6 +28,9 @@
     const [participantLogos, setParticipantLogos] = useState({});
     const { showError, showSuccess } = useNotification();
 
+    // Determine if this is a single-round tournament
+    const isSingleRound = (tournament?.total_rounds || 0) === 1;
+
     // Modal state moved here from TournamentDetail
     const [selectedMatch, setSelectedMatch] = useState(null);
     const [isUpdateScoreModalOpen, setIsUpdateScoreModalOpen] = useState(false);
