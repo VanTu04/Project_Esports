@@ -174,8 +174,13 @@ export const getTournamentStatistics = async (req, res) => {
     const upcomingTournaments = await models.Tournament.count({ where: { deleted: 0, status: 'PENDING', isReady: 1 } });
     const completedTournaments = await models.Tournament.count({ where: { deleted: 0, status: 'COMPLETED' } });
     
-    // Total teams (approved participants)
-    const totalTeams = await models.Participant.count({ where: { status: 'APPROVED' } });
+    // Total teams (unique users with approved participants - count distinct user_id)
+    const totalTeamsResult = await models.Participant.findAll({
+      where: { status: 'APPROVED' },
+      attributes: [[models.sequelize.fn('COUNT', models.sequelize.fn('DISTINCT', models.sequelize.col('user_id'))), 'count']],
+      raw: true
+    });
+    const totalTeams = Number(totalTeamsResult[0]?.count) || 0;
     
     // Total distributed matches (DONE status only - matches that have been completed and finalized)
     const distributedMatches = await models.Match.count({

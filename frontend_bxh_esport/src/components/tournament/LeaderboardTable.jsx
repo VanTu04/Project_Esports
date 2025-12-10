@@ -1,5 +1,5 @@
 import Table from '../common/Table';
-import { formatRank } from '../../utils/formatters';
+import { formatRank, formatETH } from '../../utils/formatters';
 import { resolveTeamLogo, normalizeImageUrl } from '../../utils/imageHelpers';
 import { TrophyIcon } from '@heroicons/react/24/solid';
 
@@ -136,7 +136,7 @@ const LeaderboardTable = ({ data, loading, rewards, showRewardColumn = true }) =
           const colorClass = rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-400' : rank === 3 ? 'text-amber-700' : 'text-gray-200';
           return (
             value != null && value !== '' ? (
-              <span className={`text-sm font-medium ${colorClass}`}>{Number(value).toFixed(4)}</span>
+              <span className={`text-sm font-medium ${colorClass}`}>{formatETH(value)}</span>
             ) : (
               <span className="text-gray-400">-</span>
             )

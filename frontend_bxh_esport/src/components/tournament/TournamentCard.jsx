@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { CalendarIcon, TrophyIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { formatDate } from '../../utils/helpers';
+import { formatETH } from '../../utils/formatters';
 import Button from '../common/Button'; 
 import Card from '../common/Card'; 
 import { useAuth } from '../../context/AuthContext';
@@ -129,7 +130,7 @@ export const TournamentCard = ({ tournament, compact = false }) => {
           <div className="text-sm text-gray-300 flex items-center gap-3">
              <span className="text-yellow-400 font-semibold flex items-center gap-1">
                <TrophyIcon className="w-4 h-4" />
-               {prize} ETH
+               {formatETH(prize)} ETH
              </span>
              <span className="w-px h-4 bg-primary-500/30"></span>
              <span className="text-gray-400">{formatDate(startDate, 'dd/MM')}</span>
@@ -219,7 +220,7 @@ export const TournamentCard = ({ tournament, compact = false }) => {
             </div>
             <div className="overflow-hidden">
               <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wider mb-0.5">Giải thưởng</p>
-              <p className="text-sm font-bold text-yellow-400 truncate">{prize} ETH</p>
+              <p className="text-sm font-bold text-yellow-400 truncate">{formatETH(prize)} ETH</p>
             </div>
           </div>
 
@@ -233,7 +234,7 @@ export const TournamentCard = ({ tournament, compact = false }) => {
             <div className="overflow-hidden">
               <p className="text-[10px] text-gray-400 uppercase font-semibold tracking-wider mb-0.5">Phí đăng ký</p>
               <p className="text-sm font-bold text-blue-400 truncate">
-                {(tournament.registration_fee && Number(tournament.registration_fee) > 0) ? `${tournament.registration_fee} ETH` : 'Miễn phí'}
+                {(tournament.registration_fee && Number(tournament.registration_fee) > 0) ? `${formatETH(tournament.registration_fee)} ETH` : 'Miễn phí'}
               </p>
             </div>
           </div>

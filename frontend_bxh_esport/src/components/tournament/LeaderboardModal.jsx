@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card } from '../common/Card';
 import Button from '../common/Button';
 import tournamentService from '../../services/tournamentService';
+import { formatETH } from '../../utils/formatters';
 import rewardService from '../../services/rewardService';
 import { apiClient } from '../../services/api';
 import { API_ENDPOINTS } from '../../utils/constants';
@@ -265,13 +266,13 @@ export const LeaderboardModal = ({
               <div>
                 <p className="text-xs text-amber-300 font-medium mb-1">💰 Số dư Contract</p>
                 <p className="text-lg text-white font-bold">
-                  {contractBalance.toFixed(4)} ETH
+                  {formatETH(contractBalance)} ETH
                 </p>
               </div>
               <div>
                 <p className="text-xs text-amber-300 font-medium mb-1">🏆 Tổng giải thưởng cần</p>
                 <p className="text-lg text-white font-bold">
-                  {totalRewardNeeded.toFixed(4)} ETH
+                  {formatETH(totalRewardNeeded)} ETH
                 </p>
               </div>
             </div>

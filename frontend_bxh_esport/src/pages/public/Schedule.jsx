@@ -6,6 +6,7 @@ import TournamentMatches from '../../components/tournament/TournamentMatches';
 import LeaderboardTable from '../../components/tournament/LeaderboardTable';
 import rewardService from '../../services/rewardService';
 import { useNotification } from '../../context/NotificationContext';
+import { formatETH } from '../../utils/formatters';
 
 const Schedule = () => {
   const { showError, showSuccess } = useNotification();
@@ -793,8 +794,8 @@ const Schedule = () => {
 
                     {selectedTournamentObj?.registration_fee && (
                       <div className="p-2 rounded-lg bg-primary-500/10 border border-primary-500/20">
-                        <div className="text-xs text-gray-400 mb-1">Phí đăng ký</div>
-                        <div className="text-sm font-bold text-primary-400">{Number(selectedTournamentObj.registration_fee).toFixed(4)} ETH</div>
+                        <div className="text-xs text-gray-400">Phí đăng ký</div>
+                        <div className="text-sm font-bold text-primary-400">{formatETH(selectedTournamentObj.registration_fee)} ETH</div>
                       </div>
                     )}
                   </div>

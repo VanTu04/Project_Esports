@@ -199,7 +199,9 @@ export default function CreateTournamentForm({ onCreated, onCancel }) {
 
   // Rewards handlers
   const handleAddReward = () => {
-    setForm(prev => ({ ...prev, rewards: [...(prev.rewards || []), { rank: '', reward_amount: '' }] }));
+    const currentRewards = form.rewards || [];
+    const nextRank = currentRewards.length + 1;
+    setForm(prev => ({ ...prev, rewards: [...currentRewards, { rank: nextRank, reward_amount: '' }] }));
   };
 
   const handleRemoveReward = (idx) => {
