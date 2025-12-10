@@ -16,6 +16,7 @@ export const LeaderboardModal = ({
   onClose,
   tournamentId,
   leaderboard,
+  onDistributeSuccess,
 }) => {
   const { showError, showSuccess } = useNotification();
   const [localLeaderboard, setLocalLeaderboard] = useState(leaderboard || []);
@@ -178,6 +179,11 @@ export const LeaderboardModal = ({
         });
         setDistributionsMap(dMap);
 
+        // Reload tournaments list if callback provided
+        if (onDistributeSuccess) {
+          await onDistributeSuccess();
+        }
+
         // Close modal after successful distribution
         onClose();
       } else {
@@ -217,6 +223,11 @@ export const LeaderboardModal = ({
               setDistributionsMap(dMap);
             } catch (e) {
               console.debug('Failed to reload distributions after fallback:', e);
+            }
+
+            // Reload tournaments list if callback provided
+            if (onDistributeSuccess) {
+              await onDistributeSuccess();
             }
 
             // Close modal after successful fallback distribution
