@@ -1139,6 +1139,7 @@ export const TournamentManagement = () => {
         onStatusChange={setStatusEditing}
         onFieldChange={handleChangeField}
         onSave={handleSaveLeaderboard}
+        onDistributeSuccess={loadTournaments}
       />
     </div>
   );
